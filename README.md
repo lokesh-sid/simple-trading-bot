@@ -1,4 +1,4 @@
-LeverageBot
+SimpleTradingBot
 A Spring Boot-based automated trading bot for long positions in cryptocurrency futures markets (e.g., BTC/USDT on Binance Futures or Bybit Futures) with configurable leverage, trailing stop-loss, and optional sentiment analysis from X posts. Uses Redis caching to optimize performance.
 Features
 
@@ -29,7 +29,7 @@ cd LeverageBot
 Configure application.properties with Redis settings and X API credentials (if using sentiment analysis).
 
 Set exchange (Binance by default):
-java -Dexchange=binance -jar LeverageBot-1.0-SNAPSHOT.jar
+java -Dexchange=binance -jar simple-trading-bot-1.0-SNAPSHOT.jar
 
 
 Build and run:

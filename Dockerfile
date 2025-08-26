@@ -11,7 +11,7 @@ FROM amazoncorretto:17-alpine-jdk
 
 WORKDIR /app
 
-COPY --from=build /app/target/LeverageBot-1.0-SNAPSHOT.jar app.jar
+COPY --from=build /app/target/simple-trading-bot-1.0-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
 
