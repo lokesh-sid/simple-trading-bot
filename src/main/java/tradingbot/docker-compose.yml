@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  simpletradingbot:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+    environment:
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - exchange=binance # or bybit
+
+  redis:
+    image: redis:7.0-alpine
+    ports:
+      - "6379:6379"
