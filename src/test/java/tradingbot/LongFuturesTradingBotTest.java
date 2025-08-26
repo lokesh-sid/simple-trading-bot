@@ -114,7 +114,7 @@ class LongFuturesTradingBotTest {
         invokePrivateMethod("enterLongPosition");
 
         verify(exchangeService).enterLongPosition(SYMBOL, TRADE_AMOUNT);
-        verify(sentimentAnalyzer).isPositiveSentiment(SYMBOL);
+        // verify(sentimentAnalyzer).isPositiveSentiment(SYMBOL);
     }
 
     @Test

@@ -7,6 +7,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 
 import org.ta4j.core.BarSeries;
+import org.ta4j.core.BaseBar;
 import org.ta4j.core.BaseBarSeriesBuilder;
 import org.ta4j.core.indicators.bollinger.BollingerBandsLowerIndicator;
 import org.ta4j.core.indicators.bollinger.BollingerBandsMiddleIndicator;
@@ -51,7 +52,7 @@ public class BollingerBandsIndicator implements TechnicalIndicator {
         for (Candle candle : candles) {
             ZonedDateTime endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(candle.getCloseTime()), ZoneId.of("UTC"));
             Duration duration = "1d".equals(timeframe) ? Duration.ofDays(1) : Duration.ofDays(7);
-            series.addBar(new org.ta4j.core.BaseBar(duration, endTime, DecimalNum.valueOf(candle.getOpen()),
+            series.addBar(new BaseBar(duration, endTime, DecimalNum.valueOf(candle.getOpen()),
                     DecimalNum.valueOf(candle.getHigh()), DecimalNum.valueOf(candle.getLow()),
                     DecimalNum.valueOf(candle.getClose()), DecimalNum.valueOf(candle.getVolume()), null));
         }

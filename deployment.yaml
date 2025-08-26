@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simple-trading-bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: simple-trading-bot
+  template:
+    metadata:
+      labels:
+        app: simple-trading-bot
+    spec:
+      containers:
+      - name: simple-trading-bot
+        image: simple-trading-bot:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATA_REDIS_HOST
+          value: redis
+        - name: SPRING_DATA_REDIS_PORT
+          value: "6379"
+        - name: exchange
+          value: "binance" # or bybit

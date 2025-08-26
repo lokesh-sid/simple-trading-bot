@@ -72,23 +72,23 @@ public class LongFuturesTradingBot {
 
     public void setDynamicLeverage(int newLeverage) {
         if (newLeverage < 1 || newLeverage > 125) { // Binance Futures max leverage
-            LOGGER.severe("Invalid leverage value: " + newLeverage);
+            LOGGER.severe(() -> "Invalid leverage value: " + newLeverage);
             throw new IllegalArgumentException("Leverage must be between 1 and 125");
         }
         this.currentLeverage = newLeverage;
         initializeLeverage();
-        LOGGER.info(String.format("Dynamic leverage set to %dx", newLeverage));
+        LOGGER.info(() -> String.format("Dynamic leverage set to %dx", newLeverage));
     }
 
     public void enableSentimentAnalysis(boolean enable) {
         this.sentimentEnabled = enable;
-        LOGGER.info("Sentiment analysis " + (enable ? "enabled" : "disabled"));
+        LOGGER.info(() -> "Sentiment analysis  " + (enable ? "enabled" : "disabled"));
     }
 
     private void initializeLeverage() {
         try {
             exchangeService.setLeverage(config.getSymbol(), currentLeverage);
-            LOGGER.info(String.format("Leverage set to %dx for %s", currentLeverage, config.getSymbol()));
+            LOGGER.info(() -> String.format("Leverage set to %dx for %s", currentLeverage, config.getSymbol()));
         } catch (Exception e) {
             LOGGER.severe("Failed to set leverage: " + e.getMessage());
             throw new RuntimeException("Leverage initialization failed", e);
@@ -96,7 +96,7 @@ public class LongFuturesTradingBot {
     }
 
     private void logInitialization() {
-        LOGGER.info(String.format("Bot initialized for longing %s with %dx leverage, trailing stop: %.2f%%",
+        LOGGER.info(() -> String.format("Bot initialized for longing %s with %dx leverage, trailing stop: %.2f%%",
                 config.getSymbol(), currentLeverage, config.getTrailingStopPercent()));
     }
 
@@ -157,7 +157,7 @@ public class LongFuturesTradingBot {
     }
 
     private void logMarketData(double price, MarketData marketData) {
-        LOGGER.info(String.format("Price: %.2f, Daily RSI: %.2f, Daily MACD: %.2f, Daily Signal: %.2f, " +
+        LOGGER.info(() -> String.format("Price: %.2f, Daily RSI: %.2f, Daily MACD: %.2f, Daily Signal: %.2f, " +
                         "Daily Lower BB: %.2f, Daily Upper BB: %.2f, Weekly RSI: %.2f, Highest Price: %.2f",
                 price, marketData.dailyIndicators.getRsi(), marketData.dailyIndicators.getMacd(),
                 marketData.dailyIndicators.getSignal(), marketData.dailyIndicators.getLowerBand(),
@@ -182,14 +182,15 @@ public class LongFuturesTradingBot {
         double requiredMargin = config.getTradeAmount() * price / currentLeverage;
 
         if (exchangeService.getMarginBalance() < requiredMargin) {
-            LOGGER.warning(String.format("Insufficient margin balance (USDT) to buy %.4f %s with %dx leverage",
+    
+            LOGGER.warning(() -> String.format("Insufficient margin balance (USDT) to buy %.4f %s with %dx leverage",
                     config.getTradeAmount(), config.getSymbol(), currentLeverage));
             return;
         }
 
         try {
             exchangeService.enterLongPosition(config.getSymbol(), config.getTradeAmount());
-            LOGGER.info(String.format("Entered long: Bought %.4f %s at %.2f with %dx leverage",
+            LOGGER.info(() ->String.format("Entered long: Bought %.4f %s at %.2f with %dx leverage",
                     config.getTradeAmount(), config.getSymbol(), price, currentLeverage));
             positionStatus = "long";
             entryPrice = price;
@@ -201,12 +202,12 @@ public class LongFuturesTradingBot {
 
     private void exitLongPosition() {
         double price = exchangeService.getCurrentPrice(config.getSymbol());
-        String baseCurrency = config.getSymbol().replace("USDT", "");
+        // String baseCurrency = config.getSymbol().replace("USDT", "");
 
         try {
             exchangeService.exitLongPosition(config.getSymbol(), config.getTradeAmount());
             double profit = (price - entryPrice) * config.getTradeAmount() * currentLeverage;
-            LOGGER.info(String.format("Exited long: Sold %.4f %s at %.2f with %dx leverage, Profit: %.2f",
+            LOGGER.info(() -> String.format("Exited long: Sold %.4f %s at %.2f with %dx leverage, Profit: %.2f",
                     config.getTradeAmount(), config.getSymbol(), price, currentLeverage, profit));
             positionStatus = null;
             entryPrice = 0.0;

@@ -11,7 +11,7 @@
     <properties>
         <java.version>17</java.version>
         <spring-boot.version>3.2.0</spring-boot.version>
-        <binance-connector.version>1.0.0</binance-connector.version>
+        <binance-connector.version>3.0.5</binance-connector.version>
         <bybit-api.version>1.2.6</bybit-api.version>
         <ta4j.version>0.15</ta4j.version>
         <junit.version>5.9.2</junit.version>
@@ -31,8 +31,8 @@
             <version>${spring-boot.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.binance.api</groupId>
-            <artifactId>binance-api-client</artifactId>
+            <groupId>io.github.binance</groupId>
+            <artifactId>binance-futures-connector-java</artifactId>
             <version>${binance-connector.version}</version>
         </dependency>
         <!--<dependency>
