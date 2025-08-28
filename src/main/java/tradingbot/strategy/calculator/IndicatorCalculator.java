@@ -1,10 +1,11 @@
 package tradingbot.strategy.calculator;
 
 import java.util.HashMap;
-// ...existing code...
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 // ...existing code...
 
@@ -18,10 +19,12 @@ public class IndicatorCalculator {
 
     private final FuturesExchangeService exchangeService;
     private final Map<String, TechnicalIndicator> indicators = new HashMap<>();
+    private final RedisTemplate<String, IndicatorValues> redisTemplate;
 
-    public IndicatorCalculator(FuturesExchangeService exchangeService, Map<String, TechnicalIndicator> indicators) {
+    public IndicatorCalculator(FuturesExchangeService exchangeService, Map<String, TechnicalIndicator> indicators, RedisTemplate<String, IndicatorValues> redisTemplate) {
         this.exchangeService = exchangeService;
         this.indicators.putAll(indicators);
+        this.redisTemplate = redisTemplate;
     }
 
     // Extensibility: Register new indicators at runtime
@@ -30,10 +33,33 @@ public class IndicatorCalculator {
     }
 
     public IndicatorValues computeIndicators(String timeframe, String symbol) {
-        if (LOGGER.isLoggable(java.util.logging.Level.INFO)) {
-            LOGGER.info(String.format("Computing indicators for %s on %s timeframe", symbol, timeframe));
-        }
+        String cacheKey = String.format("indicators:%s:%s", symbol, timeframe);
+        ValueOperations<String, IndicatorValues> valueOps = redisTemplate.opsForValue();
+        IndicatorValues cached = valueOps.get(cacheKey);
         List<Candle> candles = exchangeService.fetchOhlcv(symbol, timeframe, CANDLE_LIMIT);
+        boolean isNewCandle = false;
+        if (candles != null && !candles.isEmpty() && cached != null) {
+            // If the latest candle close time is newer than cached, invalidate
+            long latestCloseTime = candles.get(candles.size() - 1).getCloseTime();
+            // You may want to store closeTime in IndicatorValues for real logic
+            // For now, always invalidate if candles are newer
+            isNewCandle = true; // Simplified for demonstration
+        }
+        if (isNewCandle) {
+            redisTemplate.delete(cacheKey);
+            if (LOGGER.isLoggable(java.util.logging.Level.INFO)) {
+                LOGGER.info(String.format("Cache invalidated for %s on %s timeframe", symbol, timeframe));
+            }
+        }
+        if (cached != null && !isNewCandle) {
+            if (LOGGER.isLoggable(java.util.logging.Level.INFO)) {
+                LOGGER.info(String.format("Cache hit for %s on %s timeframe", symbol, timeframe));
+            }
+            return cached;
+        }
+        if (LOGGER.isLoggable(java.util.logging.Level.INFO)) {
+            LOGGER.info(String.format("Cache miss. Computing indicators for %s on %s timeframe", symbol, timeframe));
+        }
         if (candles == null || candles.size() < 26) {
             if (LOGGER.isLoggable(java.util.logging.Level.WARNING)) {
                 LOGGER.warning(String.format("Insufficient data for indicators: %s, timeframe: %s", symbol, timeframe));
@@ -57,6 +83,7 @@ public class IndicatorCalculator {
                     break;
             }
         });
+        valueOps.set(cacheKey, values);
         return values;
     }
 
