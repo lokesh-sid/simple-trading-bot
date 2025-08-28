@@ -33,7 +33,8 @@ public class TradingBotController {
             tradingBot.sentimentAnalyzer,
             tradingBot.exitConditions,
             tradingBot.config,
-            direction
+            direction, 
+            Boolean.FALSE
         );
         tradingBot.start();
         String mode = paper ? "paper" : "live";

@@ -12,15 +12,15 @@ import tradingbot.strategy.exit.PositionExitCondition;
 import tradingbot.strategy.tracker.TrailingStopTracker;
 
 public class FuturesTradingBot implements TradingAgent {
-    private static final Logger LOGGER = Logger.getLogger(FuturesTradingBot.class.getName());
+    private final Logger logger = Logger.getLogger(FuturesTradingBot.class.getName());
     private static final int CHECK_INTERVAL_SECONDS = 900; // 15 minutes
 
-    FuturesExchangeService exchangeService;
-    IndicatorCalculator indicatorCalculator;
-    TrailingStopTracker trailingStopTracker;
-    SentimentAnalyzer sentimentAnalyzer;
-    List<PositionExitCondition> exitConditions;
-    TradingConfig config;
+    private FuturesExchangeService exchangeService;
+    private IndicatorCalculator indicatorCalculator;
+    private TrailingStopTracker trailingStopTracker;
+    private SentimentAnalyzer sentimentAnalyzer;
+    private List<PositionExitCondition> exitConditions;
+    private TradingConfig config;
     private TradeDirection direction;
     private String positionStatus;
     private double entryPrice;
@@ -28,37 +28,125 @@ public class FuturesTradingBot implements TradingAgent {
     private volatile boolean sentimentEnabled;
     private int currentLeverage;
 
-    public FuturesTradingBot(FuturesExchangeService exchangeService, IndicatorCalculator indicatorCalculator,
-                             TrailingStopTracker trailingStopTracker, SentimentAnalyzer sentimentAnalyzer,
-                             List<PositionExitCondition> exitConditions, TradingConfig config, TradeDirection direction) {
-        this(exchangeService, indicatorCalculator, trailingStopTracker, sentimentAnalyzer, exitConditions, config, direction, false);
-    }
-
-    public FuturesTradingBot(FuturesExchangeService exchangeService, IndicatorCalculator indicatorCalculator,
-                             TrailingStopTracker trailingStopTracker, SentimentAnalyzer sentimentAnalyzer,
-                             List<PositionExitCondition> exitConditions, TradingConfig config, TradeDirection direction, boolean skipLeverageInit) {
-        this.exchangeService = exchangeService;
-        this.indicatorCalculator = indicatorCalculator;
-        this.trailingStopTracker = trailingStopTracker;
-        this.sentimentAnalyzer = sentimentAnalyzer;
-        this.exitConditions = exitConditions;
-        this.config = config;
-        this.direction = direction;
+    public FuturesTradingBot(BotParams params) {
+        this.exchangeService = params.exchangeService;
+        this.indicatorCalculator = params.indicatorCalculator;
+        this.trailingStopTracker = params.trailingStopTracker;
+        this.sentimentAnalyzer = params.sentimentAnalyzer;
+        this.exitConditions = params.exitConditions;
+        this.config = params.config;
+        this.direction = params.direction;
         this.positionStatus = null;
         this.entryPrice = 0.0;
         this.running = false;
         this.sentimentEnabled = false;
         this.currentLeverage = config.getLeverage();
-        if (!skipLeverageInit) {
+        if (!params.skipLeverageInit) {
             initializeLeverage();
         }
         logInitialization();
     }
 
+    public static class BotParams {
+        public FuturesExchangeService exchangeService;
+        public IndicatorCalculator indicatorCalculator;
+        public TrailingStopTracker trailingStopTracker;
+        public SentimentAnalyzer sentimentAnalyzer;
+        public List<PositionExitCondition> exitConditions;
+        public TradingConfig config;
+        public TradeDirection direction;
+        public boolean skipLeverageInit;
+
+        private BotParams() {}
+
+        public static class Builder {
+            private FuturesExchangeService exchangeService;
+            private IndicatorCalculator indicatorCalculator;
+            private TrailingStopTracker trailingStopTracker;
+            private SentimentAnalyzer sentimentAnalyzer;
+            private List<PositionExitCondition> exitConditions;
+            private TradingConfig config;
+            private TradeDirection direction;
+            private boolean skipLeverageInit;
+
+            public Builder exchangeService(FuturesExchangeService exchangeService) {
+                this.exchangeService = exchangeService;
+    // Usage example:
+    // FuturesTradingBot.BotParams params = new FuturesTradingBot.BotParams.Builder()
+    //     .exchangeService(exchangeService)
+    //     .indicatorCalculator(indicatorCalculator)
+    //     .trailingStopTracker(trailingStopTracker)
+    //     .sentimentAnalyzer(sentimentAnalyzer)
+    //     .exitConditions(exitConditions)
+    //     .config(config)
+    //     .direction(direction)
+    //     .skipLeverageInit(false)
+    //     .build();
+    // FuturesTradingBot bot = new FuturesTradingBot(params);
+            public Builder exitConditions(List<PositionExitCondition> exitConditions) {
+                this.exitConditions = exitConditions;
+                return this;
+            }
+
+            public Builder config(TradingConfig config) {
+                this.config = config;
+                return this;
+            }
+
+            public Builder direction(TradeDirection direction) {
+                this.direction = direction;
+                return this;
+            }
+
+            public Builder skipLeverageInit(boolean skipLeverageInit) {
+                this.skipLeverageInit = skipLeverageInit;
+                return this;
+            }
+
+            public Builder indicatorCalculator(IndicatorCalculator indicatorCalculator) {
+                this.indicatorCalculator = indicatorCalculator;
+                return this;
+            }
+
+            public Builder trailingStopTracker(TrailingStopTracker trailingStopTracker) {
+                this.trailingStopTracker = trailingStopTracker;
+                return this;
+            }
+
+            public Builder tradeDirection(TradeDirection direction) {
+                this.direction = direction;
+                return this;
+            }
+
+            public Builder sentimentAnalyzer(SentimentAnalyzer sentimentAnalyzer) {
+                this.sentimentAnalyzer = sentimentAnalyzer;
+                return this;
+            }
+
+            public Builder testMode(boolean testMode) {
+                this.skipLeverageInit = testMode;
+                return this;
+            }
+
+            public BotParams build() {
+                BotParams params = new BotParams();
+                params.exchangeService = this.exchangeService;
+                params.indicatorCalculator = this.indicatorCalculator;
+                params.trailingStopTracker = this.trailingStopTracker;
+                params.sentimentAnalyzer = this.sentimentAnalyzer;
+                params.exitConditions = this.exitConditions;
+                params.config = this.config;
+                params.direction = this.direction;
+                params.skipLeverageInit = this.skipLeverageInit;
+                return params;
+            }
+        }
+    }
+
     @Override
     public void start() {
         if (running) {
-            LOGGER.warning("Trading bot is already running");
+            logger.warning("Trading bot is already running");
             return;
         }
         new Thread(this::run).start();
@@ -81,7 +169,7 @@ public class FuturesTradingBot implements TradingAgent {
                 enterPosition();
             }
         } else {
-            LOGGER.warning("Unsupported market data type for agent");
+            logger.warning("Unsupported market data type for agent");
         }
     }
 
@@ -100,36 +188,36 @@ public class FuturesTradingBot implements TradingAgent {
     public void updateConfig(TradingConfig newConfig) {
         this.config = newConfig;
         initializeLeverage();
-        LOGGER.info("Configuration updated");
+    logger.info("Configuration updated");
     }
 
     public void setDynamicLeverage(int newLeverage) {
         if (newLeverage < 1 || newLeverage > 125) {
-            LOGGER.severe(() -> "Invalid leverage value: " + newLeverage);
+            logger.severe(() -> "Invalid leverage value: " + newLeverage);
             throw new IllegalArgumentException("Leverage must be between 1 and 125");
         }
         this.currentLeverage = newLeverage;
         initializeLeverage();
-        LOGGER.info(() -> String.format("Dynamic leverage set to %dx", newLeverage));
+        logger.info(() -> String.format("Dynamic leverage set to %dx", newLeverage));
     }
 
     public void enableSentimentAnalysis(boolean enable) {
         this.sentimentEnabled = enable;
-        LOGGER.info(() -> "Sentiment analysis  " + (enable ? "enabled" : "disabled"));
+        logger.info(() -> "Sentiment analysis  " + (enable ? "enabled" : "disabled"));
     }
 
     private void initializeLeverage() {
         try {
             exchangeService.setLeverage(config.getSymbol(), currentLeverage);
-            LOGGER.info(() -> String.format("Leverage set to %dx for %s", currentLeverage, config.getSymbol()));
+            logger.info(() -> String.format("Leverage set to %dx for %s", currentLeverage, config.getSymbol()));
         } catch (Exception e) {
-            LOGGER.severe("Failed to set leverage: " + e.getMessage());
+            logger.severe("Failed to set leverage: " + e.getMessage());
             throw new RuntimeException("Leverage initialization failed", e);
         }
     }
 
     private void logInitialization() {
-        LOGGER.info(() -> String.format("Bot initialized for %s %s with %dx leverage, trailing stop: %.2f%%",
+        logger.info(() -> String.format("Bot initialized for %s %s with %dx leverage, trailing stop: %.2f%%",
                 direction == TradeDirection.LONG ? "longing" : "shorting",
                 config.getSymbol(), currentLeverage, config.getTrailingStopPercent()));
     }
@@ -141,11 +229,11 @@ public class FuturesTradingBot implements TradingAgent {
                 processTradingCycle();
                 Thread.sleep(CHECK_INTERVAL_SECONDS * 1000);
             } catch (InterruptedException e) {
-                LOGGER.severe("Trading loop interrupted");
+                logger.severe("Trading loop interrupted");
                 Thread.currentThread().interrupt();
                 running = false;
             } catch (Exception e) {
-                LOGGER.severe("Error in trading cycle: " + e.getMessage());
+                logger.severe("Error in trading cycle: " + e.getMessage());
                 sleepSafely();
             }
         }
@@ -192,7 +280,7 @@ public class FuturesTradingBot implements TradingAgent {
         IndicatorValues dailyIndicators = indicatorCalculator.computeIndicators("1d", config.getSymbol());
         IndicatorValues weeklyIndicators = indicatorCalculator.computeIndicators("1w", config.getSymbol());
         if (dailyIndicators == null || weeklyIndicators == null) {
-            LOGGER.warning("Insufficient data for indicators");
+            logger.warning("Insufficient data for indicators");
             return null;
         }
         cachedMarketData = new MarketData(dailyIndicators, weeklyIndicators);
@@ -200,7 +288,7 @@ public class FuturesTradingBot implements TradingAgent {
     }
 
     private void logMarketData(double price, MarketData marketData) {
-        LOGGER.info(() -> String.format("Price: %.2f, Daily RSI: %.2f, Daily MACD: %.2f, Daily Signal: %.2f, " +
+        logger.info(() -> String.format("Price: %.2f, Daily RSI: %.2f, Daily MACD: %.2f, Daily Signal: %.2f, " +
                         "Daily Lower BB: %.2f, Daily Upper BB: %.2f, Weekly RSI: %.2f, Highest Price: %.2f",
                 price, marketData.dailyIndicators.getRsi(), marketData.dailyIndicators.getMacd(),
                 marketData.dailyIndicators.getSignal(), marketData.dailyIndicators.getLowerBand(),
@@ -237,7 +325,7 @@ public class FuturesTradingBot implements TradingAgent {
         double requiredMargin = config.getTradeAmount() * price / currentLeverage;
 
         if (exchangeService.getMarginBalance() < requiredMargin) {
-            LOGGER.warning(() -> String.format("Insufficient margin balance (USDT) to %s %.4f %s with %dx leverage",
+            logger.warning(() -> String.format("Insufficient margin balance (USDT) to %s %.4f %s with %dx leverage",
                     direction == TradeDirection.LONG ? "buy" : "sell",
                     config.getTradeAmount(), config.getSymbol(), currentLeverage));
             return;
@@ -246,19 +334,19 @@ public class FuturesTradingBot implements TradingAgent {
         try {
             if (direction == TradeDirection.LONG) {
                 exchangeService.enterLongPosition(config.getSymbol(), config.getTradeAmount());
-                LOGGER.info(() ->String.format("Entered long: Bought %.4f %s at %.2f with %dx leverage",
+                logger.info(() ->String.format("Entered long: Bought %.4f %s at %.2f with %dx leverage",
                         config.getTradeAmount(), config.getSymbol(), price, currentLeverage));
                 positionStatus = "long";
             } else {
                 exchangeService.enterShortPosition(config.getSymbol(), config.getTradeAmount());
-                LOGGER.info(() ->String.format("Entered short: Sold %.4f %s at %.2f with %dx leverage",
+                logger.info(() ->String.format("Entered short: Sold %.4f %s at %.2f with %dx leverage",
                         config.getTradeAmount(), config.getSymbol(), price, currentLeverage));
                 positionStatus = "short";
             }
             entryPrice = price;
             trailingStopTracker.initializeTrailingStop(price);
         } catch (Exception e) {
-            LOGGER.severe("Failed to enter " + direction.name().toLowerCase() + " position: " + e.getMessage());
+            logger.severe("Failed to enter " + direction.name().toLowerCase() + " position: " + e.getMessage());
         }
     }
 
@@ -268,19 +356,19 @@ public class FuturesTradingBot implements TradingAgent {
             if (direction == TradeDirection.LONG) {
                 exchangeService.exitLongPosition(config.getSymbol(), config.getTradeAmount());
                 double profit = (price - entryPrice) * config.getTradeAmount() * currentLeverage;
-                LOGGER.info(() -> String.format("Exited long: Sold %.4f %s at %.2f with %dx leverage, Profit: %.2f",
+                logger.info(() -> String.format("Exited long: Sold %.4f %s at %.2f with %dx leverage, Profit: %.2f",
                         config.getTradeAmount(), config.getSymbol(), price, currentLeverage, profit));
             } else {
                 exchangeService.exitShortPosition(config.getSymbol(), config.getTradeAmount());
                 double profit = (entryPrice - price) * config.getTradeAmount() * currentLeverage;
-                LOGGER.info(() -> String.format("Exited short: Bought %.4f %s at %.2f with %dx leverage, Profit: %.2f",
+                logger.info(() -> String.format("Exited short: Bought %.4f %s at %.2f with %dx leverage, Profit: %.2f",
                         config.getTradeAmount(), config.getSymbol(), price, currentLeverage, profit));
             }
             positionStatus = null;
             entryPrice = 0.0;
             trailingStopTracker.reset();
         } catch (Exception e) {
-            LOGGER.severe("Failed to exit " + direction.name().toLowerCase() + " position: " + e.getMessage());
+            logger.severe("Failed to exit " + direction.name().toLowerCase() + " position: " + e.getMessage());
         }
     }
 

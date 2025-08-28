@@ -73,10 +73,29 @@ class FuturesTradingBotTest {
     MockitoAnnotations.openMocks(this);
     config = new TradingConfig(SYMBOL, TRADE_AMOUNT, LEVERAGE, TRAILING_STOP_PERCENT, RSI_PERIOD,
         RSI_OVERSOLD, RSI_OVERBOUGHT, MACD_FAST, MACD_SLOW, MACD_SIGNAL, BB_PERIOD, BB_STD, INTERVAL);
-    longBot = new FuturesTradingBot(exchangeService, indicatorCalculator, trailingStopTracker,
-        sentimentAnalyzer, Arrays.asList(rsiExit, macdExit, liquidationRiskExit), config, TradeDirection.LONG, true);
-    shortBot = new FuturesTradingBot(exchangeService, indicatorCalculator, trailingStopTracker,
-        sentimentAnalyzer, Arrays.asList(rsiExit, macdExit, liquidationRiskExit), config, TradeDirection.SHORT, true);
+    List<PositionExitCondition> exitConditions = Arrays.asList(rsiExit, macdExit, liquidationRiskExit);
+    FuturesTradingBot.BotParams longParams = new FuturesTradingBot.BotParams.Builder()
+        .exchangeService(exchangeService)
+        .indicatorCalculator(indicatorCalculator)
+        .trailingStopTracker(trailingStopTracker)
+        .sentimentAnalyzer(sentimentAnalyzer)
+        .exitConditions(exitConditions)
+        .config(config)
+        .tradeDirection(TradeDirection.LONG)
+        .sentimentAnalyzer(sentimentAnalyzer)
+        .build();
+    FuturesTradingBot.BotParams shortParams = new FuturesTradingBot.BotParams.Builder()
+        .exchangeService(exchangeService)
+        .indicatorCalculator(indicatorCalculator)
+        .trailingStopTracker(trailingStopTracker)
+        .sentimentAnalyzer(sentimentAnalyzer)
+        .exitConditions(exitConditions)
+        .config(config)
+        .tradeDirection(TradeDirection.SHORT)
+        .sentimentAnalyzer(sentimentAnalyzer)
+        .build();
+    longBot = new FuturesTradingBot(longParams);
+    shortBot = new FuturesTradingBot(shortParams);
     when(redisTemplate.opsForValue()).thenReturn(indicatorValueOps);
     when(longRedisTemplate.opsForValue()).thenReturn(longValueOps);
     }
