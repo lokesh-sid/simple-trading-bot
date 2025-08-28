@@ -28,6 +28,20 @@ public class FuturesTradingBot implements TradingAgent {
     private volatile boolean sentimentEnabled;
     private int currentLeverage;
 
+    // Public getters for accessibility
+    public FuturesExchangeService getExchangeService() { return exchangeService; }
+    public IndicatorCalculator getIndicatorCalculator() { return indicatorCalculator; }
+    public TrailingStopTracker getTrailingStopTracker() { return trailingStopTracker; }
+    public SentimentAnalyzer getSentimentAnalyzer() { return sentimentAnalyzer; }
+    public List<PositionExitCondition> getExitConditions() { return exitConditions; }
+    public TradingConfig getConfig() { return config; }
+    public TradeDirection getDirection() { return direction; }
+    public String getPositionStatus() { return positionStatus; }
+    public double getEntryPrice() { return entryPrice; }
+    public boolean isRunning() { return running; }
+    public boolean isSentimentEnabled() { return sentimentEnabled; }
+    public int getCurrentLeverage() { return currentLeverage; }
+
     public FuturesTradingBot(BotParams params) {
         this.exchangeService = params.exchangeService;
         this.indicatorCalculator = params.indicatorCalculator;
@@ -48,14 +62,46 @@ public class FuturesTradingBot implements TradingAgent {
     }
 
     public static class BotParams {
-        public FuturesExchangeService exchangeService;
-        public IndicatorCalculator indicatorCalculator;
-        public TrailingStopTracker trailingStopTracker;
-        public SentimentAnalyzer sentimentAnalyzer;
-        public List<PositionExitCondition> exitConditions;
-        public TradingConfig config;
-        public TradeDirection direction;
-        public boolean skipLeverageInit;
+        private FuturesExchangeService exchangeService;
+        private IndicatorCalculator indicatorCalculator;
+        private TrailingStopTracker trailingStopTracker;
+        private SentimentAnalyzer sentimentAnalyzer;
+        private List<PositionExitCondition> exitConditions;
+        private TradingConfig config;
+        private TradeDirection direction;
+        private boolean skipLeverageInit;
+
+        public FuturesExchangeService getExchangeService() {
+            return exchangeService;
+        }
+
+        public IndicatorCalculator getIndicatorCalculator() {
+            return indicatorCalculator;
+        }
+
+        public TrailingStopTracker getTrailingStopTracker() {
+            return trailingStopTracker;
+        }
+
+        public SentimentAnalyzer getSentimentAnalyzer() {
+            return sentimentAnalyzer;
+        }
+
+        public List<PositionExitCondition> getExitConditions() {
+            return exitConditions;
+        }
+
+        public TradingConfig getConfig() {
+            return config;
+        }
+
+        public TradeDirection getDirection() {
+            return direction;
+        }
+
+        public boolean isSkipLeverageInit() {
+            return skipLeverageInit;
+        }
 
         private BotParams() {}
 
@@ -69,20 +115,24 @@ public class FuturesTradingBot implements TradingAgent {
             private TradeDirection direction;
             private boolean skipLeverageInit;
 
+            // Usage example:
+            // FuturesTradingBot.BotParams params = new FuturesTradingBot.BotParams.Builder()
+            //     .exchangeService(exchangeService)
+            //     .indicatorCalculator(indicatorCalculator)
+            //     .trailingStopTracker(trailingStopTracker)
+            //     .sentimentAnalyzer(sentimentAnalyzer)
+            //     .exitConditions(exitConditions)
+            //     .config(config)
+            //     .direction(direction)
+            //     .skipLeverageInit(false)
+            //     .build();
+            // FuturesTradingBot bot = new FuturesTradingBot(params);
+
             public Builder exchangeService(FuturesExchangeService exchangeService) {
                 this.exchangeService = exchangeService;
-    // Usage example:
-    // FuturesTradingBot.BotParams params = new FuturesTradingBot.BotParams.Builder()
-    //     .exchangeService(exchangeService)
-    //     .indicatorCalculator(indicatorCalculator)
-    //     .trailingStopTracker(trailingStopTracker)
-    //     .sentimentAnalyzer(sentimentAnalyzer)
-    //     .exitConditions(exitConditions)
-    //     .config(config)
-    //     .direction(direction)
-    //     .skipLeverageInit(false)
-    //     .build();
-    // FuturesTradingBot bot = new FuturesTradingBot(params);
+                return this;
+            }
+
             public Builder exitConditions(List<PositionExitCondition> exitConditions) {
                 this.exitConditions = exitConditions;
                 return this;

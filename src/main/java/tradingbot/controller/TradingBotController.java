@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import tradingbot.bot.FuturesTradingBot;
+import tradingbot.bot.FuturesTradingBot.BotParams;
 import tradingbot.bot.TradeDirection;
 import tradingbot.config.TradingConfig;
 import tradingbot.service.FuturesExchangeService;
@@ -25,17 +26,17 @@ public class TradingBotController {
 
     @PostMapping("/start")
     public ResponseEntity<String> startBot(@RequestParam TradeDirection direction, @RequestParam(defaultValue = "false") boolean paper) {
-        FuturesExchangeService exchangeService = paper ? new PaperFuturesExchangeService() : tradingBot.exchangeService;
-        tradingBot = new FuturesTradingBot(
-            exchangeService,
-            tradingBot.indicatorCalculator,
-            tradingBot.trailingStopTracker,
-            tradingBot.sentimentAnalyzer,
-            tradingBot.exitConditions,
-            tradingBot.config,
-            direction, 
-            Boolean.FALSE
-        );
+        FuturesExchangeService exchangeService = paper ? new PaperFuturesExchangeService() : tradingBot.getExchangeService();
+        tradingBot = new FuturesTradingBot(new BotParams.Builder()
+            .exchangeService(exchangeService)
+            .indicatorCalculator(tradingBot.getIndicatorCalculator())
+            .trailingStopTracker(tradingBot.getTrailingStopTracker())
+            .sentimentAnalyzer(tradingBot.getSentimentAnalyzer())
+            .exitConditions(tradingBot.getExitConditions())
+            .config(tradingBot.getConfig())
+            .direction(direction)
+            .skipLeverageInit(paper)
+            .build());
         tradingBot.start();
         String mode = paper ? "paper" : "live";
         return ResponseEntity.ok("Trading bot started in " + direction + " mode (" + mode + ")");
