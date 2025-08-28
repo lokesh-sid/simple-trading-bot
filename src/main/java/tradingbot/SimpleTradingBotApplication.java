@@ -7,6 +7,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.client.RestTemplate;
 
@@ -73,7 +74,7 @@ public class SimpleTradingBotApplication {
         indicators.put("macdSignal", macdSignalIndicator);
         indicators.put("bbLower", bbLowerIndicator);
         indicators.put("bbUpper", bbUpperIndicator);
-        IndicatorCalculator indicatorCalculator = new IndicatorCalculator(exchangeService, indicators);
+        IndicatorCalculator indicatorCalculator = new IndicatorCalculator(exchangeService, indicators, new RedisTemplate<>());
         TrailingStopTracker trailingStopTracker = new TrailingStopTracker(exchangeService, config.getTrailingStopPercent());
         List<PositionExitCondition> exitConditions = Arrays.asList(
                 new TrailingStopExit(trailingStopTracker),
