@@ -310,10 +310,29 @@ class FuturesTradingBotTest {
     void integrationTest_LongAndShortPaperTrading() {
         // Use a PaperFuturesExchangeService for integration
         var paperExchange = new tradingbot.service.PaperFuturesExchangeService();
-        var longPaperBot = new FuturesTradingBot(paperExchange, indicatorCalculator, trailingStopTracker,
-            sentimentAnalyzer, Arrays.asList(rsiExit, macdExit, liquidationRiskExit), config, TradeDirection.LONG, true);
-        var shortPaperBot = new FuturesTradingBot(paperExchange, indicatorCalculator, trailingStopTracker,
-            sentimentAnalyzer, Arrays.asList(rsiExit, macdExit, liquidationRiskExit), config, TradeDirection.SHORT, true);
+        FuturesTradingBot.BotParams longPaperParams = new FuturesTradingBot.BotParams.Builder()
+            .exchangeService(paperExchange)
+            .indicatorCalculator(indicatorCalculator)
+            .trailingStopTracker(trailingStopTracker)
+            .sentimentAnalyzer(sentimentAnalyzer)
+            .exitConditions(Arrays.asList(rsiExit, macdExit, liquidationRiskExit))
+            .config(config)
+            .tradeDirection(TradeDirection.LONG)
+            .sentimentAnalyzer(sentimentAnalyzer)
+            .build();
+        FuturesTradingBot.BotParams shortPaperParams = new FuturesTradingBot.BotParams.Builder()
+            .exchangeService(paperExchange)
+            .indicatorCalculator(indicatorCalculator)
+            .trailingStopTracker(trailingStopTracker)
+            .sentimentAnalyzer(sentimentAnalyzer)
+            .exitConditions(Arrays.asList(rsiExit, macdExit, liquidationRiskExit))
+            .config(config)
+            .tradeDirection(TradeDirection.SHORT)
+            .sentimentAnalyzer(sentimentAnalyzer)
+            .build();
+
+        var longPaperBot = new FuturesTradingBot(longPaperParams);
+        var shortPaperBot = new FuturesTradingBot(shortPaperParams);
 
         // Simulate technical conditions for long
         when(indicatorCalculator.computeIndicators("1d", SYMBOL)).thenReturn(new IndicatorValues());
