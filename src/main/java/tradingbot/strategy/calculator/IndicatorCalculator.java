@@ -12,7 +12,7 @@ import tradingbot.service.BinanceFuturesService.Candle;
 import tradingbot.service.FuturesExchangeService;
 import tradingbot.strategy.indicator.TechnicalIndicator;
 
-public final class IndicatorCalculator {
+public class IndicatorCalculator {
     private static final Logger LOGGER = Logger.getLogger(IndicatorCalculator.class.getName());
     private static final int CANDLE_LIMIT = 100;
 

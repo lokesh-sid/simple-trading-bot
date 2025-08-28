@@ -10,7 +10,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.client.RestTemplate;
 
-import tradingbot.bot.LongFuturesTradingBot;
+import tradingbot.bot.FuturesTradingBot;
+import tradingbot.bot.FuturesTradingBot.BotParams;
+import tradingbot.bot.TradeDirection;
 import tradingbot.config.TradingConfig;
 import tradingbot.service.BinanceFuturesService;
 import tradingbot.service.FuturesExchangeService;
@@ -19,7 +21,6 @@ import tradingbot.strategy.calculator.IndicatorCalculator;
 import tradingbot.strategy.exit.LiquidationRiskExit;
 import tradingbot.strategy.exit.MACDExit;
 import tradingbot.strategy.exit.PositionExitCondition;
-import tradingbot.strategy.exit.RSIExit;
 import tradingbot.strategy.exit.TrailingStopExit;
 import tradingbot.strategy.indicator.BollingerBandsIndicator;
 import tradingbot.strategy.indicator.MACDTechnicalIndicator;
@@ -54,22 +55,42 @@ public class SimpleTradingBotApplication {
     }
 
     @Bean
-    public LongFuturesTradingBot tradingBot(FuturesExchangeService exchangeService) {
+    public SentimentAnalyzer sentimentAnalyzer(RestTemplate restTemplate) {
+        return new SentimentAnalyzer(restTemplate);
+    }
+
+    @Bean
+    public FuturesTradingBot tradingBot(FuturesExchangeService exchangeService, SentimentAnalyzer sentimentAnalyzer) {
         TradingConfig config = new TradingConfig();
         TechnicalIndicator rsiIndicator = new RSITechnicalIndicator(config.getLookbackPeriodRsi());
         TechnicalIndicator macdIndicator = new MACDTechnicalIndicator(config.getMacdFastPeriod(), config.getMacdSlowPeriod(), config.getMacdSignalPeriod(), false);
         TechnicalIndicator macdSignalIndicator = new MACDTechnicalIndicator(config.getMacdFastPeriod(), config.getMacdSlowPeriod(), config.getMacdSignalPeriod(), true);
         TechnicalIndicator bbLowerIndicator = new BollingerBandsIndicator(config.getBbPeriod(), config.getBbStandardDeviation(), true);
         TechnicalIndicator bbUpperIndicator = new BollingerBandsIndicator(config.getBbPeriod(), config.getBbStandardDeviation(), false);
-        IndicatorCalculator indicatorCalculator = new IndicatorCalculator(exchangeService, rsiIndicator, macdIndicator, macdSignalIndicator, bbLowerIndicator, bbUpperIndicator);
+        java.util.Map<String, TechnicalIndicator> indicators = new java.util.HashMap<>();
+        indicators.put("rsi", rsiIndicator);
+        indicators.put("macd", macdIndicator);
+        indicators.put("macdSignal", macdSignalIndicator);
+        indicators.put("bbLower", bbLowerIndicator);
+        indicators.put("bbUpper", bbUpperIndicator);
+        IndicatorCalculator indicatorCalculator = new IndicatorCalculator(exchangeService, indicators);
         TrailingStopTracker trailingStopTracker = new TrailingStopTracker(exchangeService, config.getTrailingStopPercent());
-        SentimentAnalyzer sentimentAnalyzer = new SentimentAnalyzer(restTemplate());
         List<PositionExitCondition> exitConditions = Arrays.asList(
                 new TrailingStopExit(trailingStopTracker),
-                new RSIExit(indicatorCalculator, config.getRsiOverboughtThreshold()),
                 new MACDExit(indicatorCalculator),
                 new LiquidationRiskExit(exchangeService, trailingStopTracker, config)
         );
-        return new LongFuturesTradingBot(exchangeService, indicatorCalculator, trailingStopTracker, sentimentAnalyzer, exitConditions, config);
+        // Use BotParams to pass all required parameters
+        BotParams botParams = new BotParams.Builder()
+            .exchangeService(exchangeService)
+            .indicatorCalculator(indicatorCalculator)
+            .trailingStopTracker(trailingStopTracker)
+            .sentimentAnalyzer(sentimentAnalyzer)
+            .exitConditions(exitConditions)
+            .config(config)
+            .tradeDirection(TradeDirection.LONG)
+            .testMode(false) // or true, depending on your needs
+            .build();
+        return new FuturesTradingBot(botParams);
     }
 }
