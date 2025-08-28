@@ -98,11 +98,33 @@ public class BinanceFuturesService implements FuturesExchangeService {
     }
 
     @Override
+    public void enterShortPosition(String symbol, double tradeAmount) {
+        LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+        parameters.put("symbol", symbol);
+        parameters.put("side", "SELL");
+        parameters.put("positionSide", "SHORT");
+        parameters.put("type", "MARKET");
+        parameters.put("quantity", tradeAmount);
+        futuresClient.account().newOrder(parameters);
+    }
+
+    @Override
     public void exitLongPosition(String symbol, double tradeAmount) {
         LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
         parameters.put("symbol", symbol);
         parameters.put("side", "SELL");
         parameters.put("positionSide", "LONG");
+        parameters.put("type", "MARKET");
+        parameters.put("quantity", tradeAmount);
+        futuresClient.account().newOrder(parameters);
+    }
+
+    @Override
+    public void exitShortPosition(String symbol, double tradeAmount) {
+        LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+        parameters.put("symbol", symbol);
+        parameters.put("side", "BUY");
+        parameters.put("positionSide", "SHORT");
         parameters.put("type", "MARKET");
         parameters.put("quantity", tradeAmount);
         futuresClient.account().newOrder(parameters);

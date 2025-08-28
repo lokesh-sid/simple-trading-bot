@@ -1,11 +1,15 @@
+
 # Simple-trading-bot
 
-A Spring Boot-based automated trading bot for long positions in cryptocurrency futures markets (e.g., BTC/USDT on Binance Futures) with configurable leverage, trailing stop-loss, and optional sentiment analysis from X posts. Uses Redis caching to optimize performance.
+A Spring Boot-based automated trading bot for long and short positions in cryptocurrency futures markets (e.g., BTC/USDT on Binance Futures) with configurable leverage, trailing stop-loss, optional sentiment analysis from X posts, and support for paper trading. Uses Redis caching to optimize performance. Built for extensibility and testability.
 
 ## Features
 
 - Agent-based architecture: Each trading bot is an agent, managed by an AgentManager for multi-bot deployments.
-- Executes long positions using technical indicators (RSI, MACD, Bollinger Bands) on daily ("1d") and weekly ("1w") timeframes.
+- Executes long and short positions using technical indicators (RSI, MACD, Bollinger Bands) on daily ("1d") and weekly ("1w") timeframes.
+- Paper trading mode: Simulate trades and margin using in-memory logic for safe testing and strategy development.
+- Extensible indicator architecture: Easily add new technical indicators via configuration or code.
+- Improved testability: All dependencies are injected for easy mocking and unit testing.
 - Configurable leverage (default 3x), adjustable via REST API.
 - Trailing stop-loss (1%) to maximize profits during uptrends.
 - Optional sentiment analysis from X posts for entry decisions.
@@ -106,14 +110,40 @@ Access the service (use LoadBalancer or port-forward for minikube):
 
 Access at http://localhost:8080.  
 
+
 ### Usage
 
-    Start Bot: POST /api/simple-trading-bot/start   
-    Stop Bot: POST /api/simple-trading-bot/stop   
-    Get Status: GET /api/simple-trading-bot/status    
-    Update Config: POST /api/simple-trading-bot/configure with JSON body (e.g., {"symbol":"BTCUSDT","tradeAmount":0.001,...})     
-    Set Leverage: POST /api/simple-trading-bot/leverage?leverage=5       
-    Enable/Disable Sentiment: POST /api/simple-trading-bot/sentiment?enable=true
+Start Bot (Long/Short, Live/Paper):
+```http
+POST /api/simple-trading-bot/start?direction=LONG&paper=true
+POST /api/simple-trading-bot/start?direction=SHORT&paper=false
+```
+
+Stop Bot:
+```http
+POST /api/simple-trading-bot/stop
+```
+
+Get Status:
+```http
+GET /api/simple-trading-bot/status
+```
+
+Update Config:
+```http
+POST /api/simple-trading-bot/configure
+Body: {"symbol":"BTCUSDT","tradeAmount":0.001,...}
+```
+
+Set Leverage:
+```http
+POST /api/simple-trading-bot/leverage?leverage=5
+```
+
+Enable/Disable Sentiment:
+```http
+POST /api/simple-trading-bot/sentiment?enable=true
+```
 
 ### Testing
   Run unit tests:
@@ -126,6 +156,21 @@ Access at http://localhost:8080.
 1. Install Redis (e.g., sudo apt install redis-server on Ubuntu).    
 2. Start Redis: redis-server.    
 3. Configure spring.data.redis.host and port in application.properties.
+
+
+### Paper Trading
+
+To safely test strategies, start the bot in paper mode (`paper=true`). All trades and margin are simulated in memory. No real funds are used or at risk.
+
+### Extending Indicators
+
+Add new technical indicators by implementing the `TechnicalIndicator` interface and registering them in the `IndicatorCalculator` via code or configuration. The bot will automatically compute and use all registered indicators.
+
+### Testability
+
+All dependencies are injected via constructors, making it easy to mock services and indicators for unit testing.
+
+---
 
 Disclaimer    
 This is for educational purposes only. Leveraged trading is risky and may result in total loss of capital.    

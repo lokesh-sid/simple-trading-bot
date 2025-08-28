@@ -1,9 +1,5 @@
 package tradingbot.bot;
 
-public enum TradeDirection {
-    LONG,
-    SHORT
-}
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -16,14 +12,14 @@ import tradingbot.strategy.exit.PositionExitCondition;
 import tradingbot.strategy.tracker.TrailingStopTracker;
 
 public class FuturesTradingBot implements TradingAgent {
-    private static final Logger LOGGER = Logger.getLogger(LongFuturesTradingBot.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(FuturesTradingBot.class.getName());
     private static final int CHECK_INTERVAL_SECONDS = 900; // 15 minutes
 
-    final FuturesExchangeService exchangeService;
-    final IndicatorCalculator indicatorCalculator;
-    final TrailingStopTracker trailingStopTracker;
-    final SentimentAnalyzer sentimentAnalyzer;
-    final List<PositionExitCondition> exitConditions;
+    FuturesExchangeService exchangeService;
+    IndicatorCalculator indicatorCalculator;
+    TrailingStopTracker trailingStopTracker;
+    SentimentAnalyzer sentimentAnalyzer;
+    List<PositionExitCondition> exitConditions;
     TradingConfig config;
     private TradeDirection direction;
     private String positionStatus;
@@ -78,7 +74,6 @@ public class FuturesTradingBot implements TradingAgent {
 
     @Override
     public void processMarketData(Object marketData) {
-        // Accepts MarketData or IndicatorValues, processes trading cycle for agent use
         if (marketData instanceof MarketData) {
             MarketData md = (MarketData) marketData;
             logMarketData(exchangeService.getCurrentPrice(config.getSymbol()), md);
@@ -92,7 +87,6 @@ public class FuturesTradingBot implements TradingAgent {
 
     @Override
     public void executeTrade() {
-        // Executes trade if entry signal is valid
         MarketData marketData = fetchMarketData();
         if (marketData != null && !isInPosition() && isEntrySignalValid(marketData)) {
             enterPosition();
@@ -110,7 +104,7 @@ public class FuturesTradingBot implements TradingAgent {
     }
 
     public void setDynamicLeverage(int newLeverage) {
-        if (newLeverage < 1 || newLeverage > 125) { // Binance Futures max leverage
+        if (newLeverage < 1 || newLeverage > 125) {
             LOGGER.severe(() -> "Invalid leverage value: " + newLeverage);
             throw new IllegalArgumentException("Leverage must be between 1 and 125");
         }
@@ -135,7 +129,8 @@ public class FuturesTradingBot implements TradingAgent {
     }
 
     private void logInitialization() {
-        LOGGER.info(() -> String.format("Bot initialized for longing %s with %dx leverage, trailing stop: %.2f%%",
+        LOGGER.info(() -> String.format("Bot initialized for %s %s with %dx leverage, trailing stop: %.2f%%",
+                direction == TradeDirection.LONG ? "longing" : "shorting",
                 config.getSymbol(), currentLeverage, config.getTrailingStopPercent()));
     }
 

@@ -19,21 +19,29 @@ public class SentimentAnalyzer {
 
     public boolean isPositiveSentiment(String symbol) {
         try {
-            // Placeholder: In production, call X API with proper authentication
-            // Example: String response = restTemplate.getForObject(X_API_URL + "?symbol=" + symbol, String.class);
-            // Parse sentiment score (e.g., JSON response)
-            LOGGER.info("Fetching sentiment for " + symbol + " from X posts");
-            double sentimentScore = fetchSentimentFromX(symbol);
+            if (LOGGER.isLoggable(java.util.logging.Level.INFO)) {
+                LOGGER.info(String.format("Fetching sentiment for %s from X posts", symbol));
+            }
+            double sentimentScore = 0.7; // Placeholder positive sentiment score
             return sentimentScore > SENTIMENT_THRESHOLD;
         } catch (Exception e) {
             LOGGER.severe("Failed to fetch sentiment: " + e.getMessage());
-            return false; // Default to false on failure
+            return false;
         }
     }
 
-    private double fetchSentimentFromX(String symbol) {
-        // Simulate sentiment analysis (replace with actual API call)
-        // In practice, use restTemplate to query X API or integrate provided tool
-        return 0.7; // Placeholder positive sentiment score
+    public boolean isNegativeSentiment(String symbol) {
+        try {
+            if (LOGGER.isLoggable(java.util.logging.Level.INFO)) {
+                LOGGER.info(String.format("Fetching sentiment for %s from X posts", symbol));
+            }
+            double sentimentScore = 0.7; // Placeholder positive sentiment score
+            return sentimentScore < (1.0 - SENTIMENT_THRESHOLD);
+        } catch (Exception e) {
+            LOGGER.severe("Failed to fetch sentiment: " + e.getMessage());
+            return false;
+        }
     }
+
+    // ...existing code...
 }

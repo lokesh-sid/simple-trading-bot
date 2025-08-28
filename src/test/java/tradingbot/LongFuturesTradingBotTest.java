@@ -15,9 +15,8 @@ import org.mockito.MockitoAnnotations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import tradingbot.bot.LongFuturesTradingBot;
+import tradingbot.bot.FuturesTradingBot;
+import tradingbot.bot.TradeDirection;
 import tradingbot.config.TradingConfig;
 import tradingbot.service.BinanceFuturesService;
 import tradingbot.service.FuturesExchangeService;
@@ -67,17 +66,15 @@ class LongFuturesTradingBotTest {
     private ValueOperations<String, Long> longValueOps;
 
     private TradingConfig config;
-    private LongFuturesTradingBot bot;
-    private ObjectMapper objectMapper;
+    private FuturesTradingBot bot;
 
     @BeforeEach
     void setUp() {
     MockitoAnnotations.openMocks(this);
     config = new TradingConfig(SYMBOL, TRADE_AMOUNT, LEVERAGE, TRAILING_STOP_PERCENT, RSI_PERIOD,
         RSI_OVERSOLD, RSI_OVERBOUGHT, MACD_FAST, MACD_SLOW, MACD_SIGNAL, BB_PERIOD, BB_STD, INTERVAL);
-    bot = new LongFuturesTradingBot(exchangeService, indicatorCalculator, trailingStopTracker,
-        sentimentAnalyzer, Arrays.asList(rsiExit, macdExit, liquidationRiskExit), config, true);
-    objectMapper = new ObjectMapper();
+    bot = new FuturesTradingBot(exchangeService, indicatorCalculator, trailingStopTracker,
+        sentimentAnalyzer, Arrays.asList(rsiExit, macdExit, liquidationRiskExit), config, TradeDirection.LONG, true);
     when(redisTemplate.opsForValue()).thenReturn(indicatorValueOps);
     when(longRedisTemplate.opsForValue()).thenReturn(longValueOps);
     }
@@ -97,7 +94,7 @@ class LongFuturesTradingBotTest {
         when(indicatorCalculator.computeIndicators("1d", SYMBOL)).thenReturn(dailyIndicators);
         when(indicatorCalculator.computeIndicators("1w", SYMBOL)).thenReturn(weeklyIndicators);
 
-        invokePrivateMethod("enterLongPosition");
+    invokePrivateMethod("enterPosition");
 
         verify(exchangeService).enterLongPosition(SYMBOL, TRADE_AMOUNT);
         verify(trailingStopTracker).initializeTrailingStop(50000.0);
@@ -120,7 +117,7 @@ class LongFuturesTradingBotTest {
         when(indicatorCalculator.computeIndicators("1w", SYMBOL)).thenReturn(weeklyIndicators);
         when(sentimentAnalyzer.isPositiveSentiment(SYMBOL)).thenReturn(true);
 
-        invokePrivateMethod("enterLongPosition");
+    invokePrivateMethod("enterPosition");
 
         verify(exchangeService).enterLongPosition(SYMBOL, TRADE_AMOUNT);
     }
@@ -140,7 +137,7 @@ class LongFuturesTradingBotTest {
         when(indicatorCalculator.computeIndicators("1d", SYMBOL)).thenReturn(dailyIndicators);
         when(indicatorCalculator.computeIndicators("1w", SYMBOL)).thenReturn(weeklyIndicators);
 
-        invokePrivateMethod("enterLongPosition");
+    invokePrivateMethod("enterPosition");
 
         verify(exchangeService, never()).enterLongPosition(anyString(), anyDouble());
     }
@@ -151,7 +148,7 @@ class LongFuturesTradingBotTest {
         when(trailingStopTracker.checkTrailingStop(anyDouble())).thenReturn(true);
         when(exchangeService.getCurrentPrice(SYMBOL)).thenReturn(49000.0);
 
-        invokePrivateMethod("exitLongPosition");
+    invokePrivateMethod("exitPosition");
 
         verify(exchangeService).exitLongPosition(SYMBOL, TRADE_AMOUNT);
         verify(trailingStopTracker).reset();
@@ -163,7 +160,7 @@ class LongFuturesTradingBotTest {
         when(rsiExit.shouldExit()).thenReturn(true);
         when(exchangeService.getCurrentPrice(SYMBOL)).thenReturn(49000.0);
 
-        invokePrivateMethod("exitLongPosition");
+    invokePrivateMethod("exitPosition");
 
         verify(exchangeService).exitLongPosition(SYMBOL, TRADE_AMOUNT);
         verify(trailingStopTracker).reset();
@@ -248,14 +245,14 @@ class LongFuturesTradingBotTest {
     }
 
     private void setPosition(String position) throws Exception {
-        var field = LongFuturesTradingBot.class.getDeclaredField("positionStatus");
+    var field = FuturesTradingBot.class.getDeclaredField("positionStatus");
         field.setAccessible(true);
         field.set(bot, position);
     }
 
     private void invokePrivateMethod(String methodName) {
         try {
-            var method = LongFuturesTradingBot.class.getDeclaredMethod(methodName);
+        var method = FuturesTradingBot.class.getDeclaredMethod(methodName);
             method.setAccessible(true);
             method.invoke(bot);
         } catch (Exception e) {
@@ -275,7 +272,7 @@ class LongFuturesTradingBotTest {
 
     private boolean getFieldValue(String fieldName) {
         try {
-            var field = LongFuturesTradingBot.class.getDeclaredField(fieldName);
+        var field = FuturesTradingBot.class.getDeclaredField(fieldName);
             field.setAccessible(true);
             return (boolean) field.get(bot);
         } catch (Exception e) {

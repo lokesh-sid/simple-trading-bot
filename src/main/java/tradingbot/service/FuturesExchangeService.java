@@ -11,4 +11,6 @@ public interface FuturesExchangeService {
     void setLeverage(String symbol, int leverage);
     void enterLongPosition(String symbol, double tradeAmount);
     void exitLongPosition(String symbol, double tradeAmount);
+    void enterShortPosition(String symbol, double tradeAmount);
+    void exitShortPosition(String symbol, double tradeAmount);
 }

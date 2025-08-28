@@ -8,22 +8,36 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import tradingbot.bot.LongFuturesTradingBot;
+import tradingbot.bot.FuturesTradingBot;
+import tradingbot.bot.TradeDirection;
 import tradingbot.config.TradingConfig;
+import tradingbot.service.FuturesExchangeService;
+import tradingbot.service.PaperFuturesExchangeService;
 
 @RestController
 @RequestMapping("/api/simple-trading-bot")
 public class TradingBotController {
-    private final LongFuturesTradingBot tradingBot;
+    private FuturesTradingBot tradingBot;
 
-    public TradingBotController(LongFuturesTradingBot tradingBot) {
+    public TradingBotController(FuturesTradingBot tradingBot) {
         this.tradingBot = tradingBot;
     }
 
     @PostMapping("/start")
-    public ResponseEntity<String> startBot() {
+    public ResponseEntity<String> startBot(@RequestParam TradeDirection direction, @RequestParam(defaultValue = "false") boolean paper) {
+        FuturesExchangeService exchangeService = paper ? new PaperFuturesExchangeService() : tradingBot.exchangeService;
+        tradingBot = new FuturesTradingBot(
+            exchangeService,
+            tradingBot.indicatorCalculator,
+            tradingBot.trailingStopTracker,
+            tradingBot.sentimentAnalyzer,
+            tradingBot.exitConditions,
+            tradingBot.config,
+            direction
+        );
         tradingBot.start();
-        return ResponseEntity.ok("Trading bot started");
+        String mode = paper ? "paper" : "live";
+        return ResponseEntity.ok("Trading bot started in " + direction + " mode (" + mode + ")");
     }
 
     @PostMapping("/stop")
