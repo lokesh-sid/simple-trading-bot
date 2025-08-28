@@ -1,0 +1,34 @@
+{
+  "family": "simple-trading-bot-task",
+  "networkMode": "awsvpc",
+  "containerDefinitions": [
+    {
+      "name": "simple-trading-bot",
+      "image": "<your-aws-account-id>.dkr.ecr.<region>.amazonaws.com/simple-trading-bot:latest",
+      "memory": 512,
+      "cpu": 256,
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "JAVA_OPTS", "value": "-Xmx512m" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/simple-trading-bot",
+          "awslogs-region": "<region>",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ],
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512"
+}

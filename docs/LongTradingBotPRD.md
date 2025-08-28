@@ -1,7 +1,7 @@
 Product Requirements Document (PRD): Long Trading Bot with Leverage and Trailing Stop-Loss
 1. Overview
 1.1 Purpose
-The Long Trading Bot is an automated trading system designed to execute long positions in cryptocurrency futures markets (e.g., BTC/USDT on Binance Futures ) using configurable leverage (default 3x). It capitalizes on bullish price movements using technical indicators (RSI, MACD, Bollinger Bands) across daily and weekly timeframes, with a trailing stop-loss to protect profits during favorable trends. The bot supports dynamic leverage adjustments and optional sentiment analysis from X posts, exposed via RESTful APIs using Spring Boot for remote management. A Redis-based caching mechanism optimizes performance by reducing APIcalls while ensuring data freshness through event-based invalidation.
+The Long Trading Bot is now agent-based: each bot instance implements the `TradingAgent` interface and can be managed by an `AgentManager` for multi-bot deployments. The bot executes long positions in cryptocurrency futures markets (e.g., BTC/USDT on Binance Futures) using configurable leverage (default 3x). It capitalizes on bullish price movements using technical indicators (RSI, MACD, Bollinger Bands) across daily and weekly timeframes, with a trailing stop-loss to protect profits during favorable trends. The bot supports dynamic leverage adjustments and optional sentiment analysis from X posts, exposed via RESTful APIs using Spring Boot for remote management. A Redis-based caching mechanism optimizes performance by reducing API calls while ensuring data freshness through event-based invalidation. AWS deployment is supported via Docker and ECS task definition.
 1.2 Target Audience
 
 Cryptocurrency traders with experience in futures trading.
@@ -10,30 +10,27 @@ Users seeking automated trading with technical and sentiment-based strategies.
 
 1.3 Objectives
 
-Execute long positions with configurable leverage to amplify returns while managing risk.
-Use daily and weekly technical indicators to identify high-probability entry points.
-Implement a trailing stop-loss to maximize profits during uptrends.
-Provide RESTful APIs for starting, stopping, configuring, and monitoring the bot.
-Support optional sentiment analysis from X posts to enhance entry decisions.
-Optimize performance with Redis caching and event-based cache invalidation.
-Support multiple exchanges (Binance Futures) for flexibility.
-Ensure robust error handling, logging, and margin management.
+- Agent-based: Each bot is an agent, enabling multi-symbol and multi-exchange deployments.
+- Execute long positions with configurable leverage to amplify returns while managing risk.
+- Use daily and weekly technical indicators to identify high-probability entry points.
+- Implement a trailing stop-loss to maximize profits during uptrends.
+- Provide RESTful APIs for starting, stopping, configuring, and monitoring the bot.
+- Support optional sentiment analysis from X posts to enhance entry decisions.
+- Optimize performance with Redis caching and event-based cache invalidation.
+- Support multiple exchanges (Binance Futures) for flexibility.
+- Ensure robust error handling, logging, and margin management.
+- AWS-ready: Dockerfile and ECS task definition for cloud deployment.
 
 2. Features and Requirements
-2.1 Core Functionality
+2.1 Core Functionality (Agent-based)
 2.1.1 Trading Environment
 
-Exchange: Binance Futures , configurable via system property (e.g., -Dexchange=binance).
-Rationale: Allows users to switch between exchanges for diversification or better conditions.
-
-
-Market Type: Futures market with USDT-margined contracts (e.g., BTC/USDT).
-Leverage: Configurable, default 3x, adjustable via REST API (1x to 125x, per exchange limits).
-Rationale: Dynamic leverage allows flexibility for risk tolerance; 3x is conservative for crypto volatility.
-
-
-Trade Amount: Configurable amount of base currency (e.g., 0.001 BTC) per trade.
-API Integration: Use Binance Futures Connector Java for futures trading, with rate limiting enabled.
+- Exchange: Binance Futures, configurable via system property (e.g., -Dexchange=binance).
+- Market Type: Futures market with USDT-margined contracts (e.g., BTC/USDT).
+- Leverage: Configurable, default 3x, adjustable via REST API (1x to 125x, per exchange limits).
+- Trade Amount: Configurable amount of base currency (e.g., 0.001 BTC) per trade.
+- API Integration: Use Binance Futures Connector Java for futures trading, with rate limiting enabled.
+- AgentManager: Supports registration and lifecycle management of multiple agents for multi-symbol or multi-exchange trading.
 
 2.1.2 Entry Conditions
 
@@ -86,15 +83,16 @@ Error Handling: Log and handle API errors, insufficient data, and network issues
 2.1.5 RESTful APIs
 
 Endpoints:
-POST /api/simple-trading-bot/start: Start the bot.
-POST /api/simple-trading-bot/stop: Stop the bot and close open positions.
-GET /api/simple-trading-bot/status: Get bot status (running/stopped, position).
-POST /api/simple-trading-bot/configure: Update configuration (e.g., trade amount, RSI thresholds).
-POST /api/simple-trading-bot/leverage: Set dynamic leverage.
-POST /api/simple-trading-bot/sentiment: Enable/disable sentiment analysis.
+- POST /api/simple-trading-bot/start: Start the bot.
+- POST /api/simple-trading-bot/stop: Stop the bot and close open positions.
+- GET /api/simple-trading-bot/status: Get bot status (running/stopped, position).
+- POST /api/simple-trading-bot/configure: Update configuration (e.g., trade amount, RSI thresholds).
+- POST /api/simple-trading-bot/leverage: Set dynamic leverage.
+- POST /api/simple-trading-bot/sentiment: Enable/disable sentiment analysis.
 
+AgentManager APIs (future): Register, start, stop, and monitor multiple agents.
 
-Rationale: REST APIs enable remote management and monitoring.
+Rationale: REST APIs enable remote management and monitoring. AgentManager enables multi-agent orchestration.
 
 2.1.6 Caching
 
@@ -134,10 +132,10 @@ Sentiment Analysis: Disabled by default, enabled via API.
 
 2.4 Non-Functional Requirements
 
-Reliability: Handle API failures and network issues gracefully.
-Security: Restrict API keys to trading permissions; disable withdrawals.
-Performance: Minimize API calls using Redis caching with TTL (2 min daily, 30 min weekly) and event-based invalidation on new candles or >1% price changes.
-Scalability: Support multiple symbols and exchanges via configuration.
+- Reliability: Handle API failures and network issues gracefully.
+- Security: Restrict API keys to trading permissions; disable withdrawals.
+- Performance: Minimize API calls using Redis caching with TTL (2 min daily, 30 min weekly) and event-based invalidation on new candles or >1% price changes.
+- Scalability: AgentManager supports multiple symbols and exchanges via configuration and agent registration.
 
 3. Technical Requirements
 
@@ -180,10 +178,11 @@ Mitigation: Abstract exchange interactions through FuturesExchangeService interf
 
 6. Future Enhancements
 
-Support COIN-margined contracts or other exchanges.
-Enhance sentiment analysis with real X API integration.
-Add dynamic trailing stop percentages or additional indicators.
-Implement WebSocket for real-time price updates.
+- Support COIN-margined contracts or other exchanges.
+- Enhance sentiment analysis with real X API integration.
+- Add dynamic trailing stop percentages or additional indicators.
+- Implement WebSocket for real-time price updates.
+- Expand AgentManager APIs for agent orchestration and monitoring.
 
 7. Testing and Validation
 

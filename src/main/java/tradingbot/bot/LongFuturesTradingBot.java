@@ -11,7 +11,7 @@ import tradingbot.strategy.calculator.IndicatorValues;
 import tradingbot.strategy.exit.PositionExitCondition;
 import tradingbot.strategy.tracker.TrailingStopTracker;
 
-public class LongFuturesTradingBot {
+public class LongFuturesTradingBot implements TradingAgent {
     private static final Logger LOGGER = Logger.getLogger(LongFuturesTradingBot.class.getName());
     private static final int CHECK_INTERVAL_SECONDS = 900; // 15 minutes
 
@@ -30,6 +30,12 @@ public class LongFuturesTradingBot {
     public LongFuturesTradingBot(FuturesExchangeService exchangeService, IndicatorCalculator indicatorCalculator,
                                  TrailingStopTracker trailingStopTracker, SentimentAnalyzer sentimentAnalyzer,
                                  List<PositionExitCondition> exitConditions, TradingConfig config) {
+        this(exchangeService, indicatorCalculator, trailingStopTracker, sentimentAnalyzer, exitConditions, config, false);
+    }
+
+    public LongFuturesTradingBot(FuturesExchangeService exchangeService, IndicatorCalculator indicatorCalculator,
+                                 TrailingStopTracker trailingStopTracker, SentimentAnalyzer sentimentAnalyzer,
+                                 List<PositionExitCondition> exitConditions, TradingConfig config, boolean skipLeverageInit) {
         this.exchangeService = exchangeService;
         this.indicatorCalculator = indicatorCalculator;
         this.trailingStopTracker = trailingStopTracker;
@@ -41,10 +47,13 @@ public class LongFuturesTradingBot {
         this.running = false;
         this.sentimentEnabled = false;
         this.currentLeverage = config.getLeverage();
-        initializeLeverage();
+        if (!skipLeverageInit) {
+            initializeLeverage();
+        }
         logInitialization();
     }
 
+    @Override
     public void start() {
         if (running) {
             LOGGER.warning("Trading bot is already running");
@@ -53,10 +62,34 @@ public class LongFuturesTradingBot {
         new Thread(this::run).start();
     }
 
+    @Override
     public void stop() {
         running = false;
         if (isInLongPosition()) {
             exitLongPosition();
+        }
+    }
+
+    @Override
+    public void processMarketData(Object marketData) {
+        // Accepts MarketData or IndicatorValues, processes trading cycle for agent use
+        if (marketData instanceof MarketData) {
+            MarketData md = (MarketData) marketData;
+            logMarketData(exchangeService.getCurrentPrice(config.getSymbol()), md);
+            if (!isInLongPosition() && isEntrySignalValid(md)) {
+                enterLongPosition();
+            }
+        } else {
+            LOGGER.warning("Unsupported market data type for agent");
+        }
+    }
+
+    @Override
+    public void executeTrade() {
+        // Executes trade if entry signal is valid
+        MarketData marketData = fetchMarketData();
+        if (marketData != null && !isInLongPosition() && isEntrySignalValid(marketData)) {
+            enterLongPosition();
         }
     }
 
@@ -146,14 +179,19 @@ public class LongFuturesTradingBot {
                exitConditions.stream().anyMatch(PositionExitCondition::shouldExit);
     }
 
+    private MarketData cachedMarketData = null;
     private MarketData fetchMarketData() {
+        if (cachedMarketData != null) {
+            return cachedMarketData;
+        }
         IndicatorValues dailyIndicators = indicatorCalculator.computeIndicators("1d", config.getSymbol());
         IndicatorValues weeklyIndicators = indicatorCalculator.computeIndicators("1w", config.getSymbol());
         if (dailyIndicators == null || weeklyIndicators == null) {
             LOGGER.warning("Insufficient data for indicators");
             return null;
         }
-        return new MarketData(dailyIndicators, weeklyIndicators);
+        cachedMarketData = new MarketData(dailyIndicators, weeklyIndicators);
+        return cachedMarketData;
     }
 
     private void logMarketData(double price, MarketData marketData) {

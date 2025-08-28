@@ -4,16 +4,18 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 
 import tradingbot.bot.LongFuturesTradingBot;
 import tradingbot.config.TradingConfig;
@@ -43,7 +45,7 @@ class LongFuturesTradingBotTest {
     @Mock
     private FuturesExchangeService exchangeService;
     @Mock
-    private IndicatorCalculator indicatorCalculator;
+    private IndicatorCalculator indicatorCalculator; // Used for other tests
     @Mock
     private TrailingStopTracker trailingStopTracker;
     @Mock
@@ -59,22 +61,29 @@ class LongFuturesTradingBotTest {
     @Mock
     private RedisTemplate<String, Long> longRedisTemplate;
 
+    @Mock
+    private ValueOperations<String, IndicatorValues> indicatorValueOps;
+    @Mock
+    private ValueOperations<String, Long> longValueOps;
+
     private TradingConfig config;
     private LongFuturesTradingBot bot;
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        MockitoAnnotations.openMocks(this);
-        config = new TradingConfig(SYMBOL, TRADE_AMOUNT, LEVERAGE, TRAILING_STOP_PERCENT, RSI_PERIOD,
-                RSI_OVERSOLD, RSI_OVERBOUGHT, MACD_FAST, MACD_SLOW, MACD_SIGNAL, BB_PERIOD, BB_STD, INTERVAL);
-        bot = new LongFuturesTradingBot(exchangeService, indicatorCalculator, trailingStopTracker,
-                sentimentAnalyzer, Arrays.asList(rsiExit, macdExit, liquidationRiskExit), config);
-        objectMapper = new ObjectMapper();
+    MockitoAnnotations.openMocks(this);
+    config = new TradingConfig(SYMBOL, TRADE_AMOUNT, LEVERAGE, TRAILING_STOP_PERCENT, RSI_PERIOD,
+        RSI_OVERSOLD, RSI_OVERBOUGHT, MACD_FAST, MACD_SLOW, MACD_SIGNAL, BB_PERIOD, BB_STD, INTERVAL);
+    bot = new LongFuturesTradingBot(exchangeService, indicatorCalculator, trailingStopTracker,
+        sentimentAnalyzer, Arrays.asList(rsiExit, macdExit, liquidationRiskExit), config, true);
+    objectMapper = new ObjectMapper();
+    when(redisTemplate.opsForValue()).thenReturn(indicatorValueOps);
+    when(longRedisTemplate.opsForValue()).thenReturn(longValueOps);
     }
 
     @Test
-    void shouldEnterLongPositionWhenTechnicalConditionsMet() throws Exception {
+    void shouldEnterLongPositionWhenTechnicalConditionsMet() {
         when(exchangeService.getCurrentPrice(SYMBOL)).thenReturn(50000.0);
         when(exchangeService.getMarginBalance()).thenReturn(1000.0);
         IndicatorValues dailyIndicators = new IndicatorValues();
@@ -84,7 +93,7 @@ class LongFuturesTradingBotTest {
         dailyIndicators.setLowerBand(49500.0);
         dailyIndicators.setUpperBand(50500.0);
         IndicatorValues weeklyIndicators = new IndicatorValues();
-        weeklyIndicators.setRsi(60.0);
+    when(redisTemplate.delete("indicators:BTCUSDT:1d")).thenReturn(true);
         when(indicatorCalculator.computeIndicators("1d", SYMBOL)).thenReturn(dailyIndicators);
         when(indicatorCalculator.computeIndicators("1w", SYMBOL)).thenReturn(weeklyIndicators);
 
@@ -95,7 +104,7 @@ class LongFuturesTradingBotTest {
     }
 
     @Test
-    void shouldEnterLongPositionWithSentimentEnabled() throws Exception {
+    void shouldEnterLongPositionWithSentimentEnabled() {
         bot.enableSentimentAnalysis(true);
         when(exchangeService.getCurrentPrice(SYMBOL)).thenReturn(50000.0);
         when(exchangeService.getMarginBalance()).thenReturn(1000.0);
@@ -114,11 +123,10 @@ class LongFuturesTradingBotTest {
         invokePrivateMethod("enterLongPosition");
 
         verify(exchangeService).enterLongPosition(SYMBOL, TRADE_AMOUNT);
-        // verify(sentimentAnalyzer).isPositiveSentiment(SYMBOL);
     }
 
     @Test
-    void shouldNotEnterLongPositionWithInsufficientBalance() throws Exception {
+    void shouldNotEnterLongPositionWithInsufficientBalance() {
         when(exchangeService.getCurrentPrice(SYMBOL)).thenReturn(50000.0);
         when(exchangeService.getMarginBalance()).thenReturn(0.0);
         IndicatorValues dailyIndicators = new IndicatorValues();
@@ -191,7 +199,7 @@ class LongFuturesTradingBotTest {
     }
 
     @Test
-    void shouldUseCachedIndicators() throws Exception {
+    void shouldUseCachedIndicators() {
         IndicatorValues dailyIndicators = new IndicatorValues();
         dailyIndicators.setRsi(25.0);
         dailyIndicators.setMacd(100.0);
@@ -210,21 +218,33 @@ class LongFuturesTradingBotTest {
 
     @Test
     void shouldInvalidateCacheOnNewCandle() throws Exception {
-        when(indicatorCalculator.computeIndicators("1d", SYMBOL)).thenReturn(new IndicatorValues());
-        ArrayNode candleArray = objectMapper.createArrayNode();
-        ArrayNode candleData = objectMapper.createArrayNode();
-        candleData.add(1000L); // openTime
-        candleData.add("50000"); // open
-        candleData.add("51000"); // high
-        candleData.add("49000"); // low
-        candleData.add("50500"); // close
-        candleData.add("100"); // volume
-        candleData.add(2000L); // closeTime
-        candleArray.add(candleData);
-        when(exchangeService.fetchOhlcv(SYMBOL, "1d", 1)).thenReturn(Arrays.asList(new BinanceFuturesService.Candle()));
-        when(longRedisTemplate.opsForValue().get("timestamp:" + SYMBOL + ":1d")).thenReturn(1000L);
-        invokePrivateMethod(indicatorCalculator, "checkForNewCandle");
-        verify(redisTemplate).delete("indicators:" + SYMBOL + ":1d");
+        // Use a real IndicatorCalculator for this test
+        IndicatorCalculator realCalculator = new IndicatorCalculator(
+            exchangeService, null, null, null, null, null
+        );
+        // Set redisTemplate and longRedisTemplate via reflection
+        var redisField = IndicatorCalculator.class.getDeclaredField("redisTemplate");
+        redisField.setAccessible(true);
+        redisField.set(realCalculator, redisTemplate);
+
+        var longRedisField = IndicatorCalculator.class.getDeclaredField("longRedisTemplate");
+        longRedisField.setAccessible(true);
+        longRedisField.set(realCalculator, longRedisTemplate);
+
+        when(longRedisTemplate.opsForValue()).thenReturn(longValueOps);
+        when(longValueOps.get("timestamp:BTCUSDT:1d")).thenReturn(1000L);
+
+    BinanceFuturesService.Candle newCandle = new BinanceFuturesService.Candle();
+    newCandle.setCloseTime(2000L);
+    newCandle.setClose(new java.math.BigDecimal("50500"));
+        newCandle.setClose(new BigDecimal("50500"));
+        List<BinanceFuturesService.Candle> candleList = Arrays.asList(newCandle);
+        when(exchangeService.fetchOhlcv("BTCUSDT", "1d", 1)).thenReturn(candleList);
+
+        when(redisTemplate.delete("indicators:BTCUSDT:1d")).thenReturn(null);
+
+        invokePrivateMethod(realCalculator, "checkForNewCandle");
+    verify(redisTemplate, atLeastOnce()).delete("indicators:BTCUSDT:1d");
     }
 
     private void setPosition(String position) throws Exception {

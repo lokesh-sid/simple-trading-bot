@@ -30,10 +30,26 @@ public class TradingConfig {
     private final int interval;
 
     public TradingConfig() {
-        this(DEFAULT_SYMBOL, DEFAULT_TRADE_AMOUNT, DEFAULT_LEVERAGE, DEFAULT_TRAILING_STOP_PERCENT,
-                DEFAULT_LOOKBACK_PERIOD_RSI, DEFAULT_RSI_OVERSOLD, DEFAULT_RSI_OVERBOUGHT,
-                DEFAULT_MACD_FAST, DEFAULT_MACD_SLOW, DEFAULT_MACD_SIGNAL, DEFAULT_BB_PERIOD,
-                DEFAULT_BB_STD, DEFAULT_INTERVAL);
+        this(
+            getEnv("TRADING_SYMBOL", DEFAULT_SYMBOL),
+            Double.parseDouble(getEnv("TRADE_AMOUNT", String.valueOf(DEFAULT_TRADE_AMOUNT))),
+            Integer.parseInt(getEnv("LEVERAGE", String.valueOf(DEFAULT_LEVERAGE))),
+            Double.parseDouble(getEnv("TRAILING_STOP_PERCENT", String.valueOf(DEFAULT_TRAILING_STOP_PERCENT))),
+            Integer.parseInt(getEnv("LOOKBACK_PERIOD_RSI", String.valueOf(DEFAULT_LOOKBACK_PERIOD_RSI))),
+            Double.parseDouble(getEnv("RSI_OVERSOLD", String.valueOf(DEFAULT_RSI_OVERSOLD))),
+            Double.parseDouble(getEnv("RSI_OVERBOUGHT", String.valueOf(DEFAULT_RSI_OVERBOUGHT))),
+            Integer.parseInt(getEnv("MACD_FAST", String.valueOf(DEFAULT_MACD_FAST))),
+            Integer.parseInt(getEnv("MACD_SLOW", String.valueOf(DEFAULT_MACD_SLOW))),
+            Integer.parseInt(getEnv("MACD_SIGNAL", String.valueOf(DEFAULT_MACD_SIGNAL))),
+            Integer.parseInt(getEnv("BB_PERIOD", String.valueOf(DEFAULT_BB_PERIOD))),
+            Double.parseDouble(getEnv("BB_STD", String.valueOf(DEFAULT_BB_STD))),
+            Integer.parseInt(getEnv("INTERVAL", String.valueOf(DEFAULT_INTERVAL)))
+        );
+    }
+
+    private static String getEnv(String key, String defaultValue) {
+        String value = System.getenv(key);
+        return value != null ? value : defaultValue;
     }
 
     public TradingConfig(String symbol, double tradeAmount, int leverage, double trailingStopPercent,

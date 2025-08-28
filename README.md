@@ -1,16 +1,19 @@
 # Simple-trading-bot
 
 A Spring Boot-based automated trading bot for long positions in cryptocurrency futures markets (e.g., BTC/USDT on Binance Futures) with configurable leverage, trailing stop-loss, and optional sentiment analysis from X posts. Uses Redis caching to optimize performance.
-Features
 
-* Executes long positions using technical indicators (RSI, MACD, Bollinger Bands) on daily ("1d") and weekly ("1w") timeframes.  
-* Configurable leverage (default 3x), adjustable via REST API.      
-* Trailing stop-loss (1%) to maximize profits during uptrends.   
-* Optional sentiment analysis from X posts for entry decisions.   
-* RESTful APIs for starting, stopping, configuring, and monitoring the bot.   
-* Redis caching with hybrid TTL and event-based invalidation for performance.    
-* Support for Binance Futures, configurable via system property.   
-* Built with SOLID and Clean Code principles for maintainability.  
+## Features
+
+- Agent-based architecture: Each trading bot is an agent, managed by an AgentManager for multi-bot deployments.
+- Executes long positions using technical indicators (RSI, MACD, Bollinger Bands) on daily ("1d") and weekly ("1w") timeframes.
+- Configurable leverage (default 3x), adjustable via REST API.
+- Trailing stop-loss (1%) to maximize profits during uptrends.
+- Optional sentiment analysis from X posts for entry decisions.
+- RESTful APIs for starting, stopping, configuring, and monitoring the bot.
+- Redis caching with hybrid TTL and event-based invalidation for performance.
+- Support for Binance Futures, configurable via system property.
+- Built with SOLID and Clean Code principles for maintainability.
+- AWS-ready: Dockerfile and ECS task definition provided for cloud deployment.
 
 ### Prerequisites
 
@@ -20,6 +23,11 @@ Features
 * X API access for sentiment analysis (optional)    
 * Redis server (e.g., localhost:6379)   
 * Docker and Docker Compose for containerization
+
+
+### Agent Architecture
+
+The bot is now refactored as an agent implementing the `TradingAgent` interface. Multiple agents can be managed and deployed using the `AgentManager` class. This enables scalable, multi-symbol, or multi-exchange deployments.
 
 ### Setup
 
@@ -43,7 +51,8 @@ Features
     mvn spring-boot:run
     ```
 
-#### Docker Setup
+
+#### AWS & Docker Setup
 
 Build the Docker image:    
    ```bash
@@ -57,7 +66,15 @@ Run with Docker (standalone, without Redis):
   ``` 
 
 
+
 Note: This requires a separate Redis instance. Use -e SPRING_DATA_REDIS_HOST=host.docker.internal if Redis is on host.
+
+##### AWS ECS Deployment
+
+1. Build and push your Docker image to AWS ECR.
+2. Use the provided `aws-ecs-task-definition.json` to deploy on ECS Fargate.
+3. Configure environment variables for secrets and config in ECS.
+4. Logging is compatible with AWS CloudWatch.
 
 
 Run with Docker Compose (includes Redis):
@@ -115,4 +132,4 @@ This is for educational purposes only. Leveraged trading is risky and may result
 Test on Binance Futures Testnet. Not financial advice.   
 
 Documentation    
-See docs/LongTradingBotPRD.md for detailed requirements.
+See docs/LongTradingBotPRD.md for detailed requirements and agent architecture.
