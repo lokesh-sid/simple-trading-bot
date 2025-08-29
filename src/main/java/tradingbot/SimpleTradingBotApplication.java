@@ -90,7 +90,7 @@ public class SimpleTradingBotApplication {
             .exitConditions(exitConditions)
             .config(config)
             .tradeDirection(TradeDirection.LONG)
-            .testMode(false) // or true, depending on your needs
+            .skipLeverageInit(false) // Set to true for testing or paper trading
             .build();
         return new FuturesTradingBot(botParams);
     }

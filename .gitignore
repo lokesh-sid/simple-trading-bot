@@ -1,0 +1,33 @@
+# IDE and OS files
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+
+# Build directories
+build/
+target/
+out/
+
+# Gradle files
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# Maven files (legacy)
+.mvn/
+mvnw
+mvnw.cmd
+
+# Log files
+logs/
+*.log
+
+# Application specific
+application-local.properties
+GRADLE_MIGRATION.md
+MIGRATION_COMPLETE.md

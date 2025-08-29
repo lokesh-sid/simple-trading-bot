@@ -22,7 +22,7 @@ A Spring Boot-based automated trading bot for long and short positions in crypto
 ### Prerequisites
 
 * Java 17  
-* Maven 3.8+  
+* Gradle 8.5+ (or use included wrapper)  
 * Binance Futures account with API key/secret (trading permissions only)    
 * X API access for sentiment analysis (optional)    
 * Redis server (e.g., localhost:6379)   
@@ -46,13 +46,19 @@ The bot is now refactored as an agent implementing the `TradingAgent` interface.
 3. Update API keys in TradingBotApplication.java (replace placeholders like "YOUR_BINANCE_API_KEY").
 4. Set exchange (Binance by default):
     ```bash
-    java -Dexchange=binance -jar LeverageBot-1.0-SNAPSHOT.jar
+    java -Dexchange=binance -jar simple-trading-bot-1.0-SNAPSHOT.jar
     ```
     
 5. Build and run:
     ```bash
-    mvn clean install
-    mvn spring-boot:run
+    ./gradlew build
+    ./gradlew bootRun
+    ```
+
+   Or if you prefer the full Gradle installation:
+    ```bash
+    gradle build
+    gradle bootRun
     ```
 
 
@@ -148,7 +154,12 @@ POST /api/simple-trading-bot/sentiment?enable=true
 ### Testing
   Run unit tests:
   ```bash
-      mvn test
+      ./gradlew test
+   ```
+
+   For continuous testing:
+   ```bash
+      ./gradlew test --continuous
    ```
 
 ### Redis Setup
