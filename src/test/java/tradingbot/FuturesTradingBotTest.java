@@ -3,11 +3,13 @@ package tradingbot;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static tradingbot.util.FuturesTradingBotTestUtils.*;
 
 import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -16,7 +18,6 @@ import org.springframework.data.redis.core.ValueOperations;
 
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.TradeDirection;
-import tradingbot.config.TradingConfig;
 import tradingbot.service.BinanceFuturesService;
 import tradingbot.service.FuturesExchangeService;
 import tradingbot.strategy.analyzer.SentimentAnalyzer;
@@ -26,20 +27,6 @@ import tradingbot.strategy.exit.PositionExitCondition;
 import tradingbot.strategy.tracker.TrailingStopTracker;
 
 class FuturesTradingBotTest {
-    private static final String SYMBOL = "BTCUSDT";
-    private static final double TRADE_AMOUNT = 0.001;
-    private static final int LEVERAGE = 3;
-    private static final double TRAILING_STOP_PERCENT = 1.0;
-    private static final int RSI_PERIOD = 14;
-    private static final double RSI_OVERSOLD = 30.0;
-    private static final double RSI_OVERBOUGHT = 70.0;
-    private static final int MACD_FAST = 12;
-    private static final int MACD_SLOW = 26;
-    private static final int MACD_SIGNAL = 9;
-    private static final int BB_PERIOD = 20;
-    private static final double BB_STD = 2.0;
-    private static final int INTERVAL = 900;
-
     @Mock
     private FuturesExchangeService exchangeService;
     @Mock
@@ -64,38 +51,15 @@ class FuturesTradingBotTest {
     @Mock
     private ValueOperations<String, Long> longValueOps;
 
-    private TradingConfig config;
     private FuturesTradingBot longBot;
     private FuturesTradingBot shortBot;
 
     @BeforeEach
     void setUp() {
     MockitoAnnotations.openMocks(this);
-    config = new TradingConfig(SYMBOL, TRADE_AMOUNT, LEVERAGE, TRAILING_STOP_PERCENT, RSI_PERIOD,
-        RSI_OVERSOLD, RSI_OVERBOUGHT, MACD_FAST, MACD_SLOW, MACD_SIGNAL, BB_PERIOD, BB_STD, INTERVAL);
     List<PositionExitCondition> exitConditions = Arrays.asList(rsiExit, macdExit, liquidationRiskExit);
-    FuturesTradingBot.BotParams longParams = new FuturesTradingBot.BotParams.Builder()
-        .exchangeService(exchangeService)
-        .indicatorCalculator(indicatorCalculator)
-        .trailingStopTracker(trailingStopTracker)
-        .sentimentAnalyzer(sentimentAnalyzer)
-        .exitConditions(exitConditions)
-        .config(config)
-        .tradeDirection(TradeDirection.LONG)
-        .sentimentAnalyzer(sentimentAnalyzer)
-        .skipLeverageInit(true)
-        .build();
-    FuturesTradingBot.BotParams shortParams = new FuturesTradingBot.BotParams.Builder()
-        .exchangeService(exchangeService)
-        .indicatorCalculator(indicatorCalculator)
-        .trailingStopTracker(trailingStopTracker)
-        .sentimentAnalyzer(sentimentAnalyzer)
-        .exitConditions(exitConditions)
-        .config(config)
-        .tradeDirection(TradeDirection.SHORT)
-        .sentimentAnalyzer(sentimentAnalyzer)
-        .skipLeverageInit(true)
-        .build();
+    FuturesTradingBot.BotParams longParams = getBotParams(exchangeService, indicatorCalculator, trailingStopTracker, sentimentAnalyzer, exitConditions, TradeDirection.LONG);
+    FuturesTradingBot.BotParams shortParams = getBotParams(exchangeService, indicatorCalculator, trailingStopTracker, sentimentAnalyzer, exitConditions, TradeDirection.SHORT);
     longBot = new FuturesTradingBot(longParams);
     shortBot = new FuturesTradingBot(shortParams);
     when(redisTemplate.opsForValue()).thenReturn(indicatorValueOps);
@@ -160,7 +124,7 @@ class FuturesTradingBotTest {
         when(indicatorCalculator.computeIndicators("1d", SYMBOL)).thenReturn(dailyIndicators);
         when(indicatorCalculator.computeIndicators("1w", SYMBOL)).thenReturn(weeklyIndicators);
 
-    invokePrivateMethod(longBot, "enterPosition");
+        invokePrivateMethod(longBot, "enterPosition");
 
         verify(exchangeService, never()).enterLongPosition(anyString(), anyDouble());
     }
@@ -171,7 +135,7 @@ class FuturesTradingBotTest {
         when(trailingStopTracker.checkTrailingStop(anyDouble())).thenReturn(true);
         when(exchangeService.getCurrentPrice(SYMBOL)).thenReturn(49000.0);
 
-    invokePrivateMethod(longBot, "exitPosition");
+        invokePrivateMethod(longBot, "exitPosition");
 
         verify(exchangeService).exitLongPosition(SYMBOL, TRADE_AMOUNT);
         verify(trailingStopTracker).reset();
@@ -298,30 +262,19 @@ class FuturesTradingBotTest {
     }
 
     // --- Integration Tests ---
+    /**
+    void shouldSimulateLongAndShortPaperTradingIntegration() {
+     * This test verifies that both long and short bots can enter and exit positions correctly
+     * using a mock PaperFuturesExchangeService, simulating technical conditions and margin balance.
+     */
     @Test
+    @DisplayName("Integration Test: Long and Short Paper Trading")
     void integrationTest_LongAndShortPaperTrading() {
         // Use a mock PaperFuturesExchangeService for integration
         var paperExchange = mock(tradingbot.service.PaperFuturesExchangeService.class);
-        FuturesTradingBot.BotParams longPaperParams = new FuturesTradingBot.BotParams.Builder()
-            .exchangeService(paperExchange)
-            .indicatorCalculator(indicatorCalculator)
-            .trailingStopTracker(trailingStopTracker)
-            .sentimentAnalyzer(sentimentAnalyzer)
-            .exitConditions(Arrays.asList(rsiExit, macdExit, liquidationRiskExit))
-            .config(config)
-            .tradeDirection(TradeDirection.LONG)
-            .skipLeverageInit(true)
-            .build();
-        FuturesTradingBot.BotParams shortPaperParams = new FuturesTradingBot.BotParams.Builder()
-            .exchangeService(paperExchange)
-            .indicatorCalculator(indicatorCalculator)
-            .trailingStopTracker(trailingStopTracker)
-            .sentimentAnalyzer(sentimentAnalyzer)
-            .exitConditions(Arrays.asList(rsiExit, macdExit, liquidationRiskExit))
-            .config(config)
-            .tradeDirection(TradeDirection.SHORT)
-            .skipLeverageInit(true)
-            .build();
+        List<tradingbot.strategy.exit.PositionExitCondition> exitConditions = Arrays.asList(rsiExit, macdExit, liquidationRiskExit);
+        FuturesTradingBot.BotParams longPaperParams = getBotParams(paperExchange, indicatorCalculator, trailingStopTracker, sentimentAnalyzer, exitConditions, TradeDirection.LONG);
+        FuturesTradingBot.BotParams shortPaperParams = getBotParams(paperExchange, indicatorCalculator, trailingStopTracker, sentimentAnalyzer, exitConditions, TradeDirection.SHORT);
 
         FuturesTradingBot longPaperBot = new FuturesTradingBot(longPaperParams);
         FuturesTradingBot shortPaperBot = new FuturesTradingBot(shortPaperParams);
