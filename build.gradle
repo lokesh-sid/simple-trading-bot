@@ -23,12 +23,20 @@ ext {
     junitVersion = '5.9.2'
     mockitoVersion = '4.11.0'
     jacksonVersion = '2.15.2'
+    resilience4jVersion = '2.1.0'
 }
 
 dependencies {
     // Spring Boot dependencies
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+    
+    // Resilience4j for rate limiting and circuit breaker
+    implementation "io.github.resilience4j:resilience4j-spring-boot3:${resilience4jVersion}"
+    implementation "io.github.resilience4j:resilience4j-ratelimiter:${resilience4jVersion}"
+    implementation "io.github.resilience4j:resilience4j-circuitbreaker:${resilience4jVersion}"
+    implementation "io.github.resilience4j:resilience4j-retry:${resilience4jVersion}"
     
     // External API dependencies
     implementation "io.github.binance:binance-futures-connector-java:${binanceConnectorVersion}"

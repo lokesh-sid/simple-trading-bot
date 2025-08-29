@@ -1,0 +1,142 @@
+package tradingbot.controller;
+
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.retry.Retry;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * REST controller for monitoring rate limiting and resilience metrics
+ */
+@RestController
+@RequestMapping("/api/resilience")
+public class ResilienceController {
+
+    @Autowired
+    private RateLimiter binanceTradingRateLimiter;
+
+    @Autowired
+    private RateLimiter binanceMarketRateLimiter;
+
+    @Autowired
+    private RateLimiter binanceAccountRateLimiter;
+
+    @Autowired
+    private CircuitBreaker binanceApiCircuitBreaker;
+
+    @Autowired
+    private Retry binanceApiRetry;
+
+    /**
+     * Get current rate limiter metrics
+     */
+    @GetMapping("/rate-limiters")
+    public Map<String, Object> getRateLimiterMetrics() {
+        Map<String, Object> metrics = new HashMap<>();
+        
+        // Trading rate limiter metrics
+        Map<String, Object> trading = new HashMap<>();
+        trading.put("availablePermissions", binanceTradingRateLimiter.getMetrics().getAvailablePermissions());
+        trading.put("numberOfWaitingThreads", binanceTradingRateLimiter.getMetrics().getNumberOfWaitingThreads());
+        metrics.put("trading", trading);
+        
+        // Market rate limiter metrics
+        Map<String, Object> market = new HashMap<>();
+        market.put("availablePermissions", binanceMarketRateLimiter.getMetrics().getAvailablePermissions());
+        market.put("numberOfWaitingThreads", binanceMarketRateLimiter.getMetrics().getNumberOfWaitingThreads());
+        metrics.put("market", market);
+        
+        // Account rate limiter metrics
+        Map<String, Object> account = new HashMap<>();
+        account.put("availablePermissions", binanceAccountRateLimiter.getMetrics().getAvailablePermissions());
+        account.put("numberOfWaitingThreads", binanceAccountRateLimiter.getMetrics().getNumberOfWaitingThreads());
+        metrics.put("account", account);
+        
+        return metrics;
+    }
+
+    /**
+     * Get circuit breaker metrics
+     */
+    @GetMapping("/circuit-breaker")
+    public Map<String, Object> getCircuitBreakerMetrics() {
+        Map<String, Object> metrics = new HashMap<>();
+        
+        CircuitBreaker.Metrics cbMetrics = binanceApiCircuitBreaker.getMetrics();
+        metrics.put("state", binanceApiCircuitBreaker.getState().toString());
+        metrics.put("failureRate", cbMetrics.getFailureRate());
+        metrics.put("numberOfBufferedCalls", cbMetrics.getNumberOfBufferedCalls());
+        metrics.put("numberOfFailedCalls", cbMetrics.getNumberOfFailedCalls());
+        metrics.put("numberOfSuccessfulCalls", cbMetrics.getNumberOfSuccessfulCalls());
+        metrics.put("numberOfNotPermittedCalls", cbMetrics.getNumberOfNotPermittedCalls());
+        
+        return metrics;
+    }
+
+    /**
+     * Get retry metrics
+     */
+    @GetMapping("/retry")
+    public Map<String, Object> getRetryMetrics() {
+        Map<String, Object> metrics = new HashMap<>();
+        
+        Retry.Metrics retryMetrics = binanceApiRetry.getMetrics();
+        metrics.put("numberOfSuccessfulCallsWithoutRetryAttempt", 
+                   retryMetrics.getNumberOfSuccessfulCallsWithoutRetryAttempt());
+        metrics.put("numberOfSuccessfulCallsWithRetryAttempt", 
+                   retryMetrics.getNumberOfSuccessfulCallsWithRetryAttempt());
+        metrics.put("numberOfFailedCallsWithRetryAttempt", 
+                   retryMetrics.getNumberOfFailedCallsWithRetryAttempt());
+        metrics.put("numberOfFailedCallsWithoutRetryAttempt", 
+                   retryMetrics.getNumberOfFailedCallsWithoutRetryAttempt());
+        
+        return metrics;
+    }
+
+    /**
+     * Get all resilience metrics in one call
+     */
+    @GetMapping("/metrics")
+    public Map<String, Object> getAllMetrics() {
+        Map<String, Object> allMetrics = new HashMap<>();
+        allMetrics.put("rateLimiters", getRateLimiterMetrics());
+        allMetrics.put("circuitBreaker", getCircuitBreakerMetrics());
+        allMetrics.put("retry", getRetryMetrics());
+        return allMetrics;
+    }
+
+    /**
+     * Health check endpoint for resilience components
+     */
+    @GetMapping("/health")
+    public Map<String, Object> getHealthStatus() {
+        Map<String, Object> health = new HashMap<>();
+        
+        // Check if circuit breaker is operational
+        boolean circuitBreakerHealthy = binanceApiCircuitBreaker.getState() != CircuitBreaker.State.OPEN;
+        health.put("circuitBreaker", Map.of(
+            "healthy", circuitBreakerHealthy,
+            "state", binanceApiCircuitBreaker.getState().toString()
+        ));
+        
+        // Check if rate limiters have available capacity
+        boolean rateLimitersHealthy = 
+            binanceTradingRateLimiter.getMetrics().getAvailablePermissions() > 0 ||
+            binanceMarketRateLimiter.getMetrics().getAvailablePermissions() > 0 ||
+            binanceAccountRateLimiter.getMetrics().getAvailablePermissions() > 0;
+        
+        health.put("rateLimiters", Map.of("healthy", rateLimitersHealthy));
+        
+        // Overall health
+        boolean overallHealthy = circuitBreakerHealthy && rateLimitersHealthy;
+        health.put("overall", Map.of("healthy", overallHealthy));
+        
+        return health;
+    }
+}
