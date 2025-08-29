@@ -147,7 +147,7 @@ AgentManager APIs (future): Register, start, stop, and monitor multiple agents.
 ## 6. Testing and Validation
 - Test Environment: Binance Futures Testnet.
 - Validation:
-  - Verify entry/exit logic with historical data on both exchanges.
+  - Verify entry/exit logic with historical data on the exchange.
   - Test leverage adjustments and sentiment toggling via REST APIs.
   - Validate Redis caching and invalidation (new candles, price changes).
   - Ensure no API errors during 24-hour runs.
