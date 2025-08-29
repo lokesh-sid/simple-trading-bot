@@ -34,7 +34,7 @@ public class TradingBotController {
             .sentimentAnalyzer(tradingBot.getSentimentAnalyzer())
             .exitConditions(tradingBot.getExitConditions())
             .config(tradingBot.getConfig())
-            .direction(direction)
+            .tradeDirection(direction)
             .skipLeverageInit(paper)
             .build());
         tradingBot.start();

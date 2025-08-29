@@ -1,5 +1,6 @@
 package tradingbot.bot;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -62,14 +63,25 @@ public class FuturesTradingBot implements TradingAgent {
     }
 
     public static class BotParams {
-        private FuturesExchangeService exchangeService;
-        private IndicatorCalculator indicatorCalculator;
-        private TrailingStopTracker trailingStopTracker;
-        private SentimentAnalyzer sentimentAnalyzer;
-        private List<PositionExitCondition> exitConditions;
-        private TradingConfig config;
-        private TradeDirection direction;
-        private boolean skipLeverageInit;
+        private final FuturesExchangeService exchangeService;
+        private final IndicatorCalculator indicatorCalculator;
+        private final TrailingStopTracker trailingStopTracker;
+        private final SentimentAnalyzer sentimentAnalyzer;
+        private final List<PositionExitCondition> exitConditions;
+        private final TradingConfig config;
+        private final TradeDirection direction;
+        private final boolean skipLeverageInit;
+
+        private BotParams(Builder builder) {
+            this.exchangeService = builder.exchangeService;
+            this.indicatorCalculator = builder.indicatorCalculator;
+            this.trailingStopTracker = builder.trailingStopTracker;
+            this.sentimentAnalyzer = builder.sentimentAnalyzer;
+            this.exitConditions = List.copyOf(builder.exitConditions); // Defensive copy
+            this.config = builder.config;
+            this.direction = builder.direction;
+            this.skipLeverageInit = builder.skipLeverageInit;
+        }
 
         public FuturesExchangeService getExchangeService() {
             return exchangeService;
@@ -88,7 +100,7 @@ public class FuturesTradingBot implements TradingAgent {
         }
 
         public List<PositionExitCondition> getExitConditions() {
-            return exitConditions;
+            return exitConditions; // Already immutable from defensive copy
         }
 
         public TradingConfig getConfig() {
@@ -103,8 +115,6 @@ public class FuturesTradingBot implements TradingAgent {
             return skipLeverageInit;
         }
 
-        private BotParams() {}
-
         public static class Builder {
             private FuturesExchangeService exchangeService;
             private IndicatorCalculator indicatorCalculator;
@@ -113,82 +123,140 @@ public class FuturesTradingBot implements TradingAgent {
             private List<PositionExitCondition> exitConditions;
             private TradingConfig config;
             private TradeDirection direction;
-            private boolean skipLeverageInit;
+            private boolean skipLeverageInit = false; // Default value
 
-            // Usage example:
-            // FuturesTradingBot.BotParams params = new FuturesTradingBot.BotParams.Builder()
-            //     .exchangeService(exchangeService)
-            //     .indicatorCalculator(indicatorCalculator)
-            //     .trailingStopTracker(trailingStopTracker)
-            //     .sentimentAnalyzer(sentimentAnalyzer)
-            //     .exitConditions(exitConditions)
-            //     .config(config)
-            //     .direction(direction)
-            //     .skipLeverageInit(false)
-            //     .build();
-            // FuturesTradingBot bot = new FuturesTradingBot(params);
-
+            /**
+             * Sets the futures exchange service for executing trades.
+             * @param exchangeService the exchange service (required)
+             * @return this builder
+             * @throws IllegalArgumentException if exchangeService is null
+             */
             public Builder exchangeService(FuturesExchangeService exchangeService) {
-                this.exchangeService = exchangeService;
+                this.exchangeService = requireNonNull(exchangeService, "Exchange service cannot be null");
                 return this;
             }
 
+            /**
+             * Sets the indicator calculator for technical analysis.
+             * @param indicatorCalculator the indicator calculator (required)
+             * @return this builder
+             * @throws IllegalArgumentException if indicatorCalculator is null
+             */
+            public Builder indicatorCalculator(IndicatorCalculator indicatorCalculator) {
+                this.indicatorCalculator = requireNonNull(indicatorCalculator, "Indicator calculator cannot be null");
+                return this;
+            }
+
+            /**
+             * Sets the trailing stop tracker for risk management.
+             * @param trailingStopTracker the trailing stop tracker (required)
+             * @return this builder
+             * @throws IllegalArgumentException if trailingStopTracker is null
+             */
+            public Builder trailingStopTracker(TrailingStopTracker trailingStopTracker) {
+                this.trailingStopTracker = requireNonNull(trailingStopTracker, "Trailing stop tracker cannot be null");
+                return this;
+            }
+
+            /**
+             * Sets the sentiment analyzer for market sentiment analysis.
+             * @param sentimentAnalyzer the sentiment analyzer (required)
+             * @return this builder
+             * @throws IllegalArgumentException if sentimentAnalyzer is null
+             */
+            public Builder sentimentAnalyzer(SentimentAnalyzer sentimentAnalyzer) {
+                this.sentimentAnalyzer = requireNonNull(sentimentAnalyzer, "Sentiment analyzer cannot be null");
+                return this;
+            }
+
+            /**
+             * Sets the exit conditions for position management.
+             * @param exitConditions the list of exit conditions (required, non-empty)
+             * @return this builder
+             * @throws IllegalArgumentException if exitConditions is null or empty
+             */
             public Builder exitConditions(List<PositionExitCondition> exitConditions) {
-                this.exitConditions = exitConditions;
+                requireNonNull(exitConditions, "Exit conditions cannot be null");
+                if (exitConditions.isEmpty()) {
+                    throw new IllegalArgumentException("Exit conditions cannot be empty");
+                }
+                this.exitConditions = new ArrayList<>(exitConditions); // Defensive copy
                 return this;
             }
 
+            /**
+             * Sets the trading configuration.
+             * @param config the trading configuration (required)
+             * @return this builder
+             * @throws IllegalArgumentException if config is null
+             */
             public Builder config(TradingConfig config) {
-                this.config = config;
+                this.config = requireNonNull(config, "Trading config cannot be null");
                 return this;
             }
 
-            public Builder direction(TradeDirection direction) {
-                this.direction = direction;
+            /**
+             * Sets the trade direction (LONG or SHORT).
+             * @param direction the trade direction (required)
+             * @return this builder
+             * @throws IllegalArgumentException if direction is null
+             */
+            public Builder tradeDirection(TradeDirection direction) {
+                this.direction = requireNonNull(direction, "Trade direction cannot be null");
                 return this;
             }
 
+            /**
+             * Sets whether to skip leverage initialization. 
+             * Useful for testing environments or when leverage is managed externally.
+             * @param skipLeverageInit true to skip leverage initialization, false otherwise (default: false)
+             * @return this builder
+             */
             public Builder skipLeverageInit(boolean skipLeverageInit) {
                 this.skipLeverageInit = skipLeverageInit;
                 return this;
             }
 
-            public Builder indicatorCalculator(IndicatorCalculator indicatorCalculator) {
-                this.indicatorCalculator = indicatorCalculator;
-                return this;
+            /**
+             * Convenience method for test mode - equivalent to skipLeverageInit(true).
+             * @return this builder
+             */
+            public Builder forTesting() {
+                return skipLeverageInit(true);
             }
 
-            public Builder trailingStopTracker(TrailingStopTracker trailingStopTracker) {
-                this.trailingStopTracker = trailingStopTracker;
-                return this;
-            }
-
-            public Builder tradeDirection(TradeDirection direction) {
-                this.direction = direction;
-                return this;
-            }
-
-            public Builder sentimentAnalyzer(SentimentAnalyzer sentimentAnalyzer) {
-                this.sentimentAnalyzer = sentimentAnalyzer;
-                return this;
-            }
-
-            public Builder testMode(boolean testMode) {
-                this.skipLeverageInit = testMode;
-                return this;
-            }
-
+            /**
+             * Validates all required fields and builds the BotParams instance.
+             * @return the configured BotParams
+             * @throws IllegalStateException if any required field is missing
+             */
             public BotParams build() {
-                BotParams params = new BotParams();
-                params.exchangeService = this.exchangeService;
-                params.indicatorCalculator = this.indicatorCalculator;
-                params.trailingStopTracker = this.trailingStopTracker;
-                params.sentimentAnalyzer = this.sentimentAnalyzer;
-                params.exitConditions = this.exitConditions;
-                params.config = this.config;
-                params.direction = this.direction;
-                params.skipLeverageInit = this.skipLeverageInit;
-                return params;
+                validateRequiredFields();
+                return new BotParams(this);
+            }
+
+            private void validateRequiredFields() {
+                StringBuilder missing = new StringBuilder();
+                
+                if (exchangeService == null) missing.append("exchangeService, ");
+                if (indicatorCalculator == null) missing.append("indicatorCalculator, ");
+                if (trailingStopTracker == null) missing.append("trailingStopTracker, ");
+                if (sentimentAnalyzer == null) missing.append("sentimentAnalyzer, ");
+                if (exitConditions == null || exitConditions.isEmpty()) missing.append("exitConditions, ");
+                if (config == null) missing.append("config, ");
+                if (direction == null) missing.append("tradeDirection, ");
+                
+                if (!missing.isEmpty()) {
+                    missing.setLength(missing.length() - 2); // Remove trailing ", "
+                    throw new IllegalStateException("Missing required fields: " + missing);
+                }
+            }
+
+            private static <T> T requireNonNull(T obj, String message) {
+                if (obj == null) {
+                    throw new IllegalArgumentException(message);
+                }
+                return obj;
             }
         }
     }
