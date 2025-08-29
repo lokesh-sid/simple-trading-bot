@@ -31,3 +31,5 @@ logs/
 application-local.properties
 GRADLE_MIGRATION.md
 MIGRATION_COMPLETE.md
+docs/API_CHANGES.md
+docs/SWAGGER_IMPLEMENTATION_SUMMARY.md
