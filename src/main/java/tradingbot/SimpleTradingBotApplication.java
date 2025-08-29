@@ -3,6 +3,7 @@ package tradingbot;
 import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cache.annotation.EnableCaching;
@@ -15,8 +16,8 @@ import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.FuturesTradingBot.BotParams;
 import tradingbot.bot.TradeDirection;
 import tradingbot.config.TradingConfig;
-import tradingbot.service.BinanceFuturesService;
 import tradingbot.service.FuturesExchangeService;
+import tradingbot.service.RateLimitedBinanceFuturesService;
 import tradingbot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.strategy.calculator.IndicatorCalculator;
 import tradingbot.strategy.exit.LiquidationRiskExit;
@@ -43,13 +44,12 @@ public class SimpleTradingBotApplication {
     }
 
     @Bean
-    public FuturesExchangeService exchangeService() {
+    public FuturesExchangeService exchangeService(
+            @Value("${trading.binance.api.key}") String apiKey,
+            @Value("${trading.binance.api.secret}") String apiSecret) {
         String exchange = System.getProperty("exchange", "binance"); // Default to Binance
         if ("binance".equals(exchange)) {
-            return new BinanceFuturesService("YOUR_BINANCE_API_KEY", "YOUR_BINANCE_API_SECRET");
-        } else if ("bybit".equals(exchange)) {
-            // return new BybitFuturesService("YOUR_BYBIT_API_KEY", "YOUR_BYBIT_API_SECRET");
-            return null;
+            return new RateLimitedBinanceFuturesService(apiKey, apiSecret);
         } else {
             throw new IllegalArgumentException("Unsupported exchange: " + exchange);
         }
@@ -61,7 +61,10 @@ public class SimpleTradingBotApplication {
     }
 
     @Bean
-    public FuturesTradingBot tradingBot(FuturesExchangeService exchangeService, SentimentAnalyzer sentimentAnalyzer) {
+    public FuturesTradingBot tradingBot(
+            FuturesExchangeService exchangeService, 
+            SentimentAnalyzer sentimentAnalyzer,
+            @Value("${trading.binance.api.key}") String apiKey) {
         TradingConfig config = new TradingConfig();
         TechnicalIndicator rsiIndicator = new RSITechnicalIndicator(config.getLookbackPeriodRsi());
         TechnicalIndicator macdIndicator = new MACDTechnicalIndicator(config.getMacdFastPeriod(), config.getMacdSlowPeriod(), config.getMacdSignalPeriod(), false);
@@ -81,6 +84,10 @@ public class SimpleTradingBotApplication {
                 new MACDExit(indicatorCalculator),
                 new LiquidationRiskExit(exchangeService, trailingStopTracker, config)
         );
+        
+        // Skip leverage initialization if using placeholder API credentials
+        boolean skipLeverageInit = "YOUR_BINANCE_API_KEY".equals(apiKey) || apiKey == null || apiKey.trim().isEmpty();
+        
         // Use BotParams to pass all required parameters
         BotParams botParams = new BotParams.Builder()
             .exchangeService(exchangeService)
@@ -90,7 +97,7 @@ public class SimpleTradingBotApplication {
             .exitConditions(exitConditions)
             .config(config)
             .tradeDirection(TradeDirection.LONG)
-            .skipLeverageInit(false) // Set to true for testing or paper trading
+            .skipLeverageInit(skipLeverageInit) // Skip if using placeholder credentials
             .build();
         return new FuturesTradingBot(botParams);
     }
