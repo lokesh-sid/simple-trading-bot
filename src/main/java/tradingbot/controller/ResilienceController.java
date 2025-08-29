@@ -3,6 +3,12 @@ package tradingbot.controller;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.retry.Retry;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,6 +22,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/resilience")
+@Tag(name = "Resilience Controller", description = "API for monitoring rate limiting, circuit breaker, and retry metrics")
 public class ResilienceController {
 
     @Autowired
@@ -37,6 +44,14 @@ public class ResilienceController {
      * Get current rate limiter metrics
      */
     @GetMapping("/rate-limiters")
+    @Operation(summary = "Get rate limiter metrics", 
+               description = "Returns current metrics for all rate limiters (trading, market, account)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Rate limiter metrics retrieved successfully",
+                    content = @Content(mediaType = "application/json", 
+                                     schema = @Schema(type = "object", description = "Rate limiter metrics for each category"))),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
     public Map<String, Object> getRateLimiterMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         
