@@ -53,6 +53,12 @@ dependencies {
     // OpenAPI/Swagger documentation
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
     
+    // Actuator for monitoring
+    implementation "org.springframework.boot:spring-boot-starter-actuator"
+    
+    // HTTP client for gateway proxying
+    implementation "org.springframework.boot:spring-boot-starter-webflux"
+    
     // Test dependencies
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
