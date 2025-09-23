@@ -1,8 +1,12 @@
 package tradingbot.controller;
 
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,15 +25,14 @@ import tradingbot.bot.TradeDirection;
 import tradingbot.config.TradingConfig;
 import tradingbot.service.FuturesExchangeService;
 import tradingbot.service.PaperFuturesExchangeService;
-
 @RestController
 @RequestMapping("/api/simple-trading-bot")
 @Tag(name = "Trading Bot Controller", description = "API for managing the futures trading bot")
 public class TradingBotController {
-    private FuturesTradingBot tradingBot;
+    private final AtomicReference<FuturesTradingBot> tradingBotRef;
 
     public TradingBotController(FuturesTradingBot tradingBot) {
-        this.tradingBot = tradingBot;
+        this.tradingBotRef = new AtomicReference<>(tradingBot);
     }
 
     @PostMapping("/start")
@@ -41,28 +44,56 @@ public class TradingBotController {
         @ApiResponse(responseCode = "400", description = "Invalid parameters"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+  
     public ResponseEntity<String> startBot(
             @Parameter(description = "Trading direction (LONG or SHORT)", required = true, example = "LONG")
-            @RequestParam TradeDirection direction, 
-            @Parameter(description = "Enable paper trading mode", example = "false")
+            @RequestParam TradeDirection direction,
+            @Parameter(description = "Use paper trading mode", required = false, example = "false")
             @RequestParam(defaultValue = "false") boolean paper) {
-        FuturesExchangeService exchangeService = paper ? new PaperFuturesExchangeService() : tradingBot.getExchangeService();
-        tradingBot = new FuturesTradingBot(new BotParams.Builder()
-            .exchangeService(exchangeService)
-            .indicatorCalculator(tradingBot.getIndicatorCalculator())
-            .trailingStopTracker(tradingBot.getTrailingStopTracker())
-            .sentimentAnalyzer(tradingBot.getSentimentAnalyzer())
-            .exitConditions(tradingBot.getExitConditions())
-            .config(tradingBot.getConfig())
-            .tradeDirection(direction)
-            .skipLeverageInit(paper)
-            .build());
-        tradingBot.start();
-        String mode = paper ? "paper" : "live";
-        return ResponseEntity.ok("Trading bot started in " + direction + " mode (" + mode + ")");
+        
+        try {
+            FuturesTradingBot currentBot = tradingBotRef.get();
+            
+            // Check if current bot exists
+            if (currentBot == null) {
+                return ResponseEntity.internalServerError().body("Trading bot is not properly initialized");
+            }
+            
+            // Check if bot is already running
+            if (currentBot.isRunning()) {
+                return ResponseEntity.badRequest().body("Trading bot is already running. Stop it before starting a new instance.");
+            }
+            
+            FuturesExchangeService exchangeService = paper ? new PaperFuturesExchangeService() : currentBot.getExchangeService();
+            
+            BotParams.Builder builder = new BotParams.Builder();
+            builder.exchangeService(exchangeService);
+            builder.indicatorCalculator(currentBot.getIndicatorCalculator());
+            builder.trailingStopTracker(currentBot.getTrailingStopTracker());
+            builder.sentimentAnalyzer(currentBot.getSentimentAnalyzer());
+            builder.exitConditions(currentBot.getExitConditions());
+            builder.config(currentBot.getConfig());
+            builder.tradeDirection(direction);
+            builder.skipLeverageInit(paper);
+
+            FuturesTradingBot newBot = new FuturesTradingBot(builder.build());
+            tradingBotRef.set(newBot);
+            newBot.start();
+            String mode = paper ? "paper" : "live";
+            return ResponseEntity.ok("Trading bot started in " + direction + " mode (" + mode + ")");
+            
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body("Invalid configuration: " + e.getMessage());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body("Bot configuration error: " + e.getMessage());
+        } catch (RuntimeException e) {
+            return ResponseEntity.internalServerError().body("Failed to start trading bot: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Unexpected error occurred while starting bot: " + e.getMessage());
+        }
     }
 
-    @PostMapping("/stop")
+    @PutMapping("/stop")
     @Operation(summary = "Stop the trading bot", 
                description = "Stops the currently running trading bot")
     @ApiResponses(value = {
@@ -71,7 +102,7 @@ public class TradingBotController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<String> stopBot() {
-        tradingBot.stop();
+        tradingBotRef.get().stop();
         return ResponseEntity.ok("Trading bot stopped");
     }
 
@@ -84,7 +115,7 @@ public class TradingBotController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<String> getStatus() {
-        return ResponseEntity.ok(tradingBot.getStatus());
+        return ResponseEntity.ok(tradingBotRef.get().getStatus());
     }
 
     @PostMapping("/configure")
@@ -99,27 +130,39 @@ public class TradingBotController {
     public ResponseEntity<String> configureBot(
             @Parameter(description = "New trading configuration", required = true)
             @RequestBody TradingConfig config) {
-        tradingBot.updateConfig(config);
+        tradingBotRef.get().updateConfig(config);
         return ResponseEntity.ok("Configuration updated");
     }
 
-    @PostMapping("/leverage")
-    @Operation(summary = "Set dynamic leverage", 
-               description = "Updates the trading bot's leverage multiplier")
+        @PutMapping("/leverage")
+    @Operation(summary = "Update leverage", description = "Update the leverage for futures trading")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Leverage updated successfully",
-                    content = @Content(mediaType = "text/plain", schema = @Schema(type = "string"))),
-        @ApiResponse(responseCode = "400", description = "Invalid leverage value"),
-        @ApiResponse(responseCode = "500", description = "Internal server error")
+            @ApiResponse(responseCode = "200", description = "Leverage updated successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid leverage value"),
+            @ApiResponse(responseCode = "404", description = "Trading bot not configured")
     })
-    public ResponseEntity<String> setDynamicLeverage(
-            @Parameter(description = "Leverage multiplier (1-100)", required = true, example = "10")
-            @RequestParam int leverage) {
-        tradingBot.setDynamicLeverage(leverage);
-        return ResponseEntity.ok("Leverage set to " + leverage + "x");
+    public ResponseEntity<String> updateLeverage(@RequestParam double leverage) {
+        try {
+            FuturesTradingBot bot = tradingBotRef.get();
+            if (bot == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Trading bot not configured");
+            }
+            
+            if (leverage <= 0 || leverage > 100) {
+                return ResponseEntity.badRequest()
+                    .body("Invalid leverage value. Must be between 1 and 100");
+            }
+            
+            bot.setDynamicLeverage((int) leverage);
+            return ResponseEntity.ok("Leverage updated to " + leverage + "x");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Failed to update leverage: " + e.getMessage());
+        }
     }
 
-    @PostMapping("/sentiment")
+    @PutMapping("/sentiment")
     @Operation(summary = "Enable/disable sentiment analysis", 
                description = "Toggles sentiment analysis feature for the trading bot")
     @ApiResponses(value = {
@@ -130,7 +173,7 @@ public class TradingBotController {
     public ResponseEntity<String> enableSentimentAnalysis(
             @Parameter(description = "Enable or disable sentiment analysis", required = true, example = "true")
             @RequestParam boolean enable) {
-        tradingBot.enableSentimentAnalysis(enable);
+        tradingBotRef.get().enableSentimentAnalysis(enable);
         return ResponseEntity.ok("Sentiment analysis " + (enable ? "enabled" : "disabled"));
     }
 }

@@ -1,15 +1,16 @@
 package tradingbot.config;
 
+import java.time.Duration;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
-import java.time.Duration;
 
 /**
  * Configuration for Resilience4j rate limiting, circuit breaker, and retry mechanisms
@@ -28,7 +29,7 @@ public class ResilienceConfig {
      * Our limit: 8 requests per 10 seconds (conservative)
      */
     @Bean
-    public RateLimiter binanceTradingRateLimiter() {
+    RateLimiter binanceTradingRateLimiter() {
         RateLimiterConfig config = RateLimiterConfig.custom()
                 .limitForPeriod(8)
                 .limitRefreshPeriod(Duration.ofSeconds(10))
@@ -44,7 +45,7 @@ public class ResilienceConfig {
      * Our limit: 30 requests per second (conservative)
      */
     @Bean
-    public RateLimiter binanceMarketRateLimiter() {
+    RateLimiter binanceMarketRateLimiter() {
         RateLimiterConfig config = RateLimiterConfig.custom()
                 .limitForPeriod(30)
                 .limitRefreshPeriod(Duration.ofSeconds(1))
@@ -60,7 +61,7 @@ public class ResilienceConfig {
      * Our limit: 2 requests per second (conservative)
      */
     @Bean
-    public RateLimiter binanceAccountRateLimiter() {
+    RateLimiter binanceAccountRateLimiter() {
         RateLimiterConfig config = RateLimiterConfig.custom()
                 .limitForPeriod(2)
                 .limitRefreshPeriod(Duration.ofSeconds(1))
@@ -76,7 +77,7 @@ public class ResilienceConfig {
      * Stays open for 30 seconds before trying again
      */
     @Bean
-    public CircuitBreaker binanceApiCircuitBreaker() {
+    CircuitBreaker binanceApiCircuitBreaker() {
         CircuitBreakerConfig config = CircuitBreakerConfig.custom()
                 .failureRateThreshold(50)
                 .minimumNumberOfCalls(5)
@@ -95,7 +96,7 @@ public class ResilienceConfig {
      * Initial wait: 1 second, multiplier: 2
      */
     @Bean
-    public Retry binanceApiRetry() {
+    Retry binanceApiRetry() {
         RetryConfig config = RetryConfig.custom()
                 .maxAttempts(3)
                 .waitDuration(Duration.ofSeconds(1))

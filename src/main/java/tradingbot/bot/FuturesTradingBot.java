@@ -2,8 +2,16 @@ package tradingbot.bot;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Logger;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
+import jakarta.validation.constraints.NotNull;
+import tradingbot.agent.TradingAgent;
+import tradingbot.bot.model.MarketData;
 import tradingbot.config.TradingConfig;
 import tradingbot.service.FuturesExchangeService;
 import tradingbot.strategy.analyzer.SentimentAnalyzer;
@@ -12,7 +20,7 @@ import tradingbot.strategy.calculator.IndicatorValues;
 import tradingbot.strategy.exit.PositionExitCondition;
 import tradingbot.strategy.tracker.TrailingStopTracker;
 
-public class FuturesTradingBot implements TradingAgent {
+public class FuturesTradingBot implements TradingAgent<MarketData> {
     private final Logger logger = Logger.getLogger(FuturesTradingBot.class.getName());
     private static final int CHECK_INTERVAL_SECONDS = 900; // 15 minutes
 
@@ -116,13 +124,27 @@ public class FuturesTradingBot implements TradingAgent {
         }
 
         public static class Builder {
+            @NotNull(message = "Exchange service is required")
             private FuturesExchangeService exchangeService;
+            
+            @NotNull(message = "Indicator calculator is required")
             private IndicatorCalculator indicatorCalculator;
+            
+            @NotNull(message = "Trailing stop tracker is required")
             private TrailingStopTracker trailingStopTracker;
+            
+            @NotNull(message = "Sentiment analyzer is required")
             private SentimentAnalyzer sentimentAnalyzer;
+            
+            @NotNull(message = "Exit conditions are required")
             private List<PositionExitCondition> exitConditions;
+            
+            @NotNull(message = "Trading config is required")
             private TradingConfig config;
+            
+            @NotNull(message = "Trade direction is required")
             private TradeDirection direction;
+            
             private boolean skipLeverageInit = false; // Default value
 
             /**
@@ -228,7 +250,7 @@ public class FuturesTradingBot implements TradingAgent {
             /**
              * Validates all required fields and builds the BotParams instance.
              * @return the configured BotParams
-             * @throws IllegalStateException if any required field is missing
+             * @throws IllegalStateException if any required field is missing or invalid
              */
             public BotParams build() {
                 validateRequiredFields();
@@ -236,19 +258,28 @@ public class FuturesTradingBot implements TradingAgent {
             }
 
             private void validateRequiredFields() {
-                StringBuilder missing = new StringBuilder();
-                
-                if (exchangeService == null) missing.append("exchangeService, ");
-                if (indicatorCalculator == null) missing.append("indicatorCalculator, ");
-                if (trailingStopTracker == null) missing.append("trailingStopTracker, ");
-                if (sentimentAnalyzer == null) missing.append("sentimentAnalyzer, ");
-                if (exitConditions == null || exitConditions.isEmpty()) missing.append("exitConditions, ");
-                if (config == null) missing.append("config, ");
-                if (direction == null) missing.append("tradeDirection, ");
-                
-                if (!missing.isEmpty()) {
-                    missing.setLength(missing.length() - 2); // Remove trailing ", "
-                    throw new IllegalStateException("Missing required fields: " + missing);
+                try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
+                    Validator validator = factory.getValidator();
+                    Set<ConstraintViolation<Builder>> violations = validator.validate(this);
+                    
+                    if (!violations.isEmpty()) {
+                        StringBuilder errorMessage = new StringBuilder("Validation failed: ");
+                        for (ConstraintViolation<Builder> violation : violations) {
+                            errorMessage.append(violation.getMessage()).append("; ");
+                        }
+                        
+                        // Remove trailing "; "
+                        if (errorMessage.length() > 2) {
+                            errorMessage.setLength(errorMessage.length() - 2);
+                        }
+                        
+                        throw new IllegalStateException(errorMessage.toString());
+                    }
+                    
+                    // Additional custom validation that can't be handled by annotations
+                    if (exitConditions != null && exitConditions.isEmpty()) {
+                        throw new IllegalStateException("Validation failed: Exit conditions cannot be empty");
+                    }
                 }
             }
 
@@ -279,15 +310,12 @@ public class FuturesTradingBot implements TradingAgent {
     }
 
     @Override
-    public void processMarketData(Object marketData) {
-        if (marketData instanceof MarketData) {
-            MarketData md = (MarketData) marketData;
-            logMarketData(exchangeService.getCurrentPrice(config.getSymbol()), md);
-            if (!isInPosition() && isEntrySignalValid(md)) {
-                enterPosition();
-            }
-        } else {
-            logger.warning("Unsupported market data type for agent");
+    public void processMarketData(MarketData marketData) {
+        // Invalidate or update cachedMarketData to avoid stale data
+        cachedMarketData = marketData;
+        logMarketData(exchangeService.getCurrentPrice(config.getSymbol()), marketData);
+        if (!isInPosition() && isEntrySignalValid(marketData)) {
+            enterPosition();
         }
     }
 
@@ -316,7 +344,7 @@ public class FuturesTradingBot implements TradingAgent {
         }
         this.currentLeverage = newLeverage;
         initializeLeverage();
-        logger.info(() -> String.format("Dynamic leverage set to %dx", newLeverage));
+        logger.info(() -> "Dynamic leverage set to %dx".formatted(newLeverage));
     }
 
     public void enableSentimentAnalysis(boolean enable) {
@@ -327,15 +355,15 @@ public class FuturesTradingBot implements TradingAgent {
     private void initializeLeverage() {
         try {
             exchangeService.setLeverage(config.getSymbol(), currentLeverage);
-            logger.info(() -> String.format("Leverage set to %dx for %s", currentLeverage, config.getSymbol()));
+            logger.info(() -> "Leverage set to %dx for %s".formatted(currentLeverage, config.getSymbol()));
         } catch (Exception e) {
-            logger.severe("Failed to set leverage: " + e.getMessage());
-            throw new RuntimeException("Leverage initialization failed", e);
+            logger.severe("Failed to set leverage for symbol " + config.getSymbol() + " to " + currentLeverage + "x: " + e.getMessage());
+            throw new IllegalArgumentException("Leverage initialization failed for " + config.getSymbol(), e);
         }
     }
 
     private void logInitialization() {
-        logger.info(() -> String.format("Bot initialized for %s %s with %dx leverage, trailing stop: %.2f%%",
+        logger.info(() -> "Bot initialized for %s %s with %dx leverage, trailing stop: %.2f%%".formatted(
                 direction == TradeDirection.LONG ? "longing" : "shorting",
                 config.getSymbol(), currentLeverage, config.getTrailingStopPercent()));
     }
@@ -406,11 +434,11 @@ public class FuturesTradingBot implements TradingAgent {
     }
 
     private void logMarketData(double price, MarketData marketData) {
-        logger.info(() -> String.format("Price: %.2f, Daily RSI: %.2f, Daily MACD: %.2f, Daily Signal: %.2f, " +
-                        "Daily Lower BB: %.2f, Daily Upper BB: %.2f, Weekly RSI: %.2f, Highest Price: %.2f",
-                price, marketData.dailyIndicators.getRsi(), marketData.dailyIndicators.getMacd(),
-                marketData.dailyIndicators.getSignal(), marketData.dailyIndicators.getLowerBand(),
-                marketData.dailyIndicators.getUpperBand(), marketData.weeklyIndicators.getRsi(),
+        logger.info(() -> ("Price: %.2f, Daily RSI: %.2f, Daily MACD: %.2f, Daily Signal: %.2f, " +
+                "Daily Lower BB: %.2f, Daily Upper BB: %.2f, Weekly RSI: %.2f, Highest Price: %.2f").formatted(
+                price, marketData.dailyIndicators().getRsi(), marketData.dailyIndicators().getMacd(),
+                marketData.dailyIndicators().getSignal(), marketData.dailyIndicators().getLowerBand(),
+                marketData.dailyIndicators().getUpperBand(), marketData.weeklyIndicators().getRsi(),
                 trailingStopTracker.getHighestPrice()));
     }
 
@@ -418,19 +446,19 @@ public class FuturesTradingBot implements TradingAgent {
         double currentPrice = exchangeService.getCurrentPrice(config.getSymbol());
         boolean technicalSignal;
         if (direction == TradeDirection.LONG) {
-            technicalSignal = marketData.dailyIndicators.getRsi() <= config.getRsiOversoldThreshold() &&
-                             marketData.dailyIndicators.getMacd() > marketData.dailyIndicators.getSignal() &&
-                             currentPrice <= marketData.dailyIndicators.getLowerBand() * 1.01 &&
-                             marketData.weeklyIndicators.getRsi() < config.getRsiOverboughtThreshold();
+            technicalSignal = marketData.dailyIndicators().getRsi() <= config.getRsiOversoldThreshold() &&
+                             marketData.dailyIndicators().getMacd() > marketData.dailyIndicators().getSignal() &&
+                             currentPrice <= marketData.dailyIndicators().getLowerBand() * 1.01 &&
+                             marketData.weeklyIndicators().getRsi() < config.getRsiOverboughtThreshold();
             if (sentimentEnabled) {
                 return technicalSignal && sentimentAnalyzer.isPositiveSentiment(config.getSymbol());
             }
             return technicalSignal;
         } else {
-            technicalSignal = marketData.dailyIndicators.getRsi() >= config.getRsiOverboughtThreshold() &&
-                             marketData.dailyIndicators.getMacd() < marketData.dailyIndicators.getSignal() &&
-                             currentPrice >= marketData.dailyIndicators.getUpperBand() * 0.99 &&
-                             marketData.weeklyIndicators.getRsi() > config.getRsiOversoldThreshold();
+            technicalSignal = marketData.dailyIndicators().getRsi() >= config.getRsiOverboughtThreshold() &&
+                             marketData.dailyIndicators().getMacd() < marketData.dailyIndicators().getSignal() &&
+                             currentPrice >= marketData.dailyIndicators().getUpperBand() * 0.99 &&
+                             marketData.weeklyIndicators().getRsi() > config.getRsiOversoldThreshold();
             if (sentimentEnabled) {
                 return technicalSignal && sentimentAnalyzer.isNegativeSentiment(config.getSymbol());
             }
@@ -443,7 +471,7 @@ public class FuturesTradingBot implements TradingAgent {
         double requiredMargin = config.getTradeAmount() * price / currentLeverage;
 
         if (exchangeService.getMarginBalance() < requiredMargin) {
-            logger.warning(() -> String.format("Insufficient margin balance (USDT) to %s %.4f %s with %dx leverage",
+            logger.warning(() -> "Insufficient margin balance (USDT) to %s %.4f %s with %dx leverage".formatted(
                     direction == TradeDirection.LONG ? "buy" : "sell",
                     config.getTradeAmount(), config.getSymbol(), currentLeverage));
             return;
@@ -452,19 +480,20 @@ public class FuturesTradingBot implements TradingAgent {
         try {
             if (direction == TradeDirection.LONG) {
                 exchangeService.enterLongPosition(config.getSymbol(), config.getTradeAmount());
-                logger.info(() ->String.format("Entered long: Bought %.4f %s at %.2f with %dx leverage",
+                logger.info(() ->"Entered long: Bought %.4f %s at %.2f with %dx leverage".formatted(
                         config.getTradeAmount(), config.getSymbol(), price, currentLeverage));
                 positionStatus = "long";
             } else {
                 exchangeService.enterShortPosition(config.getSymbol(), config.getTradeAmount());
-                logger.info(() ->String.format("Entered short: Sold %.4f %s at %.2f with %dx leverage",
+                logger.info(() ->"Entered short: Sold %.4f %s at %.2f with %dx leverage".formatted(
                         config.getTradeAmount(), config.getSymbol(), price, currentLeverage));
                 positionStatus = "short";
             }
             entryPrice = price;
             trailingStopTracker.initializeTrailingStop(price);
         } catch (Exception e) {
-            logger.severe("Failed to enter " + direction.name().toLowerCase() + " position: " + e.getMessage());
+            logger.severe("Failed to enter " + direction.name().toLowerCase() + " position for " + config.getSymbol() + " with amount " + config.getTradeAmount() + ": " + e.getMessage());
+            throw new RuntimeException("Position entry failed for " + direction.name().toLowerCase() + " trade", e);
         }
     }
 
@@ -474,19 +503,20 @@ public class FuturesTradingBot implements TradingAgent {
             if (direction == TradeDirection.LONG) {
                 exchangeService.exitLongPosition(config.getSymbol(), config.getTradeAmount());
                 double profit = (price - entryPrice) * config.getTradeAmount() * currentLeverage;
-                logger.info(() -> String.format("Exited long: Sold %.4f %s at %.2f with %dx leverage, Profit: %.2f",
+                logger.info(() -> "Exited long: Sold %.4f %s at %.2f with %dx leverage, Profit: %.2f".formatted(
                         config.getTradeAmount(), config.getSymbol(), price, currentLeverage, profit));
             } else {
                 exchangeService.exitShortPosition(config.getSymbol(), config.getTradeAmount());
                 double profit = (entryPrice - price) * config.getTradeAmount() * currentLeverage;
-                logger.info(() -> String.format("Exited short: Bought %.4f %s at %.2f with %dx leverage, Profit: %.2f",
+                logger.info(() -> "Exited short: Bought %.4f %s at %.2f with %dx leverage, Profit: %.2f".formatted(
                         config.getTradeAmount(), config.getSymbol(), price, currentLeverage, profit));
             }
             positionStatus = null;
             entryPrice = 0.0;
             trailingStopTracker.reset();
         } catch (Exception e) {
-            logger.severe("Failed to exit " + direction.name().toLowerCase() + " position: " + e.getMessage());
+            logger.severe("Failed to exit " + direction.name().toLowerCase() + " position for " + config.getSymbol() + " with amount " + config.getTradeAmount() + ": " + e.getMessage());
+            throw new RuntimeException("Position exit failed for " + direction.name().toLowerCase() + " trade", e);
         }
     }
 
@@ -495,16 +525,6 @@ public class FuturesTradingBot implements TradingAgent {
             Thread.sleep(CHECK_INTERVAL_SECONDS * 1000);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    private static class MarketData {
-        final IndicatorValues dailyIndicators;
-        final IndicatorValues weeklyIndicators;
-
-        MarketData(IndicatorValues dailyIndicators, IndicatorValues weeklyIndicators) {
-            this.dailyIndicators = dailyIndicators;
-            this.weeklyIndicators = weeklyIndicators;
         }
     }
 }

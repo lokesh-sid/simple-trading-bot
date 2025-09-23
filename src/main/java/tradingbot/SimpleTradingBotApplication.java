@@ -39,12 +39,12 @@ public class SimpleTradingBotApplication {
     }
 
     @Bean
-    public RestTemplate restTemplate() {
+    RestTemplate restTemplate() {
         return new RestTemplate();
     }
 
     @Bean
-    public FuturesExchangeService exchangeService(
+    FuturesExchangeService exchangeService(
             @Value("${trading.binance.api.key}") String apiKey,
             @Value("${trading.binance.api.secret}") String apiSecret) {
         String exchange = System.getProperty("exchange", "binance"); // Default to Binance
@@ -56,13 +56,13 @@ public class SimpleTradingBotApplication {
     }
 
     @Bean
-    public SentimentAnalyzer sentimentAnalyzer(RestTemplate restTemplate) {
+    SentimentAnalyzer sentimentAnalyzer(RestTemplate restTemplate) {
         return new SentimentAnalyzer(restTemplate);
     }
 
     @Bean
-    public FuturesTradingBot tradingBot(
-            FuturesExchangeService exchangeService, 
+    FuturesTradingBot tradingBot(
+            FuturesExchangeService exchangeService,
             SentimentAnalyzer sentimentAnalyzer,
             @Value("${trading.binance.api.key}") String apiKey) {
         TradingConfig config = new TradingConfig();

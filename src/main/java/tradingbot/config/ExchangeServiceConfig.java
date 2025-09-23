@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+
 import tradingbot.service.FuturesExchangeService;
 import tradingbot.service.RateLimitedBinanceFuturesService;
 
@@ -25,7 +26,7 @@ public class ExchangeServiceConfig {
      */
     @Bean
     @Primary
-    public FuturesExchangeService futuresExchangeService() {
+    FuturesExchangeService futuresExchangeService() {
         return new RateLimitedBinanceFuturesService(binanceApiKey, binanceApiSecret);
     }
 }

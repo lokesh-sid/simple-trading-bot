@@ -16,14 +16,14 @@ import org.springframework.web.client.RestTemplate;
  */
 @Configuration
 public class ApiGatewayConfig {
-    
+
     @Bean
-    public RestTemplate gatewayRestTemplate() {
+    RestTemplate gatewayRestTemplate() {
         return new RestTemplate();
     }
-    
+
     @Bean
-    public GatewayService gatewayService(RestTemplate gatewayRestTemplate) {
+    GatewayService gatewayService(RestTemplate gatewayRestTemplate) {
         return new GatewayService(gatewayRestTemplate);
     }
 }
