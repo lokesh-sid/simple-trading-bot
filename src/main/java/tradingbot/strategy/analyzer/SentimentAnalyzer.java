@@ -2,7 +2,6 @@ package tradingbot.strategy.analyzer;
 
 import java.util.logging.Logger;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.client.RestTemplate;
 
 public class SentimentAnalyzer {
@@ -12,7 +11,6 @@ public class SentimentAnalyzer {
 
     private final RestTemplate restTemplate;
 
-    @Autowired
     public SentimentAnalyzer(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
@@ -20,7 +18,7 @@ public class SentimentAnalyzer {
     public boolean isPositiveSentiment(String symbol) {
         try {
             if (LOGGER.isLoggable(java.util.logging.Level.INFO)) {
-                LOGGER.info(String.format("Fetching sentiment for %s from X posts", symbol));
+                LOGGER.info("Fetching sentiment for %s from X posts".formatted(symbol));
             }
             double sentimentScore = 0.7; // Placeholder positive sentiment score
             return sentimentScore > SENTIMENT_THRESHOLD;
@@ -33,7 +31,7 @@ public class SentimentAnalyzer {
     public boolean isNegativeSentiment(String symbol) {
         try {
             if (LOGGER.isLoggable(java.util.logging.Level.INFO)) {
-                LOGGER.info(String.format("Fetching sentiment for %s from X posts", symbol));
+                LOGGER.info("Fetching sentiment for %s from X posts".formatted(symbol));
             }
             double sentimentScore = 0.7; // Placeholder positive sentiment score
             return sentimentScore < (1.0 - SENTIMENT_THRESHOLD);

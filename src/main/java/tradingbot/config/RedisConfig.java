@@ -13,7 +13,7 @@ import tradingbot.strategy.calculator.IndicatorValues;
 @Configuration
 public class RedisConfig {
     @Bean
-    public RedisTemplate<String, IndicatorValues> redisTemplate(RedisConnectionFactory connectionFactory) {
+    RedisTemplate<String, IndicatorValues> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, IndicatorValues> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(new StringRedisSerializer());
@@ -22,7 +22,7 @@ public class RedisConfig {
     }
 
     @Bean
-    public RedisTemplate<String, Long> longRedisTemplate(RedisConnectionFactory connectionFactory) {
+    RedisTemplate<String, Long> longRedisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Long> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(new StringRedisSerializer());

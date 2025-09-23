@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -33,7 +34,7 @@ public class IndicatorCalculator {
     }
 
     public IndicatorValues computeIndicators(String timeframe, String symbol) {
-        String cacheKey = String.format("indicators:%s:%s", symbol, timeframe);
+        String cacheKey = "indicators:%s:%s".formatted(symbol, timeframe);
         ValueOperations<String, IndicatorValues> valueOps = redisTemplate.opsForValue();
         IndicatorValues cached = valueOps.get(cacheKey);
         List<Candle> candles = exchangeService.fetchOhlcv(symbol, timeframe, CANDLE_LIMIT);
@@ -48,21 +49,21 @@ public class IndicatorCalculator {
         if (isNewCandle) {
             redisTemplate.delete(cacheKey);
             if (LOGGER.isLoggable(java.util.logging.Level.INFO)) {
-                LOGGER.info(String.format("Cache invalidated for %s on %s timeframe", symbol, timeframe));
+                LOGGER.info("Cache invalidated for %s on %s timeframe".formatted(symbol, timeframe));
             }
         }
         if (cached != null && !isNewCandle) {
             if (LOGGER.isLoggable(java.util.logging.Level.INFO)) {
-                LOGGER.info(String.format("Cache hit for %s on %s timeframe", symbol, timeframe));
+                LOGGER.info("Cache hit for %s on %s timeframe".formatted(symbol, timeframe));
             }
             return cached;
         }
         if (LOGGER.isLoggable(java.util.logging.Level.INFO)) {
-            LOGGER.info(String.format("Cache miss. Computing indicators for %s on %s timeframe", symbol, timeframe));
+            LOGGER.info("Cache miss. Computing indicators for %s on %s timeframe".formatted(symbol, timeframe));
         }
         if (candles == null || candles.size() < 26) {
             if (LOGGER.isLoggable(java.util.logging.Level.WARNING)) {
-                LOGGER.warning(String.format("Insufficient data for indicators: %s, timeframe: %s", symbol, timeframe));
+                LOGGER.warning("Insufficient data for indicators: %s, timeframe: %s".formatted(symbol, timeframe));
             }
             return null;
         }
@@ -78,7 +79,7 @@ public class IndicatorCalculator {
                 // Add more cases for new indicators
                 default:
                     if (LOGGER.isLoggable(java.util.logging.Level.FINE)) {
-                        LOGGER.fine(String.format("Unknown indicator name: %s", name));
+                        LOGGER.fine("Unknown indicator name: %s".formatted(name));
                     }
                     break;
             }

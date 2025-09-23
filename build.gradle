@@ -1,7 +1,7 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.2.0'
-    id 'io.spring.dependency-management' version '1.1.4'
+    id 'org.springframework.boot' version '3.5.6'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'com.tradingbot'
@@ -21,10 +21,10 @@ ext {
     bybitApiVersion = '1.2.6'
     ta4jVersion = '0.15'
     junitVersion = '5.9.2'
-    mockitoVersion = '4.11.0'
+    mockitoVersion = '5.20.0'
     jacksonVersion = '2.15.2'
     resilience4jVersion = '2.1.0'
-    springdocVersion = '2.2.0'
+    springdocVersion = '2.6.0'
 }
 
 dependencies {
@@ -52,6 +52,10 @@ dependencies {
     
     // OpenAPI/Swagger documentation
     implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+    
+    // Bean Validation (JSR-303)
+    implementation "org.mockito:mockito-junit-jupiter:5.20.0"
+    implementation "org.springframework.boot:spring-boot-starter-validation"
     
     // Actuator for monitoring
     implementation "org.springframework.boot:spring-boot-starter-actuator"

@@ -25,7 +25,7 @@ public class TrailingStopTracker {
         this.highestPrice = price;
         this.entryPrice = price;
         this.position = "long";
-        LOGGER.info(String.format("Trailing stop initialized at %.2f", price));
+        LOGGER.info(() -> "Trailing stop initialized at %.2f".formatted(price));
     }
 
     public void reset() {
@@ -37,7 +37,7 @@ public class TrailingStopTracker {
     public void updateTrailingStop(double price) {
         if ("long".equals(position) && price > highestPrice) {
             highestPrice = price;
-            LOGGER.info(String.format("Updated trailing stop: New highest price %.2f", highestPrice));
+            LOGGER.info(() ->"Updated trailing stop: New highest price %.2f".formatted(highestPrice));
         }
     }
 
@@ -47,7 +47,7 @@ public class TrailingStopTracker {
         }
         double stopPrice = highestPrice * (1 - trailingStopPercent / 100);
         if (price <= stopPrice) {
-            LOGGER.info(String.format("Trailing stop-loss triggered! Price: %.2f, Stop price: %.2f", price, stopPrice));
+            LOGGER.info(() -> "Trailing stop-loss triggered! Price: %.2f, Stop price: %.2f".formatted(price, stopPrice));
             return true;
         }
         return false;

@@ -1,6 +1,9 @@
 package tradingbot.util;
 
+import java.util.List;
+
 import tradingbot.bot.FuturesTradingBot;
+import tradingbot.bot.FuturesTradingBot.BotParams;
 import tradingbot.bot.TradeDirection;
 import tradingbot.config.TradingConfig;
 import tradingbot.service.FuturesExchangeService;
@@ -8,8 +11,6 @@ import tradingbot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.strategy.calculator.IndicatorCalculator;
 import tradingbot.strategy.exit.PositionExitCondition;
 import tradingbot.strategy.tracker.TrailingStopTracker;
-
-import java.util.List;
 
 public class FuturesTradingBotTestUtils {
     public static final String SYMBOL = "BTCUSDT";
@@ -46,7 +47,7 @@ public class FuturesTradingBotTestUtils {
         }
     }
 
-    public static FuturesTradingBot.BotParams getBotParams(
+    public static BotParams getBotParams(
             FuturesExchangeService exchangeService,
             IndicatorCalculator indicatorCalculator,
             TrailingStopTracker trailingStopTracker,
@@ -58,7 +59,7 @@ public class FuturesTradingBotTestUtils {
             RSI_PERIOD, RSI_OVERSOLD, RSI_OVERBOUGHT, MACD_FAST, MACD_SLOW, MACD_SIGNAL, 
             BB_PERIOD, BB_STD, INTERVAL);
 
-        return new FuturesTradingBot.BotParams.Builder()
+        return new BotParams.Builder()
             .exchangeService(exchangeService)
             .indicatorCalculator(indicatorCalculator)
             .trailingStopTracker(trailingStopTracker)
