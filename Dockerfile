@@ -1,17 +1,18 @@
-FROM maven:3.8.6-amazoncorretto-17 AS build
+FROM gradle:8.5-jdk21 AS build
 
 WORKDIR /app
 
-COPY pom.xml .
+COPY build.gradle settings.gradle gradle.properties ./
+COPY gradle ./gradle
 COPY src ./src
 
-RUN mvn clean package -DskipTests
+RUN gradle clean build -x test
 
-FROM amazoncorretto:17-alpine-jdk
+FROM amazoncorretto:21-alpine-jdk
 
 WORKDIR /app
 
-COPY --from=build /app/target/simple-trading-bot-1.0-SNAPSHOT.jar app.jar
+COPY --from=build /app/build/libs/simple-trading-bot-1.0-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
 
