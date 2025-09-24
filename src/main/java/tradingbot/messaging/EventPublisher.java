@@ -36,13 +36,6 @@ public class EventPublisher {
     
     private final RedisTemplate<String, Object> redisTemplate;
     
-    // Simplified topic naming (production would be: trading.signals, trading.executions, etc.)
-    private static final String TRADE_SIGNALS_TOPIC = "trade-signals";
-    private static final String TRADE_EXECUTION_TOPIC = "trade-execution";
-    private static final String RISK_EVENTS_TOPIC = "risk-events";
-    private static final String MARKET_DATA_TOPIC = "market-data";
-    private static final String BOT_STATUS_TOPIC = "bot-status";
-    
     public EventPublisher(RedisTemplate<String, Object> redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
@@ -53,7 +46,7 @@ public class EventPublisher {
     public CompletableFuture<Void> publishTradeSignal(TradeSignalEvent event) {
         return CompletableFuture.runAsync(() -> {
             try {
-                publishToTopic(TRADE_SIGNALS_TOPIC, event.getBotId(), event);
+                publishToTopic(EventTopic.TRADE_SIGNALS, event.getBotId(), event);
                 log.info("Published trade signal: {} for {} with strength {}", 
                     event.getSignal(), event.getSymbol(), event.getStrength());
             } catch (Exception ex) {
@@ -69,7 +62,7 @@ public class EventPublisher {
     public CompletableFuture<Void> publishTradeExecution(TradeExecutionEvent event) {
         return CompletableFuture.runAsync(() -> {
             try {
-                publishToTopic(TRADE_EXECUTION_TOPIC, event.getBotId(), event);
+                publishToTopic(EventTopic.TRADE_EXECUTION, event.getBotId(), event);
                 log.info("Published trade execution: {} {} {} at ${}", 
                     event.getSide(), event.getQuantity(), event.getSymbol(), event.getPrice());
             } catch (Exception ex) {
@@ -85,10 +78,10 @@ public class EventPublisher {
     public CompletableFuture<Void> publishRiskEvent(RiskEvent event) {
         return CompletableFuture.runAsync(() -> {
             try {
-                publishToTopic(RISK_EVENTS_TOPIC, event.getBotId(), event);
+                publishToTopic(EventTopic.RISK_EVENTS, event.getBotId(), event);
                 log.info("Published risk event: {} - {}", event.getRiskType(), event.getDescription());
             } catch (Exception ex) {
-                log.error("Failed to publish risk event", ex);
+                  log.error("Failed to publish risk event", ex);
                 throw new EventPublishingException("Event publishing failed", ex);
             }
         });
@@ -100,7 +93,7 @@ public class EventPublisher {
     public CompletableFuture<Void> publishMarketData(MarketDataEvent event) {
         return CompletableFuture.runAsync(() -> {
             try {
-                publishToTopic(MARKET_DATA_TOPIC, event.getSymbol(), event);
+                publishToTopic(EventTopic.MARKET_DATA, event.getSymbol(), event);
                 log.debug("Published market data for {}: ${}", event.getSymbol(), event.getPrice());
             } catch (Exception ex) {
                 log.error("Failed to publish market data event", ex);
@@ -115,7 +108,7 @@ public class EventPublisher {
     public CompletableFuture<Void> publishBotStatus(BotStatusEvent event) {
         return CompletableFuture.runAsync(() -> {
             try {
-                publishToTopic(BOT_STATUS_TOPIC, event.getBotId(), event);
+                publishToTopic(EventTopic.BOT_STATUS, event.getBotId(), event);
                 log.info("Published bot status: {} - {}", event.getStatus(), event.getMessage());
             } catch (Exception ex) {
                 log.error("Failed to publish bot status event", ex);
@@ -128,11 +121,11 @@ public class EventPublisher {
      * Core method to publish events to Redis topics.
      * In production, this would be replaced with Kafka producer calls.
      * 
-     * @param topic The topic name
+     * @param topic The topic enum
      * @param key The partition key (botId, symbol, etc.)
      * @param event The event to publish
      */
-    private void publishToTopic(String topic, String key, TradingEvent event) {
+    private void publishToTopic(EventTopic topic, String key, TradingEvent event) {
         try {
             Map<String, Object> eventData = new HashMap<>();
             eventData.put("eventId", event.getEventId());
@@ -142,28 +135,36 @@ public class EventPublisher {
             eventData.put("key", key);
             
             // Redis implementation - store in hash with timestamp-based key
-            String redisKey = topic + ":" + System.currentTimeMillis() + ":" + event.getEventId();
+            String redisKey = topic.getTopicName() + ":" + System.currentTimeMillis() + ":" + event.getEventId();
             redisTemplate.opsForHash().putAll(redisKey, eventData);
             
             // Set expiration to avoid infinite growth
             redisTemplate.expire(redisKey, java.time.Duration.ofHours(24));
             
-            log.debug("Event published to topic {} with key {} and id {}", topic, key, event.getEventId());
+            log.debug("Event published to topic {} with key {} and id {}", topic.getTopicName(), key, event.getEventId());
             
         } catch (Exception ex) {
-            log.error("Failed to publish event to topic {}", topic, ex);
-            throw new RuntimeException("Topic publishing failed for: " + topic, ex);
+            log.error("Failed to publish event to topic {}", topic.getTopicName(), ex);
+            throw new RuntimeException("Topic publishing failed for: " + topic.getTopicName(), ex);
         }
     }
     
     /**
      * Gets the current count of events in a topic (for monitoring).
      */
-    public long getTopicEventCount(String topic) {
+    public long getTopicEventCount(EventTopic topic) {
+        return getTopicEventCount(topic.getTopicName());
+    }
+    
+    /**
+     * Gets the current count of events in a topic (for monitoring).
+     */
+    public long getTopicEventCount(String topicName) {
         try {
-            return redisTemplate.keys(topic + ":*").size();
+            var keys = redisTemplate.keys(topicName + ":*");
+            return keys != null ? keys.size() : 0;
         } catch (Exception ex) {
-            log.warn("Failed to get event count for topic {}", topic, ex);
+            log.warn("Failed to get event count for topic {}", topicName, ex);
             return 0;
         }
     }
