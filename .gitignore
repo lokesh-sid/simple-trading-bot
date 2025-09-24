@@ -100,3 +100,5 @@ KAFKA_VS_REDIS_STREAMS.md
 MESSAGE_QUEUE_IMPLEMENTATION.md
 MESSAGE_QUEUE_INTEGRATION_SUMMARY.md
 ARCHITECTURE_SIMPLIFICATION.md
+lokesh-sid: upgrade java runtime to the .md
+bin/main/tradingbot/messaging/EventTopic.class
