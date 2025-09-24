@@ -1,7 +1,6 @@
 package tradingbot.messaging;
 
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +25,10 @@ import tradingbot.events.TradeSignalEvent;
  * Demonstration controller showing how to integrate event-driven patterns
  * with the existing trading bot REST API. This shows the migration path
  * from synchronous to asynchronous, event-driven architecture.
+ *
+ * <p>Note: Event publishing is asynchronous. The API response only confirms
+ * that the event was accepted for publishing, not that downstream processing
+ * has completed successfully.</p>
  */
 @RestController
 @RequestMapping("/api/events")
@@ -34,6 +37,14 @@ public class EventDrivenTradingController {
     
     private static final Logger log = LoggerFactory.getLogger(EventDrivenTradingController.class);
     
+    // Response field constants
+    private static final String EVENT_ID = "eventId";
+    private static final String STATUS = "status";
+    private static final String MESSAGE = "message";
+    private static final String ERROR = "error";
+    private static final String TIMESTAMP = "timestamp";
+    private static final String PUBLISHED = "published";
+    
     private final EventPublisher eventPublisher;
     private final TradeExecutionService tradeExecutionService;
     
@@ -41,6 +52,13 @@ public class EventDrivenTradingController {
                                       TradeExecutionService tradeExecutionService) {
         this.eventPublisher = eventPublisher;
         this.tradeExecutionService = tradeExecutionService;
+    }
+    
+    /**
+     * Utility method to determine if the bot is considered running based on status string.
+     */
+    private boolean isBotRunning(String status) {
+        return "RUNNING".equalsIgnoreCase(status) || "STARTED".equalsIgnoreCase(status);
     }
     
     @PostMapping("/trade-signal")
@@ -72,40 +90,30 @@ public class EventDrivenTradingController {
             ));
             
             // Publish the event asynchronously
-            CompletableFuture<Void> publishFuture = eventPublisher.publishTradeSignal(signalEvent);
+            eventPublisher.publishTradeSignal(signalEvent)
+                .exceptionally(ex -> {
+                    log.error("Failed to publish trade signal: {}", signalEvent.getEventId(), ex);
+                    return null;
+                });
             
             // Process the signal (in production this would be handled by Kafka consumers)
-            CompletableFuture<Void> processingFuture = tradeExecutionService.handleTradeSignal(signalEvent);
-            
-            // Add error handling without blocking the response
-            publishFuture.exceptionally(ex -> {
-                log.error("Failed to publish trade signal: {}", signalEvent.getEventId(), ex);
-                return null;
-            });
-            
-            processingFuture.exceptionally(ex -> {
-                log.error("Failed to process trade signal: {}", signalEvent.getEventId(), ex);
-                return null;
-            });
+            tradeExecutionService.handleTradeSignal(signalEvent);
             
             // Return immediately with event ID (async processing continues in background)
-            Map<String, Object> response = Map.of(
-                "eventId", signalEvent.getEventId(),
-                "status", "published",
-                "message", "Trade signal event published and processing started",
-                "timestamp", signalEvent.getTimestamp()
+            Map<String, Object> tradeSignalResponse = Map.of(
+                EVENT_ID, signalEvent.getEventId(),
+                STATUS, PUBLISHED,
+                MESSAGE, "Trade signal event published and processing started",
+                TIMESTAMP, signalEvent.getTimestamp()
             );
             
-            log.info("Published trade signal event: {} for bot: {} - {} {}", 
-                signalEvent.getEventId(), botId, direction, symbol);
-            
-            return ResponseEntity.accepted().body(response);
+            return ResponseEntity.accepted().body(tradeSignalResponse);
             
         } catch (Exception ex) {
             log.error("Failed to publish trade signal", ex);
             return ResponseEntity.internalServerError().body(Map.of(
-                "error", "Failed to publish trade signal",
-                "message", ex.getMessage()
+                ERROR, "Failed to publish trade signal",
+                MESSAGE, ex.getMessage()
             ));
         }
     }
@@ -131,7 +139,7 @@ public class EventDrivenTradingController {
             @RequestParam(defaultValue = "MEDIUM") String severity,
             @Parameter(description = "Recommended action", example = "CLOSE_POSITION")
             @RequestParam(defaultValue = "ALERT_ONLY") String action) {
-        
+
         try {
             // Create risk event
             RiskEvent riskEvent = new RiskEvent(botId, riskType, symbol);
@@ -139,50 +147,51 @@ public class EventDrivenTradingController {
             riskEvent.setSeverity(severity);
             riskEvent.setAction(action);
             riskEvent.setDescription("Manual risk event triggered via API");
-            
+
             // Publish the event asynchronously
-            CompletableFuture<Void> publishFuture = eventPublisher.publishRiskEvent(riskEvent);
-            
+            eventPublisher.publishRiskEvent(riskEvent)
+                        .exceptionally(ex -> {
+                            log.error("Failed to publish risk event: {} (type={}, symbol={})", riskEvent.getEventId(), riskEvent.getRiskType(), riskEvent.getSymbol(), ex);
+                            return null;
+                        });
+
             // Process the risk event (in production this would be handled by Kafka consumers)
-            CompletableFuture<Void> processingFuture = tradeExecutionService.handleRiskEvent(riskEvent);
-            
-            // Add error handling without blocking the response
-            publishFuture.exceptionally(ex -> {
-                log.error("Failed to publish risk event: {}", riskEvent.getEventId(), ex);
-                return null;
-            });
-            
-            processingFuture.exceptionally(ex -> {
-                log.error("Failed to process risk event: {}", riskEvent.getEventId(), ex);
-                return null;
-            });
-            
+            tradeExecutionService.handleRiskEvent(riskEvent)
+                        .exceptionally(ex -> {
+                            log.error("Failed to process risk event: {} (type={}, symbol={})", riskEvent.getEventId(), riskEvent.getRiskType(), riskEvent.getSymbol(), ex);
+                            return null;
+                            });
+
             Map<String, Object> response = Map.of(
-                "eventId", riskEvent.getEventId(),
-                "status", "published",
-                "message", "Risk event published and processing started",
-                "timestamp", riskEvent.getTimestamp(),
+                EVENT_ID, riskEvent.getEventId(),
+                STATUS, PUBLISHED,
+                MESSAGE, "Risk event published and processing started",
+                TIMESTAMP, riskEvent.getTimestamp(),
                 "severity", severity,
                 "action", action
             );
-            
-            log.warn("Published risk event: {} for bot: {} - {} ({})", 
-                riskEvent.getEventId(), botId, riskType, severity);
-            
+
             return ResponseEntity.accepted().body(response);
-            
+
         } catch (Exception ex) {
             log.error("Failed to publish risk event", ex);
-            return ResponseEntity.internalServerError().body(Map.of(
-                "error", "Failed to publish risk event",
-                "message", ex.getMessage()
-            ));
+            return ResponseEntity.internalServerError().body(
+                Map.of(
+                    ERROR, "Failed to publish risk event",
+                    MESSAGE, ex.getMessage()
+                )
+            );
         }
     }
-    
+
     @PostMapping("/bot-status")
-    @Operation(summary = "Publish a bot status event", 
-               description = "Demonstrates bot status broadcasting for real-time monitoring")
+    @Operation(
+        summary = "Publish a bot status event", 
+        description = "Demonstrates bot status broadcasting for real-time monitoring. "
+                    + "Note: Event publishing is asynchronous. The API response only confirms "
+                    + "that the event was accepted for publishing, not that downstream processing "
+                    + "has completed successfully."
+    )
     @ApiResponses(value = {
         @ApiResponse(responseCode = "202", description = "Status event published successfully"),
         @ApiResponse(responseCode = "400", description = "Invalid status parameters"),
@@ -193,7 +202,6 @@ public class EventDrivenTradingController {
             @RequestParam String botId,
             @Parameter(description = "Bot status", required = true, example = "RUNNING")
             @RequestParam String status,
-            @Parameter(description = "Status message", example = "Bot is actively trading")
             @RequestParam(required = false) String message,
             @Parameter(description = "Current balance", example = "1250.75")
             @RequestParam(defaultValue = "0.0") double balance,
@@ -204,37 +212,36 @@ public class EventDrivenTradingController {
             // Create bot status event
             BotStatusEvent statusEvent = new BotStatusEvent(botId, status);
             statusEvent.setMessage(message != null ? message : "Status updated via API");
-            statusEvent.setRunning("RUNNING".equals(status) || "STARTED".equals(status));
+            statusEvent.setRunning(isBotRunning(status));
             statusEvent.setCurrentBalance(balance);
             statusEvent.setActivePosition(activePosition);
             
             // Publish the event to real-time stream
-            CompletableFuture<Void> publishFuture = eventPublisher.publishBotStatus(statusEvent);
-            
-            // Add error handling for status publishing
-            publishFuture.exceptionally(ex -> {
-                log.error("Failed to publish bot status event: {}", statusEvent.getEventId(), ex);
-                return null;
-            });
-            
+            eventPublisher.publishBotStatus(statusEvent)
+                .exceptionally(ex -> {
+                    log.error("Failed to publish bot status event: {}", statusEvent.getEventId(), ex);
+                    return null;
+                });
+
+            tradeExecutionService.handleBotStatusEvent(statusEvent)
+                .exceptionally(ex -> {
+                    log.error("Failed to process bot status event: {}", statusEvent.getEventId(), ex);
+                    return null;
+                });
+
             Map<String, Object> response = Map.of(
-                "eventId", statusEvent.getEventId(),
-                "status", "published",
-                "message", "Bot status event published to real-time stream",
-                "timestamp", statusEvent.getTimestamp(),
+                EVENT_ID, statusEvent.getEventId(),
+                STATUS, PUBLISHED,
+                MESSAGE, "Bot status event published to real-time stream",
+                TIMESTAMP, statusEvent.getTimestamp(),
                 "botStatus", status
             );
-            
-            log.info("Published bot status event: {} for bot: {} - Status: {}", 
-                statusEvent.getEventId(), botId, status);
-            
             return ResponseEntity.accepted().body(response);
-            
         } catch (Exception ex) {
             log.error("Failed to publish bot status event", ex);
             return ResponseEntity.internalServerError().body(Map.of(
-                "error", "Failed to publish bot status event",
-                "message", ex.getMessage()
+                ERROR, "Failed to publish bot status event",
+                MESSAGE, ex.getMessage()
             ));
         }
     }

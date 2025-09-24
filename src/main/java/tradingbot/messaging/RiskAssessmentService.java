@@ -112,7 +112,7 @@ public class RiskAssessmentService {
         double finalRisk = baseRisk * strengthMultiplier * confidenceMultiplier;
         
         // Ensure within bounds
-        return Math.max(0.001, Math.min(MAX_SINGLE_TRADE_RISK, finalRisk));
+        return Math.clamp(finalRisk, 0.001, MAX_SINGLE_TRADE_RISK);
     }
     
     /**
@@ -125,15 +125,15 @@ public class RiskAssessmentService {
         try {
             if (signalEvent.getMetadata() != null) {
                 Object confidence = signalEvent.getMetadata().get("confidence");
-                if (confidence instanceof String) {
-                    return switch (((String) confidence).toUpperCase()) {
+                if (confidence instanceof String c) {
+                    return switch (c.toUpperCase()) {
                         case "HIGH" -> 1.0;
                         case "MEDIUM" -> 0.7;
                         case "LOW" -> 0.4;
                         default -> 0.5;
                     };
-                } else if (confidence instanceof Number) {
-                    return Math.min(1.0, Math.max(0.0, ((Number) confidence).doubleValue()));
+                } else if (confidence instanceof Number n) {
+                    return Math.clamp(n.doubleValue(), 0.0, 1.0);
                 }
             }
             return 0.5; // Default confidence

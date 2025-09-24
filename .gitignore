@@ -102,3 +102,11 @@ MESSAGE_QUEUE_INTEGRATION_SUMMARY.md
 ARCHITECTURE_SIMPLIFICATION.md
 lokesh-sid: upgrade java runtime to the .md
 bin/main/tradingbot/messaging/EventTopic.class
+bin/main/tradingbot/config/KafkaConfig.class
+bin/main/tradingbot/messaging/EventConsumer.class
+bin/test/tradingbot/messaging/EventConsumerTest.class
+bin/test/tradingbot/messaging/EventPublisherTest.class
+bin/test/tradingbot/messaging/integration/KafkaIntegrationTest.class
+KAFKA_IMPLEMENTATION_COMPLETE.md
+KAFKA_IMPLEMENTATION.md
+docs/RATE_LIMITING_GUIDE.md

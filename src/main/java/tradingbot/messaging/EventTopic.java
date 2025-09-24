@@ -4,16 +4,16 @@ package tradingbot.messaging;
  * Enum representing different event topics for the trading bot messaging system.
  * 
  * This provides better type safety and centralized management of topic names
- * compared to string constants. In production with Kafka, these would map to
+ * compared to string constants. In production with Kafka, these map to
  * actual Kafka topic names (e.g., trading.signals, trading.executions, etc.)
  */
 public enum EventTopic {
     
-    TRADE_SIGNALS("trade-signals"),
-    TRADE_EXECUTION("trade-execution"),
-    RISK_EVENTS("risk-events"),
-    MARKET_DATA("market-data"),
-    BOT_STATUS("bot-status");
+    TRADE_SIGNALS("trading.signals"),
+    TRADE_EXECUTION("trading.executions"),
+    RISK_EVENTS("trading.risk"),
+    MARKET_DATA("trading.market-data"),
+    BOT_STATUS("trading.bot-status");
     
     private final String topicName;
     

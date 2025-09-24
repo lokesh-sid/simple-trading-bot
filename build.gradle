@@ -25,7 +25,7 @@ ext {
     jacksonVersion = '2.15.2'
     resilience4jVersion = '2.1.0'
     springdocVersion = '2.6.0'
-    kafkaVersion = '3.5.1'
+    kafkaVersion = '3.0.9'
 }
 
 dependencies {
@@ -64,17 +64,16 @@ dependencies {
     // HTTP client for gateway proxying
     implementation "org.springframework.boot:spring-boot-starter-webflux"
     
-    // Message Queue Dependencies (Optional - for future implementation)
-    // Uncomment these dependencies when ready to implement full message queue support
-    // implementation "org.springframework.kafka:spring-kafka:${kafkaVersion}"
-    // implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+    // Message Queue Dependencies
+    implementation "org.springframework.kafka:spring-kafka:${kafkaVersion}"
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
     
     // Test dependencies
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
     testImplementation "org.mockito:mockito-core:${mockitoVersion}"
-    // testImplementation "org.springframework.kafka:spring-kafka-test:${kafkaVersion}"
-    // testImplementation 'org.testcontainers:kafka'
+    testImplementation "org.springframework.kafka:spring-kafka-test:${kafkaVersion}"
+    testImplementation 'org.testcontainers:kafka'
 }
 
 tasks.named('test') {
