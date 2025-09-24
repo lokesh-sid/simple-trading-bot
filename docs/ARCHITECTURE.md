@@ -354,7 +354,7 @@ graph TB
     subgraph "Data Tier"
         REDIS[(Redis Cache)]
         EXCHANGE_API[Exchange APIs]
-        TWITTER_API[Twitter API]
+        X_API[X(Twitter) API]
     end
     
     UI --> GATEWAY
@@ -681,10 +681,73 @@ Internet → Load Balancer → API Gateway → Application Pods → Redis Cluste
 - **ConfigMaps/Secrets**: Kubernetes-native configuration
 - **Feature Flags**: Runtime feature toggling
 
+## Message Queue Architecture (Proposed Enhancement)
+
+### 1. **Event-Driven Architecture Benefits**
+- **Decoupling**: Services communicate through events rather than direct calls
+- **Scalability**: Independent scaling of components based on load
+- **Reliability**: Event persistence and replay capabilities
+- **Observability**: Complete audit trail of all system events
+- **Real-time Processing**: Immediate event processing and notifications
+
+### 2. **Proposed Message Queue Technologies**
+
+#### Apache Kafka (Primary)
+- **Use Case**: High-throughput trading events, event sourcing, analytics
+- **Topics**: `trade-signals`, `trade-execution`, `risk-events`, `market-data`
+- **Benefits**: Durability, partitioning, replay capability, high performance
+
+#### Redis Streams (Secondary)  
+- **Use Case**: Real-time notifications, lightweight messaging
+- **Streams**: `bot-status`, `trade-notifications`, `system-alerts`
+- **Benefits**: Low latency, leverages existing Redis infrastructure
+
+### 3. **Event-Driven Data Flow**
+
+```mermaid
+graph LR
+    subgraph "Event Producers"
+        BOT[🤖 Trading Bot]
+        MARKET[📈 Market Service]
+        RISK[🛡️ Risk Service]
+    end
+    
+    subgraph "Message Infrastructure"
+        KAFKA[(📨 Kafka Topics)]
+        REDIS_STREAM[(🗄️ Redis Streams)]
+    end
+    
+    subgraph "Event Consumers"
+        EXECUTOR[⚡ Trade Executor]
+        ANALYTICS[📊 Analytics Service]
+        NOTIFIER[📢 Notification Service]
+        MONITOR[👁️ Risk Monitor]
+    end
+    
+    BOT -->|Trade Signals| KAFKA
+    MARKET -->|Price Updates| KAFKA
+    RISK -->|Risk Events| KAFKA
+    
+    BOT -->|Status Updates| REDIS_STREAM
+    EXECUTOR -->|Trade Confirmations| REDIS_STREAM
+    
+    KAFKA -->|Consume| EXECUTOR
+    KAFKA -->|Consume| ANALYTICS
+    KAFKA -->|Consume| MONITOR
+    
+    REDIS_STREAM -->|Real-time| NOTIFIER
+```
+
+### 4. **Implementation Benefits**
+- **Async Processing**: Non-blocking operations improve responsiveness
+- **Fault Tolerance**: Failed messages can be retried or sent to dead letter queues
+- **Event Sourcing**: Complete rebuild of system state from event log
+- **Real-time Features**: WebSocket notifications powered by event streams
+
 ## Future Considerations
 
 ### 1. **Scalability Enhancements**
-- **Message Queues**: Apache Kafka for event streaming
+- **Message Queues**: Apache Kafka for event streaming (See detailed implementation plan)
 - **Database Integration**: Persistent trade history and analytics
 - **Microservice Split**: Separate services for different concerns
 
