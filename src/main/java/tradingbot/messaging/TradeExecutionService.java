@@ -83,6 +83,34 @@ public class TradeExecutionService {
     }
     
     /**
+     * Handles bot status events that may affect trade execution.
+     * 
+     * @param statusEvent The bot status event to process
+     * @return CompletableFuture for async processing
+     */
+    @Async
+    public CompletableFuture<Void> handleBotStatusEvent(tradingbot.events.BotStatusEvent statusEvent) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                log.info("Processing bot status event: {} - Status: {} for bot: {}", 
+                    statusEvent.getEventId(), statusEvent.getStatus(), statusEvent.getBotId());
+                
+                switch (statusEvent.getStatus().toUpperCase()) {
+                    case "STOPPED" -> handleBotStopped(statusEvent);
+                    case "ERROR" -> handleBotError(statusEvent);
+                    case "STARTED" -> handleBotStarted(statusEvent);
+                    case "CONFIGURED" -> handleBotConfigured(statusEvent);
+                    case "RUNNING" -> log.debug("Bot {} is running normally", statusEvent.getBotId());
+                    default -> log.debug("Bot status update: {} - {}", statusEvent.getStatus(), statusEvent.getMessage());
+                }
+                
+            } catch (Exception ex) {
+                log.error("Failed to process bot status event: {}", statusEvent.getEventId(), ex);
+            }
+        });
+    }
+
+    /**
      * Handles risk events that require immediate trade action.
      * 
      * @param riskEvent The risk event to process
@@ -170,7 +198,7 @@ public class TradeExecutionService {
             
             // Simple position sizing: use signal strength and risk assessment
             double riskPercentage = Math.min(riskAssessment.getMaxRiskPercentage(), 0.02); // Max 2%
-            double signalStrength = Math.max(0.1, Math.min(1.0, signalEvent.getStrength())); // Clamp to 0.1-1.0
+            double signalStrength = Math.clamp(signalEvent.getStrength(), 0.1, 1.0); // Clamp to 0.1-1.0
             
             double riskAmount = balance * riskPercentage * signalStrength;
             double quantity = riskAmount / price;
@@ -265,6 +293,74 @@ public class TradeExecutionService {
         errorEvent.setDescription("Trade execution failed: " + exception.getMessage());
         
         eventPublisher.publishRiskEvent(errorEvent);
+    }
+    
+    /**
+     * Handles bot stopped events - may need to close open positions.
+     * 
+     * @param statusEvent The bot status event
+     */
+    private void handleBotStopped(tradingbot.events.BotStatusEvent statusEvent) {
+        log.info("Bot {} stopped - checking for open positions", statusEvent.getBotId());
+        
+        // If bot has an active position, consider closing it
+        if (statusEvent.getActivePosition() != null && !statusEvent.getActivePosition().equals("NONE")) {
+            log.warn("Bot {} stopped with active {} position - consider manual intervention", 
+                statusEvent.getBotId(), statusEvent.getActivePosition());
+            
+            // Publish risk event for monitoring
+            RiskEvent riskEvent = new RiskEvent(statusEvent.getBotId(), "BOT_STOPPED_WITH_POSITION", "ALL");
+            riskEvent.setSeverity("HIGH");
+            riskEvent.setAction("ALERT_ONLY");
+            riskEvent.setDescription("Bot stopped with active " + statusEvent.getActivePosition() + " position");
+            riskEvent.setCurrentPrice(statusEvent.getEntryPrice());
+            
+            eventPublisher.publishRiskEvent(riskEvent);
+        }
+    }
+    
+    /**
+     * Handles bot error events - may need to stop all trading activity.
+     * 
+     * @param statusEvent The bot status event
+     */
+    private void handleBotError(tradingbot.events.BotStatusEvent statusEvent) {
+        log.error("Bot {} encountered error: {}", statusEvent.getBotId(), statusEvent.getMessage());
+        
+        // Publish high-severity risk event
+        RiskEvent riskEvent = new RiskEvent(statusEvent.getBotId(), "BOT_ERROR", "ALL");
+        riskEvent.setSeverity("CRITICAL");
+        riskEvent.setAction("ALERT_ONLY");
+        riskEvent.setDescription("Bot error: " + statusEvent.getMessage());
+        
+        eventPublisher.publishRiskEvent(riskEvent);
+    }
+    
+    /**
+     * Handles bot started events - log for monitoring.
+     * 
+     * @param statusEvent The bot status event
+     */
+    private void handleBotStarted(tradingbot.events.BotStatusEvent statusEvent) {
+        log.info("Bot {} started - ready for trade signals", statusEvent.getBotId());
+        
+        // Log current bot state for monitoring
+        log.info("Bot {} state - Balance: ${}, Configuration: {}", 
+            statusEvent.getBotId(), statusEvent.getCurrentBalance(), statusEvent.getConfigurationHash());
+    }
+    
+    /**
+     * Handles bot configuration changes - may affect trading parameters.
+     * 
+     * @param statusEvent The bot status event
+     */
+    private void handleBotConfigured(tradingbot.events.BotStatusEvent statusEvent) {
+        log.info("Bot {} configuration updated - Hash: {}", 
+            statusEvent.getBotId(), statusEvent.getConfigurationHash());
+        
+        // Configuration changes might affect risk parameters or trading logic
+        // This is where you might reload configuration or adjust parameters
+        log.debug("Bot {} reconfigured with message: {}", statusEvent.getBotId(), statusEvent.getMessage());
     }
     
     /**
