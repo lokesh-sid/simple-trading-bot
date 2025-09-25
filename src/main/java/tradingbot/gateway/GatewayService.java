@@ -2,6 +2,7 @@ package tradingbot.gateway;
 
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +20,8 @@ import io.github.resilience4j.retry.annotation.Retry;
 public class GatewayService {
     
     private final RestTemplate restTemplate;
-    private static final String BACKEND_BASE_URL = "http://localhost:8080";
+    @Value("${gateway.backend.base-url:http://localhost:8080}")
+    private String backendBaseUrl;
     private static final String GATEWAY_REQUEST_HEADER = "X-Gateway-Request";
     private static final String GATEWAY_TIMESTAMP_HEADER = "X-Gateway-Timestamp";
     private static final String GATEWAY_ERROR_PREFIX = "Gateway error: ";
@@ -33,7 +35,7 @@ public class GatewayService {
     @Retry(name = "gateway-trading")
     public ResponseEntity<String> proxyTradingBotRequest(String endpoint, String method, String body, HttpHeaders headers) {
         try {
-            String url = BACKEND_BASE_URL + "/api/simple-trading-bot" + endpoint;
+            String url = backendBaseUrl + "/api/simple-trading-bot" + endpoint;
             
             // Add gateway headers
             headers.add(GATEWAY_REQUEST_HEADER, "true");
@@ -59,7 +61,7 @@ public class GatewayService {
     @Retry(name = "gateway-resilience")
     public ResponseEntity<Map<String, Object>> proxyResilienceRequest(String endpoint, HttpHeaders headers) {
         try {
-            String url = BACKEND_BASE_URL + "/api/resilience" + endpoint;
+            String url = backendBaseUrl + "/api/resilience" + endpoint;
             
             // Add gateway headers
             headers.add(GATEWAY_REQUEST_HEADER, "true");
@@ -82,7 +84,7 @@ public class GatewayService {
     @CircuitBreaker(name = "gateway-docs", fallbackMethod = "fallbackDocs")
     public ResponseEntity<String> proxyDocsRequest(String endpoint, HttpHeaders headers) {
         try {
-            String url = BACKEND_BASE_URL + endpoint;
+            String url = backendBaseUrl + endpoint;
             
             // Add gateway headers  
             headers.add(GATEWAY_REQUEST_HEADER, "true");

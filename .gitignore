@@ -110,3 +110,5 @@ bin/test/tradingbot/messaging/integration/KafkaIntegrationTest.class
 KAFKA_IMPLEMENTATION_COMPLETE.md
 KAFKA_IMPLEMENTATION.md
 docs/RATE_LIMITING_GUIDE.md
+bin/test/tradingbot/messaging/SimpleKafkaTest.class
+bin/test/tradingbot/messaging/integration/SimpleKafkaIntegrationTest.class
