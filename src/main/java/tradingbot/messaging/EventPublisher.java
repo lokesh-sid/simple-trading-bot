@@ -88,31 +88,31 @@ public class EventPublisher {
     }
     
     /**
-     * Publishes market data updates.
+     * Publishes a market data event.
      */
     public CompletableFuture<Void> publishMarketData(MarketDataEvent event) {
         return CompletableFuture.runAsync(() -> {
             try {
                 publishToTopic(EventTopic.MARKET_DATA, event.getSymbol(), event);
-                log.debug("Published market data for {}: ${}", event.getSymbol(), event.getPrice());
+                log.info("Published market data: {} for {}", 
+                    event.getSymbol(), event.getPrice());
             } catch (Exception ex) {
                 log.error("Failed to publish market data event", ex);
-                throw new EventPublishingException("Event publishing failed", ex);
             }
         });
     }
     
     /**
-     * Publishes bot status updates.
+     * Publishes a bot status event.
      */
     public CompletableFuture<Void> publishBotStatus(BotStatusEvent event) {
         return CompletableFuture.runAsync(() -> {
             try {
                 publishToTopic(EventTopic.BOT_STATUS, event.getBotId(), event);
-                log.info("Published bot status: {} - {}", event.getStatus(), event.getMessage());
+                log.info("Published bot status: {} for {}", 
+                    event.getStatus(), event.getBotId());
             } catch (Exception ex) {
                 log.error("Failed to publish bot status event", ex);
-                throw new EventPublishingException("Event publishing failed", ex);
             }
         });
     }
