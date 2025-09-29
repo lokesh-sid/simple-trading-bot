@@ -8,7 +8,7 @@ import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSeriali
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
-import tradingbot.strategy.calculator.IndicatorValues;
+import tradingbot.bot.strategy.calculator.IndicatorValues;
 
 @Configuration
 public class RedisConfig {

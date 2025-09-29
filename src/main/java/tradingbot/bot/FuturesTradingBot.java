@@ -12,13 +12,13 @@ import jakarta.validation.ValidatorFactory;
 import jakarta.validation.constraints.NotNull;
 import tradingbot.agent.TradingAgent;
 import tradingbot.bot.model.MarketData;
+import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
+import tradingbot.bot.strategy.calculator.IndicatorCalculator;
+import tradingbot.bot.strategy.calculator.IndicatorValues;
+import tradingbot.bot.strategy.exit.PositionExitCondition;
+import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 import tradingbot.config.TradingConfig;
-import tradingbot.service.FuturesExchangeService;
-import tradingbot.strategy.analyzer.SentimentAnalyzer;
-import tradingbot.strategy.calculator.IndicatorCalculator;
-import tradingbot.strategy.calculator.IndicatorValues;
-import tradingbot.strategy.exit.PositionExitCondition;
-import tradingbot.strategy.tracker.TrailingStopTracker;
 
 public class FuturesTradingBot implements TradingAgent<MarketData> {
     private final Logger logger = Logger.getLogger(FuturesTradingBot.class.getName());

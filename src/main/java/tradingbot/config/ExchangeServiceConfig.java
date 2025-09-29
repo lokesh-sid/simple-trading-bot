@@ -5,8 +5,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
-import tradingbot.service.FuturesExchangeService;
-import tradingbot.service.RateLimitedBinanceFuturesService;
+import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.bot.service.RateLimitedBinanceFuturesService;
 
 /**
  * Configuration for exchange services with rate limiting

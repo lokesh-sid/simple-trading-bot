@@ -4,13 +4,13 @@ import java.util.List;
 
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.FuturesTradingBot.BotParams;
+import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
+import tradingbot.bot.strategy.calculator.IndicatorCalculator;
+import tradingbot.bot.strategy.exit.PositionExitCondition;
+import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 import tradingbot.bot.TradeDirection;
 import tradingbot.config.TradingConfig;
-import tradingbot.service.FuturesExchangeService;
-import tradingbot.strategy.analyzer.SentimentAnalyzer;
-import tradingbot.strategy.calculator.IndicatorCalculator;
-import tradingbot.strategy.exit.PositionExitCondition;
-import tradingbot.strategy.tracker.TrailingStopTracker;
 
 public class FuturesTradingBotTestUtils {
     public static final String SYMBOL = "BTCUSDT";

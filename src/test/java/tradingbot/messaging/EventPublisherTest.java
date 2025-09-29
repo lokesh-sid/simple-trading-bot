@@ -17,11 +17,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
-import tradingbot.events.BotStatusEvent;
-import tradingbot.events.MarketDataEvent;
-import tradingbot.events.RiskEvent;
-import tradingbot.events.TradeExecutionEvent;
-import tradingbot.events.TradeSignalEvent;
+import tradingbot.bot.events.BotStatusEvent;
+import tradingbot.bot.events.MarketDataEvent;
+import tradingbot.bot.events.RiskEvent;
+import tradingbot.bot.events.TradeExecutionEvent;
+import tradingbot.bot.events.TradeSignalEvent;
+import tradingbot.bot.messaging.EventPublisher;
+import tradingbot.bot.messaging.EventTopic;
 
 /**
  * Unit tests for the Kafka-based EventPublisher.

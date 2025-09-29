@@ -1,6 +1,6 @@
 package tradingbot.bot.model;
 
-import tradingbot.strategy.calculator.IndicatorValues;
+import tradingbot.bot.strategy.calculator.IndicatorValues;
 
 /**
  * Encapsulates market indicator data for both daily and weekly timeframes.

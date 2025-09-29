@@ -5,6 +5,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+
+import tradingbot.bot.service.BinanceFuturesService;
+import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.bot.service.RateLimitedBinanceFuturesService;
 import tradingbot.config.ResilienceConfig;
 
 import static org.junit.jupiter.api.Assertions.*;
