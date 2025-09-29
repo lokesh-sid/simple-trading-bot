@@ -1,0 +1,137 @@
+# Kafka Configuration Profile for Different Environments
+spring:
+  profiles:
+    active: "@spring.profiles.active@"
+
+---
+# Development Environment Configuration
+spring:
+  config:
+    activate:
+      on-profile: dev
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      client-id: trading-bot-dev
+      acks: 1
+      retries: 3
+      batch-size: 16384
+      linger-ms: 5
+      buffer-memory: 33554432
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: trading-bot-dev
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
+trading:
+  kafka:
+    topics:
+      trade-signals: trading.signals.dev
+      trade-execution: trading.executions.dev
+      risk-events: trading.risk.dev
+      market-data: trading.market-data.dev
+      bot-status: trading.bot-status.dev
+
+---
+# Test Environment Configuration  
+spring:
+  config:
+    activate:
+      on-profile: test
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      client-id: trading-bot-test
+      acks: all
+      retries: 5
+      batch-size: 32768
+      linger-ms: 10
+      buffer-memory: 67108864
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: trading-bot-test
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
+trading:
+  kafka:
+    topics:
+      trade-signals: trading.signals.test
+      trade-execution: trading.executions.test
+      risk-events: trading.risk.test
+      market-data: trading.market-data.test
+      bot-status: trading.bot-status.test
+
+---
+# Production Environment Configuration
+spring:
+  config:
+    activate:
+      on-profile: prod
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    security:
+      protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+    ssl:
+      trust-store-location: ${KAFKA_SSL_TRUSTSTORE_LOCATION:}
+      trust-store-password: ${KAFKA_SSL_TRUSTSTORE_PASSWORD:}
+      key-store-location: ${KAFKA_SSL_KEYSTORE_LOCATION:}
+      key-store-password: ${KAFKA_SSL_KEYSTORE_PASSWORD:}
+    producer:
+      client-id: trading-bot-prod
+      acks: all
+      retries: 10
+      batch-size: 65536
+      linger-ms: 20
+      buffer-memory: 134217728
+      compression-type: snappy
+      enable-idempotence: true
+      max-in-flight-requests-per-connection: 1
+      request-timeout-ms: 30000
+      delivery-timeout-ms: 120000
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: trading-bot-prod
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      max-poll-records: 1000
+      fetch-min-size: 1024
+      fetch-max-wait: 500ms
+      session-timeout: 30s
+      heartbeat-interval: 10s
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+
+trading:
+  kafka:
+    topics:
+      trade-signals: trading.signals
+      trade-execution: trading.executions  
+      risk-events: trading.risk
+      market-data: trading.market-data
+      bot-status: trading.bot-status
+    partitions:
+      trade-signals: 6
+      trade-executions: 6
+      risk-events: 3
+      market-data: 12
+      bot-status: 3
+    replication-factor:
+      trade-signals: 3
+      trade-executions: 3
+      risk-events: 3
+      market-data: 3
+      bot-status: 3

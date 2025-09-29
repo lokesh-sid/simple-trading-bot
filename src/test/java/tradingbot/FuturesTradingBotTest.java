@@ -18,13 +18,13 @@ import org.springframework.data.redis.core.ValueOperations;
 
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.TradeDirection;
-import tradingbot.service.BinanceFuturesService;
-import tradingbot.service.FuturesExchangeService;
-import tradingbot.strategy.analyzer.SentimentAnalyzer;
-import tradingbot.strategy.calculator.IndicatorCalculator;
-import tradingbot.strategy.calculator.IndicatorValues;
-import tradingbot.strategy.exit.PositionExitCondition;
-import tradingbot.strategy.tracker.TrailingStopTracker;
+import tradingbot.bot.service.BinanceFuturesService;
+import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
+import tradingbot.bot.strategy.calculator.IndicatorCalculator;
+import tradingbot.bot.strategy.calculator.IndicatorValues;
+import tradingbot.bot.strategy.exit.PositionExitCondition;
+import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 
 class FuturesTradingBotTest {
     @Mock
@@ -208,7 +208,7 @@ class FuturesTradingBotTest {
 
     @Test
     void shouldInvalidateCacheOnNewCandle() throws Exception {
-        var indicatorsMap = new java.util.HashMap<String, tradingbot.strategy.indicator.TechnicalIndicator>();
+        var indicatorsMap = new java.util.HashMap<String, tradingbot.bot.strategy.indicator.TechnicalIndicator>();
         IndicatorCalculator realCalculator = new IndicatorCalculator(exchangeService, indicatorsMap, redisTemplate);
 
         // Set redisTemplate via reflection
@@ -216,13 +216,14 @@ class FuturesTradingBotTest {
         redisField.setAccessible(true);
         redisField.set(realCalculator, redisTemplate);
 
-        // Simulate cached value
+        // Simulate cached value with older closeTime
         IndicatorValues cachedIndicators = new IndicatorValues();
+        cachedIndicators.setCloseTime(1000L); // Older timestamp
         when(redisTemplate.opsForValue()).thenReturn(indicatorValueOps);
         when(indicatorValueOps.get("indicators:BTCUSDT:1d")).thenReturn(cachedIndicators);
 
         BinanceFuturesService.Candle newCandle = new BinanceFuturesService.Candle();
-        newCandle.setCloseTime(2000L);
+        newCandle.setCloseTime(2000L); // Newer timestamp should trigger cache invalidation
         newCandle.setClose(new java.math.BigDecimal("50500"));
         List<BinanceFuturesService.Candle> candleList = Arrays.asList(newCandle);
         when(exchangeService.fetchOhlcv(SYMBOL, "1d", 100)).thenReturn(candleList);
@@ -271,8 +272,8 @@ class FuturesTradingBotTest {
     @DisplayName("Integration Test: Long and Short Paper Trading")
     void integrationTest_LongAndShortPaperTrading() {
         // Use a mock PaperFuturesExchangeService for integration
-        var paperExchange = mock(tradingbot.service.PaperFuturesExchangeService.class);
-        List<tradingbot.strategy.exit.PositionExitCondition> exitConditions = Arrays.asList(rsiExit, macdExit, liquidationRiskExit);
+        var paperExchange = mock(tradingbot.bot.service.PaperFuturesExchangeService.class);
+        List<tradingbot.bot.strategy.exit.PositionExitCondition> exitConditions = Arrays.asList(rsiExit, macdExit, liquidationRiskExit);
         FuturesTradingBot.BotParams longPaperParams = getBotParams(paperExchange, indicatorCalculator, trailingStopTracker, sentimentAnalyzer, exitConditions, TradeDirection.LONG);
         FuturesTradingBot.BotParams shortPaperParams = getBotParams(paperExchange, indicatorCalculator, trailingStopTracker, sentimentAnalyzer, exitConditions, TradeDirection.SHORT);
 

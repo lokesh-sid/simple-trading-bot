@@ -3,37 +3,62 @@ package tradingbot;
 import java.util.Arrays;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.kafka.annotation.EnableKafka;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.client.RestTemplate;
 
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.FuturesTradingBot.BotParams;
 import tradingbot.bot.TradeDirection;
+import tradingbot.bot.events.BotStatusEvent;
+import tradingbot.bot.messaging.EventPublisher;
+import tradingbot.bot.messaging.EventTopic;
+import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.bot.service.RateLimitedBinanceFuturesService;
+import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
+import tradingbot.bot.strategy.calculator.IndicatorCalculator;
+import tradingbot.bot.strategy.exit.LiquidationRiskExit;
+import tradingbot.bot.strategy.exit.MACDExit;
+import tradingbot.bot.strategy.exit.PositionExitCondition;
+import tradingbot.bot.strategy.exit.TrailingStopExit;
+import tradingbot.bot.strategy.indicator.BollingerBandsIndicator;
+import tradingbot.bot.strategy.indicator.MACDTechnicalIndicator;
+import tradingbot.bot.strategy.indicator.RSITechnicalIndicator;
+import tradingbot.bot.strategy.indicator.TechnicalIndicator;
+import tradingbot.bot.strategy.tracker.TrailingStopTracker;
+import tradingbot.config.InstanceConfig;
 import tradingbot.config.TradingConfig;
-import tradingbot.service.FuturesExchangeService;
-import tradingbot.service.RateLimitedBinanceFuturesService;
-import tradingbot.strategy.analyzer.SentimentAnalyzer;
-import tradingbot.strategy.calculator.IndicatorCalculator;
-import tradingbot.strategy.exit.LiquidationRiskExit;
-import tradingbot.strategy.exit.MACDExit;
-import tradingbot.strategy.exit.PositionExitCondition;
-import tradingbot.strategy.exit.TrailingStopExit;
-import tradingbot.strategy.indicator.BollingerBandsIndicator;
-import tradingbot.strategy.indicator.MACDTechnicalIndicator;
-import tradingbot.strategy.indicator.RSITechnicalIndicator;
-import tradingbot.strategy.indicator.TechnicalIndicator;
-import tradingbot.strategy.tracker.TrailingStopTracker;
 
 @SpringBootApplication
+@EnableKafka  // Enable Kafka support
+@EnableAsync  // Enable async processing for CompletableFuture
 @EnableScheduling
 @EnableCaching
+
 public class SimpleTradingBotApplication {
+
+    private static final Logger log = LoggerFactory.getLogger(SimpleTradingBotApplication.class);
+    
+    private final EventPublisher eventPublisher;
+    private final InstanceConfig instanceConfig;
+    
+    public SimpleTradingBotApplication(EventPublisher eventPublisher, InstanceConfig instanceConfig) {
+        this.eventPublisher = eventPublisher;
+        this.instanceConfig = instanceConfig;
+    }
+    
     public static void main(String[] args) {
         SpringApplication.run(SimpleTradingBotApplication.class, args);
     }
@@ -100,5 +125,64 @@ public class SimpleTradingBotApplication {
             .skipLeverageInit(skipLeverageInit) // Skip if using placeholder credentials
             .build();
         return new FuturesTradingBot(botParams);
+    }
+    
+    @EventListener(ApplicationReadyEvent.class)
+    public void onApplicationReady() {
+        log.info("🚀 Simple Trading Bot started successfully!");
+        log.info("� Instance ID: {}", instanceConfig.getInstanceId());
+        log.info("🌍 Zone: {}", instanceConfig.getAvailabilityZone());
+        log.info("�📡 Kafka Publisher Health: {}", eventPublisher.isHealthy() ? "✅ Healthy" : "❌ Unhealthy");
+        
+        // Log available topics
+        log.info("📋 Available Kafka Topics:");
+        for (EventTopic topic : EventTopic.values()) {
+            log.info("  - {}", topic.getTopicName());
+        }
+        
+        // Publish startup event
+        publishStartupEvent();
+        
+        log.info("🎯 Trading Bot is ready to process requests!");
+    }
+    
+    @EventListener(ContextClosedEvent.class)
+    public void onApplicationShutdown() {
+        log.info("🛑 Simple Trading Bot is shutting down...");
+        
+        // Publish shutdown event
+        publishShutdownEvent();
+        
+        log.info("👋 Simple Trading Bot shutdown complete!");
+    }
+    
+    private void publishStartupEvent() {
+        try {
+            BotStatusEvent startupEvent = new BotStatusEvent(instanceConfig.getInstanceId(), "STARTING");
+            startupEvent.setMessage("Trading bot instance started successfully");
+            
+            eventPublisher.publishBotStatus(startupEvent);
+            log.debug("📤 Published startup event");
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to publish startup event: {}", e.getMessage());
+        }
+    }
+    
+    private void publishShutdownEvent() {
+        try {
+            BotStatusEvent shutdownEvent = new BotStatusEvent(instanceConfig.getInstanceId(), "STOPPING");
+            shutdownEvent.setMessage("Trading bot instance shutting down gracefully");
+            
+            eventPublisher.publishBotStatus(shutdownEvent);
+            log.debug("📤 Published shutdown event");
+            
+            // Give some time for the event to be published
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("⚠️ Interrupted while waiting for shutdown event to publish");
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to publish shutdown event: {}", e.getMessage());
+        }
     }
 }

@@ -15,7 +15,8 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
 import tradingbot.bot.TradeDirection;
-import tradingbot.events.TradeSignalEvent;
+import tradingbot.bot.events.TradeSignalEvent;
+import tradingbot.bot.messaging.EventPublisher;
 
 /**
  * Simple test for EventPublisher without requiring actual Kafka infrastructure
@@ -31,10 +32,6 @@ class SimpleKafkaTest {
     @BeforeEach
     void setUp() {
         eventPublisher = new EventPublisher(mockKafkaTemplate);
-        
-        // Mock successful send
-        CompletableFuture<SendResult<String, Object>> successFuture = CompletableFuture.completedFuture(null);
-        when(mockKafkaTemplate.send(anyString(), anyString(), any())).thenReturn(successFuture);
     }
 
     @Test
@@ -45,6 +42,9 @@ class SimpleKafkaTest {
     @Test
     void shouldPublishTradeSignalWithoutError() {
         // Given
+        CompletableFuture<SendResult<String, Object>> successFuture = CompletableFuture.completedFuture(null);
+        when(mockKafkaTemplate.send(anyString(), anyString(), any())).thenReturn(successFuture);
+        
         TradeSignalEvent event = new TradeSignalEvent("bot-1", "BTCUSDT", TradeDirection.LONG);
 
         // When & Then - Should not throw exception

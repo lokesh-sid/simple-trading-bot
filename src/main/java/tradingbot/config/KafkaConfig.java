@@ -1,5 +1,7 @@
 package tradingbot.config;
 
+import static org.apache.kafka.clients.consumer.ConsumerConfig.*;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -8,9 +10,12 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
 /**
@@ -104,25 +109,25 @@ public class KafkaConfig {
         Map<String, Object> configProps = new HashMap<>();
         
         // Basic Kafka configuration
-        configProps.put(org.apache.kafka.clients.consumer.ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        configProps.put(org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG, groupId);
-        configProps.put(org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
+        configProps.put(BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        configProps.put(GROUP_ID_CONFIG, groupId);
+        configProps.put(AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
         
         // Serialization configuration
-        configProps.put(org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, org.apache.kafka.common.serialization.StringDeserializer.class);
-        configProps.put(org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, org.springframework.kafka.support.serializer.JsonDeserializer.class);
+        configProps.put(KEY_DESERIALIZER_CLASS_CONFIG, org.apache.kafka.common.serialization.StringDeserializer.class);
+        configProps.put(VALUE_DESERIALIZER_CLASS_CONFIG, org.springframework.kafka.support.serializer.JsonDeserializer.class);
         
         // JSON deserializer configuration
         configProps.put(org.springframework.kafka.support.serializer.JsonDeserializer.TRUSTED_PACKAGES, "*");
         configProps.put(org.springframework.kafka.support.serializer.JsonDeserializer.VALUE_DEFAULT_TYPE, "java.util.Map");
         
         // Consumer configuration
-        configProps.put(org.apache.kafka.clients.consumer.ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, true);
-        configProps.put(org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, 1000);
-        configProps.put(org.apache.kafka.clients.consumer.ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 30000);
-        configProps.put(org.apache.kafka.clients.consumer.ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 500);
+        configProps.put(ENABLE_AUTO_COMMIT_CONFIG, true);
+        configProps.put(AUTO_COMMIT_INTERVAL_MS_CONFIG, 1000);
+        configProps.put(SESSION_TIMEOUT_MS_CONFIG, 30000);
+        configProps.put(MAX_POLL_RECORDS_CONFIG, 500);
         
-        return new org.springframework.kafka.core.DefaultKafkaConsumerFactory<>(configProps);
+        return new DefaultKafkaConsumerFactory<>(configProps);
     }
     
     /**
@@ -131,9 +136,9 @@ public class KafkaConfig {
      * @return ConcurrentKafkaListenerContainerFactory for @KafkaListener annotations
      */
     @Bean
-    public org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
-        org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory<String, Object> factory = 
-            new org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory<>();
+    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, Object> factory = 
+            new ConcurrentKafkaListenerContainerFactory<>();
         
         factory.setConsumerFactory(consumerFactory());
         
@@ -141,7 +146,7 @@ public class KafkaConfig {
         factory.setConcurrency(3);
         
         // Configure error handling
-        factory.setCommonErrorHandler(new org.springframework.kafka.listener.DefaultErrorHandler());
+        factory.setCommonErrorHandler(new DefaultErrorHandler());
         
         return factory;
     }
