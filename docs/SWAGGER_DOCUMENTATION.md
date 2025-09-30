@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Simple Trading Bot API provides comprehensive REST endpoints for managing a cryptocurrency futures trading bot with rate limiting and resilience features. The API includes Swagger/OpenAPI documentation for easy testing and integration.
+The Simple Trading Bot API provides comprehensive REST endpoints for managing a cryptocurrency futures trading bot with rate limiting and resilience features. The API uses method-specific response types for better type safety and clarity. Each endpoint returns a tailored response DTO with relevant information for that specific operation. The API includes Swagger/OpenAPI documentation for easy testing and integration.
 
 ## Access Swagger Documentation
 
@@ -12,6 +12,37 @@ Once the application is running, you can access the Swagger UI at:
 - **OpenAPI JSON**: http://localhost:8080/api-docs
 - **OpenAPI YAML**: http://localhost:8080/api-docs.yaml
 
+## Response Structure
+
+Each API endpoint returns a method-specific response type tailored to that operation:
+
+### Success Response Types
+- **StartBotResponse**: Bot start operations
+- **StopBotResponse**: Bot stop operations  
+- **BotStatusResponse**: Status retrieval operations
+- **LeverageUpdateResponse**: Leverage update operations
+- **SentimentUpdateResponse**: Sentiment analysis toggle operations
+- **ConfigUpdateResponse**: Configuration update operations
+
+### Error Response Type
+All endpoints use a standardized `ErrorResponse` for error cases:
+
+```json
+{
+  "errorCode": "ERROR_CODE",
+  "message": "Human-readable error message",
+  "details": "Additional error details (optional)",
+  "timestamp": 1696070400000
+}
+```
+
+**Common Error Codes:**
+- `BOT_NOT_INITIALIZED`: Trading bot is not properly initialized
+- `BOT_ALREADY_RUNNING`: Bot is already running when trying to start
+- `BOT_NOT_CONFIGURED`: Bot is not configured for the operation
+- `INVALID_CONFIGURATION`: Invalid configuration parameters
+- `VALIDATION_FAILED`: Request validation failed
+
 ## API Endpoints
 
 ### Trading Bot Controller (`/api/simple-trading-bot`)
@@ -19,37 +50,61 @@ Once the application is running, you can access the Swagger UI at:
 #### 1. Start Trading Bot
 - **Endpoint**: `POST /api/simple-trading-bot/start`
 - **Description**: Starts the trading bot with specified direction and trading mode
-- **Parameters**:
-  - `direction` (required): Trading direction - `LONG` or `SHORT`
-  - `paper` (optional): Enable paper trading mode - `true` or `false` (default: false)
+- **Content-Type**: `application/json`
+- **Request Body**: `StartBotRequest` object
 
 **Example Request:**
 ```bash
-curl -X POST "http://localhost:8080/api/simple-trading-bot/start?direction=LONG&paper=true"
+curl -X POST "http://localhost:8080/api/simple-trading-bot/start" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "direction": "LONG",
+    "paper": true
+  }'
 ```
 
 **Example Response:**
 ```json
-"Trading bot started in LONG mode (paper)"
+{
+  "message": "Trading bot started in LONG mode (paper)",
+  "botStatus": {
+    "running": true,
+    "symbol": "BTCUSDT",
+    "positionStatus": "NONE",
+    "entryPrice": 0.0,
+    "leverage": 3,
+    "sentimentEnabled": true,
+    "statusMessage": "Bot Status: Running - LONG mode on BTCUSDT"
+  },
+  "mode": "paper",
+  "direction": "LONG",
+  "timestamp": 1696070400000
+}
 ```
 
 #### 2. Stop Trading Bot
-- **Endpoint**: `POST /api/simple-trading-bot/stop`
+- **Endpoint**: `PUT /api/simple-trading-bot/stop`
 - **Description**: Stops the currently running trading bot
 
 **Example Request:**
 ```bash
-curl -X POST "http://localhost:8080/api/simple-trading-bot/stop"
+curl -X PUT "http://localhost:8080/api/simple-trading-bot/stop"
 ```
 
 **Example Response:**
 ```json
-"Trading bot stopped"
+{
+  "message": "Trading bot stopped successfully",
+  "stoppedAt": 1696070400000,
+  "finalPositionStatus": "CLOSED",
+  "wasRunning": true
+}
 ```
 
 #### 3. Get Bot Status
 - **Endpoint**: `GET /api/simple-trading-bot/status`
 - **Description**: Returns the current status of the trading bot
+- **Response**: `BotStatusResponse` object
 
 **Example Request:**
 ```bash
@@ -58,13 +113,25 @@ curl -X GET "http://localhost:8080/api/simple-trading-bot/status"
 
 **Example Response:**
 ```json
-"Bot Status: Running - LONG mode on BTCUSDT"
+{
+  "running": true,
+  "direction": "LONG", 
+  "symbol": "BTCUSDT",
+  "positionStatus": "OPEN",
+  "entryPrice": 50000.00,
+  "leverage": 3,
+  "paperMode": false,
+  "sentimentEnabled": true,
+  "statusMessage": "Bot Status: Running - LONG mode on BTCUSDT",
+  "timestamp": 1696070400000
+}
 ```
 
 #### 4. Configure Bot
-- **Endpoint**: `PUT /api/simple-trading-bot/configure`
+- **Endpoint**: `POST /api/simple-trading-bot/configure`
 - **Description**: Updates the trading bot configuration with new parameters
-- **Request Body**: TradingConfig JSON object
+- **Content-Type**: `application/json`
+- **Request Body**: `TradingConfig` JSON object
 
 **Example Request:**
 ```bash
@@ -84,39 +151,61 @@ curl -X POST "http://localhost:8080/api/simple-trading-bot/configure" \
 
 **Example Response:**
 ```json
-"Configuration updated"
+{
+  "message": "Configuration updated successfully",
+  "symbol": "BTCUSDT",
+  "leverage": 5.0,
+  "trailingStopPercent": 2.0,
+  "updatedAt": 1696070400000
+}
 ```
 
 #### 5. Set Dynamic Leverage
 - **Endpoint**: `POST /api/simple-trading-bot/leverage`
 - **Description**: Updates the trading bot's leverage multiplier
-- **Parameters**:
-  - `leverage` (required): Leverage multiplier (1-100)
+- **Request Body**: `UpdateLeverageRequest`
 
 **Example Request:**
 ```bash
-curl -X POST "http://localhost:8080/api/simple-trading-bot/leverage?leverage=10"
+curl -X POST "http://localhost:8080/api/simple-trading-bot/leverage" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "leverage": 10
+  }'
 ```
 
 **Example Response:**
 ```json
-"Leverage set to 10x"
+{
+  "message": "Leverage updated to 10x",
+  "newLeverage": 10.0,
+  "previousLeverage": 5.0,
+  "updatedAt": 1696070400000
+}
 ```
 
 #### 6. Enable/Disable Sentiment Analysis
 - **Endpoint**: `POST /api/simple-trading-bot/sentiment`
 - **Description**: Toggles sentiment analysis feature for the trading bot
-- **Parameters**:
-  - `enable` (required): Enable or disable sentiment analysis - `true` or `false`
+- **Request Body**: `UpdateSentimentRequest`
 
 **Example Request:**
 ```bash
-curl -X POST "http://localhost:8080/api/simple-trading-bot/sentiment?enable=true"
+curl -X POST "http://localhost:8080/api/simple-trading-bot/sentiment" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enable": true
+  }'
 ```
 
 **Example Response:**
 ```json
-"Sentiment analysis enabled"
+{
+  "message": "Sentiment analysis enabled",
+  "sentimentEnabled": true,
+  "previousStatus": false,
+  "updatedAt": 1696070400000
+}
 ```
 
 ### Resilience Controller (`/api/resilience`)

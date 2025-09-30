@@ -8,6 +8,7 @@ import static tradingbot.util.FuturesTradingBotTestUtils.*;
 import java.util.Arrays;
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +18,7 @@ import tradingbot.bot.TradeDirection;
 import tradingbot.bot.service.PaperFuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.bot.strategy.calculator.IndicatorCalculator;
+import tradingbot.bot.strategy.calculator.IndicatorValues;
 import tradingbot.bot.strategy.exit.PositionExitCondition;
 import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 
@@ -30,9 +32,9 @@ class FuturesTradingBotIntegrationTest {
     private PositionExitCondition macdExit;
 
     // Initialize in a setup method
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     void setUp() {
-        paperExchange = mock(tradingbot.bot.service.PaperFuturesExchangeService.class);
+        paperExchange = mock(PaperFuturesExchangeService.class);
         indicatorCalculator = mock(IndicatorCalculator.class);
         trailingStopTracker = mock(TrailingStopTracker.class);
         sentimentAnalyzer = mock(SentimentAnalyzer.class);
@@ -53,8 +55,8 @@ class FuturesTradingBotIntegrationTest {
         FuturesTradingBot shortPaperBot = new FuturesTradingBot(shortPaperParams);
 
         // Simulate technical conditions for long
-        when(indicatorCalculator.computeIndicators("1d", SYMBOL)).thenReturn(new tradingbot.bot.strategy.calculator.IndicatorValues());
-        when(indicatorCalculator.computeIndicators("1w", SYMBOL)).thenReturn(new tradingbot.bot.strategy.calculator.IndicatorValues());
+        when(indicatorCalculator.computeIndicators("1d", SYMBOL)).thenReturn(new IndicatorValues());
+        when(indicatorCalculator.computeIndicators("1w", SYMBOL)).thenReturn(new IndicatorValues());
         when(paperExchange.getCurrentPrice(SYMBOL)).thenReturn(50000.0);
         when(paperExchange.getMarginBalance()).thenReturn(10000.0);
 
