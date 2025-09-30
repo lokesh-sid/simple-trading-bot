@@ -4,12 +4,12 @@ import java.util.List;
 
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.FuturesTradingBot.BotParams;
+import tradingbot.bot.TradeDirection;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.bot.strategy.calculator.IndicatorCalculator;
 import tradingbot.bot.strategy.exit.PositionExitCondition;
 import tradingbot.bot.strategy.tracker.TrailingStopTracker;
-import tradingbot.bot.TradeDirection;
 import tradingbot.config.TradingConfig;
 
 public class FuturesTradingBotTestUtils {
