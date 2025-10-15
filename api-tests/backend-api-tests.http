@@ -1,0 +1,298 @@
+### Trading Bot Backend API Tests
+### Base URL: http://localhost:8080
+
+###############################################################################
+# 1. CREATE BOT
+###############################################################################
+
+### Create a new trading bot (returns botId)
+POST http://localhost:8080/api/bots
+Content-Type: application/json
+
+###############################################################################
+# 2. START BOT (replace {botId} with actual ID from create response)
+###############################################################################
+
+### Start bot in LONG mode (paper trading)
+POST http://localhost:8080/api/bots/{botId}/start
+Content-Type: application/json
+
+{
+  "direction": "LONG",
+  "paper": true
+}
+
+### Start bot in SHORT mode (paper trading)
+POST http://localhost:8080/api/bots/{botId}/start
+Content-Type: application/json
+
+{
+  "direction": "SHORT",
+  "paper": true
+}
+
+### Start bot in LONG mode (live trading)
+POST http://localhost:8080/api/bots/{botId}/start
+Content-Type: application/json
+
+{
+  "direction": "LONG",
+  "paper": false
+}
+
+###############################################################################
+# 3. GET BOT STATUS
+###############################################################################
+
+### Get status of specific bot
+GET http://localhost:8080/api/bots/{botId}/status
+
+###############################################################################
+# 4. CONFIGURE BOT
+###############################################################################
+
+### Update bot configuration
+POST http://localhost:8080/api/bots/{botId}/configure
+Content-Type: application/json
+
+{
+  "symbol": "BTCUSDT",
+  "leverage": 10,
+  "trailingStopPercent": 2.5,
+  "positionSize": 100.0,
+  "riskPercentage": 2.0
+}
+
+###############################################################################
+# 5. UPDATE LEVERAGE
+###############################################################################
+
+### Set leverage to 5x
+POST http://localhost:8080/api/bots/{botId}/leverage
+Content-Type: application/json
+
+{
+  "leverage": 5
+}
+
+### Set leverage to 20x
+POST http://localhost:8080/api/bots/{botId}/leverage
+Content-Type: application/json
+
+{
+  "leverage": 20
+}
+
+###############################################################################
+# 6. TOGGLE SENTIMENT ANALYSIS
+###############################################################################
+
+### Enable sentiment analysis
+POST http://localhost:8080/api/bots/{botId}/sentiment
+Content-Type: application/json
+
+{
+  "enable": true
+}
+
+### Disable sentiment analysis
+POST http://localhost:8080/api/bots/{botId}/sentiment
+Content-Type: application/json
+
+{
+  "enable": false
+}
+
+###############################################################################
+# 7. STOP BOT
+###############################################################################
+
+### Stop a running bot
+PUT http://localhost:8080/api/bots/{botId}/stop
+
+###############################################################################
+# 8. LIST ALL BOTS
+###############################################################################
+
+### Get list of all bot IDs
+GET http://localhost:8080/api/bots
+
+###############################################################################
+# 9. DELETE BOT
+###############################################################################
+
+### Delete a specific bot (stops it first if running)
+DELETE http://localhost:8080/api/bots/{botId}
+
+###############################################################################
+# 10. MULTI-BOT TEST SCENARIO
+###############################################################################
+
+### Create Bot 1
+POST http://localhost:8080/api/bots
+Content-Type: application/json
+
+###
+
+### Create Bot 2
+POST http://localhost:8080/api/bots
+Content-Type: application/json
+
+###
+
+### Create Bot 3
+POST http://localhost:8080/api/bots
+Content-Type: application/json
+
+###
+
+### List all bots (should show 3 bots)
+GET http://localhost:8080/api/bots
+
+###
+
+### Start Bot 1 in LONG mode
+POST http://localhost:8080/api/bots/{bot1-id}/start
+Content-Type: application/json
+
+{
+  "direction": "LONG",
+  "paper": true
+}
+
+###
+
+### Start Bot 2 in SHORT mode
+POST http://localhost:8080/api/bots/{bot2-id}/start
+Content-Type: application/json
+
+{
+  "direction": "SHORT",
+  "paper": true
+}
+
+###
+
+### Check Bot 1 status
+GET http://localhost:8080/api/bots/{bot1-id}/status
+
+###
+
+### Check Bot 2 status
+GET http://localhost:8080/api/bots/{bot2-id}/status
+
+###
+
+### Stop Bot 1
+PUT http://localhost:8080/api/bots/{bot1-id}/stop
+
+###
+
+### Delete Bot 1
+DELETE http://localhost:8080/api/bots/{bot1-id}
+
+###
+
+### List remaining bots (should show 2 bots)
+GET http://localhost:8080/api/bots
+
+###############################################################################
+# 11. ERROR TEST CASES
+###############################################################################
+
+### Test: Get status of non-existent bot (should return 404)
+GET http://localhost:8080/api/bots/non-existent-bot-id/status
+
+###
+
+### Test: Start non-existent bot (should return 404)
+POST http://localhost:8080/api/bots/non-existent-bot-id/start
+Content-Type: application/json
+
+{
+  "direction": "LONG",
+  "paper": true
+}
+
+###
+
+### Test: Invalid leverage value (should return 400)
+POST http://localhost:8080/api/bots/{botId}/leverage
+Content-Type: application/json
+
+{
+  "leverage": -5
+}
+
+###
+
+### Test: Invalid direction (should return 400)
+POST http://localhost:8080/api/bots/{botId}/start
+Content-Type: application/json
+
+{
+  "direction": "INVALID",
+  "paper": true
+}
+
+###
+
+### Test: Missing required field (should return 400)
+POST http://localhost:8080/api/bots/{botId}/start
+Content-Type: application/json
+
+{
+  "paper": true
+}
+
+###############################################################################
+# 12. HEALTH & INFO ENDPOINTS
+###############################################################################
+
+### Health check
+GET http://localhost:8080/actuator/health
+
+###
+
+### Application info
+GET http://localhost:8080/actuator/info
+
+###
+
+### Metrics
+GET http://localhost:8080/actuator/metrics
+
+###############################################################################
+# 13. RESILIENCE ENDPOINTS
+###############################################################################
+
+### Get rate limiter metrics
+GET http://localhost:8080/api/resilience/rate-limiters
+
+###
+
+### Get circuit breaker metrics
+GET http://localhost:8080/api/resilience/circuit-breaker
+
+###
+
+### Get retry metrics
+GET http://localhost:8080/api/resilience/retry
+
+###
+
+### Get all resilience metrics
+GET http://localhost:8080/api/resilience/metrics
+
+###
+
+### Get resilience health
+GET http://localhost:8080/api/resilience/health
+
+###############################################################################
+# NOTES:
+# - Replace {botId}, {bot1-id}, {bot2-id}, {bot3-id} with actual bot IDs
+# - First create a bot to get a valid botId
+# - Use the botId in subsequent requests
+# - Each bot operates independently
+###############################################################################

@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import tradingbot.bot.TradeDirection;
 
 @Schema(description = "Trading bot status response")
-public class BotStatusResponse {
+public class BotStatusResponse extends BaseResponse {
     
     @Schema(description = "Bot running status", example = "true")
     @JsonProperty("running")
@@ -44,12 +44,8 @@ public class BotStatusResponse {
     @JsonProperty("statusMessage")
     private String statusMessage;
     
-    @Schema(description = "Response timestamp", example = "1696070400000")
-    @JsonProperty("timestamp")
-    private long timestamp;
-    
     public BotStatusResponse() {
-        this.timestamp = System.currentTimeMillis();
+        super();
     }
     
     // Getters and Setters
@@ -123,13 +119,5 @@ public class BotStatusResponse {
     
     public void setStatusMessage(String statusMessage) {
         this.statusMessage = statusMessage;
-    }
-    
-    public long getTimestamp() {
-        return timestamp;
-    }
-    
-    public void setTimestamp(long timestamp) {
-        this.timestamp = timestamp;
     }
 }

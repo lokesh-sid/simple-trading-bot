@@ -8,6 +8,7 @@ import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSeriali
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+import tradingbot.bot.controller.dto.BotState;
 import tradingbot.bot.strategy.calculator.IndicatorValues;
 
 @Configuration
@@ -24,6 +25,15 @@ public class RedisConfig {
     @Bean
     RedisTemplate<String, Long> longRedisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, Long> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setValueSerializer(new GenericJackson2JsonRedisSerializer());
+        return template;
+    }
+    
+    @Bean
+    RedisTemplate<String, BotState> botStateRedisTemplate(RedisConnectionFactory connectionFactory) {
+        RedisTemplate<String, BotState> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(new StringRedisSerializer());
         template.setValueSerializer(new GenericJackson2JsonRedisSerializer());

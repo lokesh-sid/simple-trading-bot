@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Response for bot stop operation")
-public class BotStopResponse {
+public class BotStopResponse extends BaseResponse {
     
     @Schema(description = "Success message", example = "Trading bot stopped successfully")
     @JsonProperty("message")

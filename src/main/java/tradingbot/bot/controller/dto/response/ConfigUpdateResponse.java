@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Response for configuration update operation")
-public class ConfigUpdateResponse {
+public class ConfigUpdateResponse extends BaseResponse {
     
     @Schema(description = "Success message", example = "Configuration updated successfully")
     @JsonProperty("message")
@@ -23,20 +23,16 @@ public class ConfigUpdateResponse {
     @JsonProperty("trailingStopPercent")
     private Double trailingStopPercent;
     
-    @Schema(description = "Update timestamp", example = "1696070400000")
-    @JsonProperty("updatedAt")
-    private long updatedAt;
-    
     public ConfigUpdateResponse() {
-        this.updatedAt = System.currentTimeMillis();
+        super();
     }
     
     public ConfigUpdateResponse(String message, String symbol, Double leverage, Double trailingStopPercent) {
+        super();
         this.message = message;
         this.symbol = symbol;
         this.leverage = leverage;
         this.trailingStopPercent = trailingStopPercent;
-        this.updatedAt = System.currentTimeMillis();
     }
     
     public String getMessage() {
@@ -69,13 +65,5 @@ public class ConfigUpdateResponse {
     
     public void setTrailingStopPercent(Double trailingStopPercent) {
         this.trailingStopPercent = trailingStopPercent;
-    }
-    
-    public long getUpdatedAt() {
-        return updatedAt;
-    }
-    
-    public void setUpdatedAt(long updatedAt) {
-        this.updatedAt = updatedAt;
     }
 }

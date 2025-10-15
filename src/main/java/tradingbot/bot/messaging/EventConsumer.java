@@ -10,6 +10,8 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
+import tradingbot.bot.persistence.service.EventPersistenceService;
+
 /**
  * Kafka event consumer for trading events.
  * 
@@ -21,6 +23,12 @@ import org.springframework.stereotype.Service;
 public class EventConsumer {
     
     private static final Logger log = LoggerFactory.getLogger(EventConsumer.class);
+    
+    private final EventPersistenceService eventPersistenceService;
+    
+    public EventConsumer(EventPersistenceService eventPersistenceService) {
+        this.eventPersistenceService = eventPersistenceService;
+    }
     
     /**
      * Consumes trade signal events from Kafka.

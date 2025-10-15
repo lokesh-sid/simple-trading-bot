@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Response for bot start operation")
-public class BotStartResponse {
+public class BotStartResponse extends BaseResponse {
     
     @Schema(description = "Success message", example = "Trading bot started in LONG mode (live)")
     @JsonProperty("message")
@@ -71,10 +71,12 @@ public class BotStartResponse {
         this.direction = direction;
     }
     
+    @Override
     public long getTimestamp() {
         return timestamp;
     }
     
+    @Override
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
     }

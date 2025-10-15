@@ -1,0 +1,142 @@
+package tradingbot.security.controller;
+
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.Valid;
+import tradingbot.security.dto.LoginRequest;
+import tradingbot.security.dto.LoginResponse;
+import tradingbot.security.dto.RefreshTokenRequest;
+import tradingbot.security.dto.RegisterRequest;
+import tradingbot.security.service.AuthService;
+
+/**
+ * Authentication Controller
+ * 
+ * Handles user registration, login, token refresh, and logout operations.
+ */
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+    
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+    
+    private final AuthService authService;
+    
+    public AuthController(AuthService authService) {
+        this.authService = authService;
+    }
+    
+    /**
+     * Register a new user
+     * POST /api/auth/register
+     */
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
+        try {
+            logger.info("Registration request for username: {}", request.username());
+            LoginResponse response = authService.register(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Registration failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "registration_failed",
+                    "message", e.getMessage()
+            ));
+        } catch (Exception e) {
+            logger.error("Registration error: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "error", "server_error",
+                    "message", "Registration failed. Please try again later."
+            ));
+        }
+    }
+    
+    /**
+     * Login user
+     * POST /api/auth/login
+     */
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        try {
+            logger.info("Login request for username: {}", request.username());
+            LoginResponse response = authService.login(request);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Login failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "error", "authentication_failed",
+                    "message", e.getMessage()
+            ));
+        } catch (Exception e) {
+            logger.error("Login error: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "error", "server_error",
+                    "message", "Login failed. Please try again later."
+            ));
+        }
+    }
+    
+    /**
+     * Refresh access token
+     * POST /api/auth/refresh
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        try {
+            logger.info("Token refresh request");
+            LoginResponse response = authService.refreshToken(request);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Token refresh failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "error", "invalid_token",
+                    "message", e.getMessage()
+            ));
+        } catch (Exception e) {
+            logger.error("Token refresh error: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "error", "server_error",
+                    "message", "Token refresh failed. Please try again later."
+            ));
+        }
+    }
+    
+    /**
+     * Logout (client-side token deletion)
+     * POST /api/auth/logout
+     * 
+     * Note: Since we're using stateless JWT, logout is handled on the client side
+     * by deleting the tokens. This endpoint is here for API completeness and
+     * potential future enhancements (e.g., token blacklisting).
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+        logger.info("Logout request");
+        return ResponseEntity.ok(Map.of(
+                "message", "Logged out successfully",
+                "note", "Please delete your tokens on the client side"
+        ));
+    }
+    
+    /**
+     * Health check endpoint
+     * GET /api/auth/health
+     */
+    @GetMapping("/health")
+    public ResponseEntity<?> health() {
+        return ResponseEntity.ok(Map.of(
+                "status", "UP",
+                "service", "authentication"
+        ));
+    }
+}

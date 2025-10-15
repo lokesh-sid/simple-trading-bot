@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Response for leverage update operation")
-public class LeverageUpdateResponse {
+public class LeverageUpdateResponse extends BaseResponse {
     
     @Schema(description = "Success message", example = "Leverage updated to 10x")
     @JsonProperty("message")
@@ -19,19 +19,15 @@ public class LeverageUpdateResponse {
     @JsonProperty("previousLeverage")
     private Double previousLeverage;
     
-    @Schema(description = "Update timestamp", example = "1696070400000")
-    @JsonProperty("updatedAt")
-    private long updatedAt;
-    
     public LeverageUpdateResponse() {
-        this.updatedAt = System.currentTimeMillis();
+        super();
     }
     
     public LeverageUpdateResponse(String message, Double newLeverage, Double previousLeverage) {
+        super();
         this.message = message;
         this.newLeverage = newLeverage;
         this.previousLeverage = previousLeverage;
-        this.updatedAt = System.currentTimeMillis();
     }
     
     public String getMessage() {
@@ -56,13 +52,5 @@ public class LeverageUpdateResponse {
     
     public void setPreviousLeverage(Double previousLeverage) {
         this.previousLeverage = previousLeverage;
-    }
-    
-    public long getUpdatedAt() {
-        return updatedAt;
-    }
-    
-    public void setUpdatedAt(long updatedAt) {
-        this.updatedAt = updatedAt;
     }
 }

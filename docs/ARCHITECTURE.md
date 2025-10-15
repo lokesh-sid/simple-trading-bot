@@ -13,7 +13,7 @@
 9. [Design Patterns](#design-patterns)
 10. [Security Architecture](#security-architecture)
 11. [Performance & Scalability](#performance--scalability)
-12. [Testing Strategy](#testing-strategy)
+12. [Testing Strategy](#testing-strategy)V
 13. [Deployment Architecture](#deployment-architecture)
 14. [Future Considerations](#future-considerations)
 
@@ -514,18 +514,62 @@ public interface FuturesExchangeService {
 - **RateLimitedBinanceFuturesService**: Rate-limited wrapper with Resilience4j
 - **PaperFuturesExchangeService**: Paper trading simulation
 
-### 5. **Configuration Management**
+### 6. **Event-Driven Infrastructure**
 
-#### TradingConfig
-**Purpose**: Centralized trading parameters with validation.
+#### EventWrapper<T> Implementation
+```java
+public class EventWrapper<T extends TradingEvent> {
+    private final T event;
+    private final String eventId;
+    private final Instant timestamp;
+    private final String source;
+    private final Map<String, Object> metadata;
+    
+    // Type-safe factory method
+    public static <T extends TradingEvent> EventWrapper<T> wrap(T event) {
+        return new EventWrapper<>(event, UUID.randomUUID().toString(), 
+                                Instant.now(), "trading-bot", new HashMap<>());
+    }
+    
+    // Fluent metadata API
+    public EventWrapper<T> withMetadata(String key, Object value) {
+        this.metadata.put(key, value);
+        return this;
+    }
+}
+```
+
+**Purpose**: Provides type-safe event publishing with rich metadata support.
 
 **Key Features**:
-- Bean validation with JSR-303 annotations
-- Default values for all parameters
-- Runtime configuration updates
+- **Generic Type Safety**: Compile-time guarantees prevent casting errors
+- **Immutable Design**: Thread-safe for concurrent event processing
+- **Metadata Enrichment**: Correlation IDs, business context, and tracing information
+- **DDD Compliance**: Events represent business facts with complete context
 
-#### ResilienceConfig
-**Purpose**: Configures resilience patterns (circuit breaker, rate limiting, retry).
+#### EventPublisher with EventWrapper
+```java
+@Service
+public class EventPublisher {
+    
+    @Autowired
+    private KafkaTemplate<String, EventWrapper<? extends TradingEvent>> kafkaTemplate;
+    
+    public <T extends TradingEvent> void publishEvent(T event, String topic) {
+        EventWrapper<T> wrappedEvent = EventWrapper.wrap(event)
+            .withMetadata("botId", event.getBotId())
+            .withMetadata("eventType", event.getClass().getSimpleName());
+            
+        kafkaTemplate.send(topic, wrappedEvent);
+    }
+}
+```
+
+**Benefits**:
+- **Type Safety**: `EventWrapper<T extends TradingEvent>` prevents runtime errors
+- **Rich Context**: Metadata provides complete event context for processing
+- **Async Processing**: Non-blocking event publishing improves performance
+- **Event Sourcing Ready**: Complete audit trail for compliance and debugging
 
 ## Data Flow
 
@@ -548,26 +592,29 @@ Indicator Request → Cache Check → [Cache Hit: Return] / [Cache Miss: Calcula
 
 ### **Core Framework**
 - **Spring Boot 3.2.0**: Application framework with auto-configuration
-- **Spring Web MVC**: RESTful API development
+- **Java 21**: Latest LTS with modern language features and performance improvements
+- **Spring Web MVC**: RESTful API development with method-specific DTOs
 - **Spring AOP**: Cross-cutting concerns (logging, caching)
 - **Spring Actuator**: Production monitoring and management
+- **Spring for Apache Kafka**: Event-driven messaging with EventWrapper<T>
 
 ### **Resilience & Performance**
 - **Resilience4j**: Circuit breakers, rate limiting, retry logic
 - **Redis**: High-performance caching and session storage
-- **Jackson**: JSON serialization/deserialization
-- **Jakarta Bean Validation**: Input validation
+- **Jackson**: JSON serialization/deserialization with custom configurations
+- **Jakarta Bean Validation**: Comprehensive input validation with custom validators
 
 ### **Trading & Analytics**
-- **Binance Connector**: Official Binance API client
-- **TA4J**: Technical analysis library
-- **Custom Indicators**: Extensible indicator framework
+- **Binance Connector**: Official Binance API client with rate limiting
+- **TA4J**: Technical analysis library with custom indicators
+- **Custom Indicators**: Extensible indicator framework (RSI, MACD, Bollinger Bands)
+- **Sentiment Analysis**: Social media processing for market mood assessment
 
-### **Documentation & Testing**
-- **SpringDoc OpenAPI**: API documentation with Swagger UI
-- **JUnit 5**: Unit testing framework
-- **Mockito**: Mocking framework for testing
-- **Spring Boot Test**: Integration testing support
+### **Event-Driven Architecture**
+- **Apache Kafka**: High-throughput event streaming
+- **EventWrapper<T>**: Type-safe event publishing with metadata enrichment
+- **Domain Events**: Rich event hierarchy following DDD principles
+- **Event Sourcing**: Complete audit trail and system state reconstruction
 
 ### **Build & Deployment**
 - **Gradle**: Build automation and dependency management
@@ -681,7 +728,7 @@ Internet → Load Balancer → API Gateway → Application Pods → Redis Cluste
 - **ConfigMaps/Secrets**: Kubernetes-native configuration
 - **Feature Flags**: Runtime feature toggling
 
-## Message Queue Architecture (Proposed Enhancement)
+## Message Queue Architecture (Implemented)
 
 ### 1. **Event-Driven Architecture Benefits**
 - **Decoupling**: Services communicate through events rather than direct calls
@@ -689,18 +736,36 @@ Internet → Load Balancer → API Gateway → Application Pods → Redis Cluste
 - **Reliability**: Event persistence and replay capabilities
 - **Observability**: Complete audit trail of all system events
 - **Real-time Processing**: Immediate event processing and notifications
+- **Type Safety**: EventWrapper<T> ensures compile-time type checking
 
-### 2. **Proposed Message Queue Technologies**
+### 2. **Implemented Message Queue Technologies**
 
 #### Apache Kafka (Primary)
 - **Use Case**: High-throughput trading events, event sourcing, analytics
 - **Topics**: `trade-signals`, `trade-execution`, `risk-events`, `market-data`
 - **Benefits**: Durability, partitioning, replay capability, high performance
 
-#### Redis Streams (Secondary)  
-- **Use Case**: Real-time notifications, lightweight messaging
-- **Streams**: `bot-status`, `trade-notifications`, `system-alerts`
-- **Benefits**: Low latency, leverages existing Redis infrastructure
+#### EventWrapper Implementation
+```java
+public class EventWrapper<T extends TradingEvent> {
+    private final T event;
+    private final String eventId;
+    private final Instant timestamp;
+    private final String source;
+    private final Map<String, Object> metadata;
+    
+    // Type-safe event publishing
+    public static <T extends TradingEvent> EventWrapper<T> wrap(T event) {
+        return new EventWrapper<>(event);
+    }
+}
+```
+
+**Key Features**:
+- **Generic Type Safety**: `EventWrapper<T extends TradingEvent>` ensures type safety
+- **Metadata Enrichment**: Event context, correlation IDs, and business metadata
+- **Immutable Design**: Thread-safe event objects
+- **Domain-Driven Design**: Aligns with DDD event sourcing patterns
 
 ### 3. **Event-Driven Data Flow**
 
@@ -713,8 +778,9 @@ graph LR
     end
     
     subgraph "Message Infrastructure"
+        PUBLISHER[📨 EventPublisher<br/>with EventWrapper]
         KAFKA[(📨 Kafka Topics)]
-        REDIS_STREAM[(🗄️ Redis Streams)]
+        CONSUMER[� EventConsumer]
     end
     
     subgraph "Event Consumers"
@@ -724,24 +790,61 @@ graph LR
         MONITOR[👁️ Risk Monitor]
     end
     
-    BOT -->|Trade Signals| KAFKA
-    MARKET -->|Price Updates| KAFKA
-    RISK -->|Risk Events| KAFKA
+    BOT -->|TradeSignalEvent| PUBLISHER
+    MARKET -->|MarketDataEvent| PUBLISHER
+    RISK -->|RiskEvent| PUBLISHER
     
-    BOT -->|Status Updates| REDIS_STREAM
-    EXECUTOR -->|Trade Confirmations| REDIS_STREAM
+    PUBLISHER -->|EventWrapper<T>| KAFKA
+    KAFKA --> CONSUMER
     
-    KAFKA -->|Consume| EXECUTOR
-    KAFKA -->|Consume| ANALYTICS
-    KAFKA -->|Consume| MONITOR
+    CONSUMER -->|Type-Safe Events| EXECUTOR
+    CONSUMER -->|Type-Safe Events| ANALYTICS
+    CONSUMER -->|Type-Safe Events| MONITOR
     
-    REDIS_STREAM -->|Real-time| NOTIFIER
+    EXECUTOR -->|TradeExecutionEvent| PUBLISHER
+    PUBLISHER -->|EventWrapper<T>| KAFKA
 ```
 
-### 4. **Implementation Benefits**
+### 4. **Domain Events Hierarchy**
+
+```java
+public abstract class TradingEvent {
+    protected final String eventId;
+    protected final Instant timestamp;
+    protected final String botId;
+    
+    // Common event properties
+}
+
+public class TradeSignalEvent extends TradingEvent {
+    private final String symbol;
+    private final TradeDirection direction;
+    private final double confidence;
+    private final Map<String, Object> indicators;
+}
+
+public class TradeExecutionEvent extends TradingEvent {
+    private final String orderId;
+    private final String symbol;
+    private final TradeDirection direction;
+    private final double quantity;
+    private final double price;
+    private final double profitLoss;
+}
+
+public class RiskEvent extends TradingEvent {
+    private final RiskLevel level;
+    private final String description;
+    private final Map<String, Object> riskMetrics;
+}
+```
+
+### 5. **Implementation Benefits**
 - **Async Processing**: Non-blocking operations improve responsiveness
 - **Fault Tolerance**: Failed messages can be retried or sent to dead letter queues
 - **Event Sourcing**: Complete rebuild of system state from event log
+- **Type Safety**: Compile-time guarantees prevent runtime casting errors
+- **DDD Compliance**: Events represent business facts and state changes
 - **Real-time Features**: WebSocket notifications powered by event streams
 
 ## Future Considerations

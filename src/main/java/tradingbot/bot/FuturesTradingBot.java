@@ -8,7 +8,7 @@ import java.util.logging.Logger;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
-import jakarta.validation.ValidatorFactory;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import tradingbot.agent.TradingAgent;
 import tradingbot.bot.model.MarketData;
@@ -124,6 +124,9 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
         }
 
         public static class Builder {
+            // Shared validator instance for better performance
+            private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
+            
             @NotNull(message = "Exchange service is required")
             private FuturesExchangeService exchangeService;
             
@@ -136,7 +139,7 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
             @NotNull(message = "Sentiment analyzer is required")
             private SentimentAnalyzer sentimentAnalyzer;
             
-            @NotNull(message = "Exit conditions are required")
+            @NotEmpty(message = "Exit conditions are required and cannot be empty")
             private List<PositionExitCondition> exitConditions;
             
             @NotNull(message = "Trading config is required")
@@ -151,10 +154,9 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
              * Sets the futures exchange service for executing trades.
              * @param exchangeService the exchange service (required)
              * @return this builder
-             * @throws IllegalArgumentException if exchangeService is null
              */
             public Builder exchangeService(FuturesExchangeService exchangeService) {
-                this.exchangeService = requireNonNull(exchangeService, "Exchange service cannot be null");
+                this.exchangeService = exchangeService;
                 return this;
             }
 
@@ -162,10 +164,9 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
              * Sets the indicator calculator for technical analysis.
              * @param indicatorCalculator the indicator calculator (required)
              * @return this builder
-             * @throws IllegalArgumentException if indicatorCalculator is null
              */
             public Builder indicatorCalculator(IndicatorCalculator indicatorCalculator) {
-                this.indicatorCalculator = requireNonNull(indicatorCalculator, "Indicator calculator cannot be null");
+                this.indicatorCalculator = indicatorCalculator;
                 return this;
             }
 
@@ -173,10 +174,9 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
              * Sets the trailing stop tracker for risk management.
              * @param trailingStopTracker the trailing stop tracker (required)
              * @return this builder
-             * @throws IllegalArgumentException if trailingStopTracker is null
              */
             public Builder trailingStopTracker(TrailingStopTracker trailingStopTracker) {
-                this.trailingStopTracker = requireNonNull(trailingStopTracker, "Trailing stop tracker cannot be null");
+                this.trailingStopTracker = trailingStopTracker;
                 return this;
             }
 
@@ -184,10 +184,9 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
              * Sets the sentiment analyzer for market sentiment analysis.
              * @param sentimentAnalyzer the sentiment analyzer (required)
              * @return this builder
-             * @throws IllegalArgumentException if sentimentAnalyzer is null
              */
             public Builder sentimentAnalyzer(SentimentAnalyzer sentimentAnalyzer) {
-                this.sentimentAnalyzer = requireNonNull(sentimentAnalyzer, "Sentiment analyzer cannot be null");
+                this.sentimentAnalyzer = sentimentAnalyzer;
                 return this;
             }
 
@@ -195,14 +194,9 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
              * Sets the exit conditions for position management.
              * @param exitConditions the list of exit conditions (required, non-empty)
              * @return this builder
-             * @throws IllegalArgumentException if exitConditions is null or empty
              */
             public Builder exitConditions(List<PositionExitCondition> exitConditions) {
-                requireNonNull(exitConditions, "Exit conditions cannot be null");
-                if (exitConditions.isEmpty()) {
-                    throw new IllegalArgumentException("Exit conditions cannot be empty");
-                }
-                this.exitConditions = new ArrayList<>(exitConditions); // Defensive copy
+                this.exitConditions = exitConditions != null ? new ArrayList<>(exitConditions) : null;
                 return this;
             }
 
@@ -210,10 +204,9 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
              * Sets the trading configuration.
              * @param config the trading configuration (required)
              * @return this builder
-             * @throws IllegalArgumentException if config is null
              */
             public Builder config(TradingConfig config) {
-                this.config = requireNonNull(config, "Trading config cannot be null");
+                this.config = config;
                 return this;
             }
 
@@ -221,10 +214,9 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
              * Sets the trade direction (LONG or SHORT).
              * @param direction the trade direction (required)
              * @return this builder
-             * @throws IllegalArgumentException if direction is null
              */
             public Builder tradeDirection(TradeDirection direction) {
-                this.direction = requireNonNull(direction, "Trade direction cannot be null");
+                this.direction = direction;
                 return this;
             }
 
@@ -258,36 +250,22 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
             }
 
             private void validateRequiredFields() {
-                try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
-                    Validator validator = factory.getValidator();
-                    Set<ConstraintViolation<Builder>> violations = validator.validate(this);
-                    
-                    if (!violations.isEmpty()) {
-                        StringBuilder errorMessage = new StringBuilder("Validation failed: ");
-                        for (ConstraintViolation<Builder> violation : violations) {
-                            errorMessage.append(violation.getMessage()).append("; ");
-                        }
-                        
-                        // Remove trailing "; "
-                        if (errorMessage.length() > 2) {
-                            errorMessage.setLength(errorMessage.length() - 2);
-                        }
-                        
-                        throw new IllegalStateException(errorMessage.toString());
+                // Use cached validator for better performance
+                Set<ConstraintViolation<Builder>> violations = VALIDATOR.validate(this);
+                
+                if (!violations.isEmpty()) {
+                    StringBuilder errorMessage = new StringBuilder("Validation failed: ");
+                    for (ConstraintViolation<Builder> violation : violations) {
+                        errorMessage.append(violation.getMessage()).append("; ");
                     }
                     
-                    // Additional custom validation that can't be handled by annotations
-                    if (exitConditions != null && exitConditions.isEmpty()) {
-                        throw new IllegalStateException("Validation failed: Exit conditions cannot be empty");
+                    // Remove trailing "; "
+                    if (errorMessage.length() > 2) {
+                        errorMessage.setLength(errorMessage.length() - 2);
                     }
+                    
+                    throw new IllegalStateException(errorMessage.toString());
                 }
-            }
-
-            private static <T> T requireNonNull(T obj, String message) {
-                if (obj == null) {
-                    throw new IllegalArgumentException(message);
-                }
-                return obj;
             }
         }
     }
@@ -493,7 +471,7 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
             trailingStopTracker.initializeTrailingStop(price);
         } catch (Exception e) {
             logger.severe("Failed to enter " + direction.name().toLowerCase() + " position for " + config.getSymbol() + " with amount " + config.getTradeAmount() + ": " + e.getMessage());
-            throw new RuntimeException("Position entry failed for " + direction.name().toLowerCase() + " trade", e);
+            throw new PositionEntryException("Position entry failed for " + direction.name().toLowerCase() + " trade", e);
         }
     }
 
@@ -516,7 +494,7 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
             trailingStopTracker.reset();
         } catch (Exception e) {
             logger.severe("Failed to exit " + direction.name().toLowerCase() + " position for " + config.getSymbol() + " with amount " + config.getTradeAmount() + ": " + e.getMessage());
-            throw new RuntimeException("Position exit failed for " + direction.name().toLowerCase() + " trade", e);
+            throw new PositionExitException("Position exit failed for " + direction.name().toLowerCase() + " trade", e);
         }
     }
 
@@ -525,6 +503,24 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
             Thread.sleep(CHECK_INTERVAL_SECONDS * 1000);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Exception thrown when a trading position entry fails
+     */
+    class PositionEntryException extends RuntimeException {
+        public PositionEntryException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    /**
+     * Exception thrown when a trading position exit fails
+     */
+    class PositionExitException extends RuntimeException {
+        public PositionExitException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 }
