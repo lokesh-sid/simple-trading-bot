@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Response for sentiment analysis toggle operation")
-public class SentimentUpdateResponse {
+public class SentimentUpdateResponse extends BaseResponse {
     
     @Schema(description = "Success message", example = "Sentiment analysis enabled")
     @JsonProperty("message")
@@ -19,19 +19,15 @@ public class SentimentUpdateResponse {
     @JsonProperty("previousStatus")
     private boolean previousStatus;
     
-    @Schema(description = "Update timestamp", example = "1696070400000")
-    @JsonProperty("updatedAt")
-    private long updatedAt;
-    
     public SentimentUpdateResponse() {
-        this.updatedAt = System.currentTimeMillis();
+        super();
     }
     
     public SentimentUpdateResponse(String message, boolean sentimentEnabled, boolean previousStatus) {
+        super();
         this.message = message;
         this.sentimentEnabled = sentimentEnabled;
         this.previousStatus = previousStatus;
-        this.updatedAt = System.currentTimeMillis();
     }
     
     public String getMessage() {
@@ -56,13 +52,5 @@ public class SentimentUpdateResponse {
     
     public void setPreviousStatus(boolean previousStatus) {
         this.previousStatus = previousStatus;
-    }
-    
-    public long getUpdatedAt() {
-        return updatedAt;
-    }
-    
-    public void setUpdatedAt(long updatedAt) {
-        this.updatedAt = updatedAt;
     }
 }

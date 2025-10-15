@@ -1,6 +1,7 @@
 package tradingbot.bot.messaging;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -10,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import tradingbot.bot.events.BotStatusEvent;
 import tradingbot.bot.events.MarketDataEvent;
 import tradingbot.bot.events.RiskEvent;
@@ -20,7 +23,7 @@ import tradingbot.bot.events.TradingEvent;
 /**
  * Kafka-based Event Publisher for trading events.
  * 
- * This production-ready implementation uses Apache Kafka for:
+ * This implementation uses Apache Kafka for:
  * - High durability and scalability  
  * - Proper partitioning and consumer groups
  * - Built-in monitoring and management tools
@@ -127,12 +130,13 @@ public class EventPublisher {
     private void publishToTopic(EventTopic topic, String key, TradingEvent event) {
         try {
             // Create event wrapper with metadata
-            Map<String, Object> eventWrapper = new HashMap<>();
-            eventWrapper.put("eventId", event.getEventId());
-            eventWrapper.put("timestamp", event.getTimestamp());
-            eventWrapper.put("eventType", event.getClass().getSimpleName());
-            eventWrapper.put("data", event);
-            eventWrapper.put("partitionKey", key);
+            EventWrapper eventWrapper = new EventWrapper(
+                event.getEventId(),
+                event.getTimestamp(),
+                event.getClass().getSimpleName(),
+                event,
+                key
+            );
             
             // Publish to Kafka with partition key for ordering guarantees
             kafkaTemplate.send(topic.getTopicName(), key, eventWrapper)
@@ -230,6 +234,61 @@ public class EventPublisher {
     public static class EventPublishingException extends RuntimeException {
         public EventPublishingException(String message, Throwable cause) {
             super(message, cause);
+        }
+    }
+    
+    /**
+     * Wrapper class for Kafka event messages to provide type safety.
+     * Encapsulates the event data with metadata for Kafka publishing.
+     * 
+     * This follows Domain-Driven Design principles by providing a clear
+     * contract for event transport while maintaining type safety.
+     */
+    public static class EventWrapper {
+        @NotBlank
+        private final String eventId;
+        
+        @NotNull
+        private final LocalDateTime timestamp;
+        
+        @NotBlank
+        private final String eventType;
+        
+        @NotNull
+        private final TradingEvent data;
+        
+        @NotBlank
+        private final String partitionKey;
+        
+        private final String eventVersion; // For schema evolution
+        
+        public EventWrapper(String eventId, LocalDateTime timestamp, String eventType, 
+                          TradingEvent data, String partitionKey) {
+            this.eventId = eventId;
+            this.timestamp = timestamp;
+            this.eventType = eventType;
+            this.data = data;
+            this.partitionKey = partitionKey;
+            this.eventVersion = "1.0"; // Schema version for future compatibility
+        }
+        
+        // Getters
+        public String getEventId() { return eventId; }
+        public LocalDateTime getTimestamp() { return timestamp; }
+        public String getEventType() { return eventType; }
+        public TradingEvent getData() { return data; }
+        public String getPartitionKey() { return partitionKey; }
+        public String getEventVersion() { return eventVersion; }
+        
+        @Override
+        public String toString() {
+            return "EventWrapper{" +
+                    "eventId='" + eventId + '\'' +
+                    ", eventType='" + eventType + '\'' +
+                    ", eventVersion='" + eventVersion + '\'' +
+                    ", partitionKey='" + partitionKey + '\'' +
+                    ", timestamp=" + timestamp +
+                    '}';
         }
     }
 }

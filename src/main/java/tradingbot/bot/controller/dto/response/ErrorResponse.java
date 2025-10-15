@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Standard error response for API operations")
-public class ErrorResponse {
+public class ErrorResponse extends BaseResponse {
     
     @Schema(description = "Error code", example = "INVALID_PARAMETERS")
     @JsonProperty("errorCode")
@@ -64,10 +64,12 @@ public class ErrorResponse {
         this.details = details;
     }
     
+    @Override
     public long getTimestamp() {
         return timestamp;
     }
     
+    @Override
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
     }

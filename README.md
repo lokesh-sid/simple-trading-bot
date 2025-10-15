@@ -3,6 +3,147 @@
 
 A Spring Boot-based automated trading bot for long and short positions in cryptocurrency futures markets (e.g., BTC/USDT on Binance Futures) with configurable leverage, trailing stop-loss, optional sentiment analysis from X posts, and support for paper trading. Uses Redis caching to optimize performance. Built for extensibility and testability.
 
+## 🏗️ Architecture Overview
+
+This trading bot follows a **layered, event-driven architecture** built with Domain-Driven Design (DDD) principles and Spring Boot best practices.
+
+### High-Level Architecture
+
+```mermaid
+graph TB
+    %% Client Layer
+    subgraph "Client Applications"
+        WEB[Web Dashboard]
+        API[REST API Clients]
+        MONITOR[Monitoring Tools]
+    end
+
+    %% Presentation Layer
+    subgraph "Presentation Layer<br/>REST API Gateway"
+        CONTROLLER[TradingBotController<br/>/api/simple-trading-bot/*]
+        DTO[Request/Response DTOs<br/>Type-Safe Contracts]
+        VALIDATION[Jakarta Validation<br/>Input Validation]
+        EXCEPTIONS[Global Exception Handler<br/>Error Responses]
+    end
+
+    %% Application Layer
+    subgraph "Application Layer<br/>Business Logic"
+        BOT[FuturesTradingBot<br/>Trading Agent]
+        EXECUTION[TradeExecutionService<br/>Order Management]
+        RISK[RiskAssessmentService<br/>Risk Controls]
+        ANALYSIS[Technical Analysis<br/>Indicators & Signals]
+    end
+
+    %% Domain Layer
+    subgraph "Domain Layer<br/>Business Rules & Events"
+        EVENTS[Domain Events<br/>TradeSignalEvent,<br/>TradeExecutionEvent,<br/>RiskEvent]
+        CONFIG[TradingConfig<br/>Business Configuration]
+        STRATEGY[Trading Strategies<br/>Entry/Exit Logic]
+    end
+
+    %% Infrastructure Layer
+    subgraph "Infrastructure Layer<br/>External Systems"
+        KAFKA[(Apache Kafka<br/>Event Streaming)]
+        REDIS[(Redis Cache<br/>Market Data)]
+        EXCHANGE[Binance API<br/>Cryptocurrency Exchange]
+        DATABASE[(PostgreSQL<br/>Trade History)]
+    end
+
+    %% Event Flow
+    subgraph "Event-Driven Flow"
+        PUBLISHER[EventPublisher<br/>Kafka Producer]
+        CONSUMER[EventConsumer<br/>Kafka Consumer]
+        WRAPPER[EventWrapper<br/>Type-Safe Events]
+    end
+
+    %% Deployment
+    subgraph "Deployment & DevOps"
+        DOCKER[Docker Container<br/>Java 21]
+        KUBERNETES[Kubernetes<br/>Orchestration]
+        MONITORING[Spring Actuator<br/>Health & Metrics]
+    end
+
+    %% Connections
+    WEB --> CONTROLLER
+    API --> CONTROLLER
+    MONITOR --> MONITORING
+
+    CONTROLLER --> BOT
+    CONTROLLER --> EXECUTION
+    CONTROLLER --> RISK
+
+    BOT --> ANALYSIS
+    ANALYSIS --> EVENTS
+
+    EVENTS --> PUBLISHER
+    PUBLISHER --> WRAPPER
+    WRAPPER --> KAFKA
+
+    KAFKA --> CONSUMER
+    CONSUMER --> EXECUTION
+    CONSUMER --> RISK
+
+    BOT --> EXCHANGE
+    EXECUTION --> EXCHANGE
+    ANALYSIS --> REDIS
+
+    EXECUTION --> DATABASE
+
+    DOCKER --> KUBERNETES
+    MONITORING --> KUBERNETES
+```
+
+### Architecture Layers
+
+#### 🎨 **Presentation Layer**
+- **REST API Controllers**: `TradingBotController` with method-specific DTOs
+- **Request/Response DTOs**: Type-safe contracts with Jakarta validation
+- **Global Exception Handling**: Spring `@ControllerAdvice` for consistent error responses
+- **OpenAPI Documentation**: Auto-generated Swagger docs
+
+#### 🚀 **Application Layer**
+- **Trading Agents**: `FuturesTradingBot` implementing `TradingAgent` interface
+- **Business Services**: Trade execution, risk assessment, technical analysis
+- **Exchange Integration**: Live trading (Binance) and paper trading modes
+- **Strategy Components**: Indicators, sentiment analysis, trailing stops
+
+#### 🎯 **Domain Layer**
+- **Domain Events**: `TradeSignalEvent`, `TradeExecutionEvent`, `RiskEvent`, etc.
+- **Business Rules**: Trading configurations, risk parameters, strategies
+- **Value Objects**: `TradeDirection`, immutable business data
+- **Domain Services**: Pure business logic without external dependencies
+
+#### 🔧 **Infrastructure Layer**
+- **Event Streaming**: Apache Kafka with type-safe `EventWrapper`
+- **Caching**: Redis for market data and technical indicators
+- **External APIs**: Binance Futures API with rate limiting and circuit breakers
+- **Persistence**: PostgreSQL for trade history and audit trails
+
+### Key Architectural Patterns
+
+#### 🏛️ **Domain-Driven Design (DDD)**
+- **Clear separation** between transport (DTOs) and domain objects
+- **Ubiquitous language** in domain events and business rules
+- **Bounded contexts** for trading, risk management, and execution
+
+#### 📡 **Event-Driven Architecture**
+- **Asynchronous processing** with Kafka event streaming
+- **Type-safe events** using `EventWrapper<T extends TradingEvent>`
+- **Event sourcing** capabilities for audit trails
+- **CQRS-ready** architecture for complex queries
+
+#### 🛡️ **Resilience Patterns**
+- **Circuit Breaker**: Resilience4j for external API failures
+- **Rate Limiting**: API quota management for exchanges
+- **Retry Logic**: Exponential backoff for transient failures
+- **Fallback Strategies**: Paper trading as circuit breaker fallback
+
+#### 📊 **Observability**
+- **Spring Actuator**: Health checks, metrics, and monitoring
+- **Custom Metrics**: Trading performance and system health
+- **Structured Logging**: Event correlation and debugging
+- **Event Tracing**: Complete audit trail with `EventWrapper` metadata
+
 ## Features
 
 - Agent-based architecture: Each trading bot is an agent, managed by an AgentManager for multi-bot deployments.

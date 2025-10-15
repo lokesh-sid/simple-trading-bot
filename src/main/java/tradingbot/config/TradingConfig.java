@@ -1,6 +1,10 @@
 package tradingbot.config;
 
-public class TradingConfig {
+import java.io.Serializable;
+
+public class TradingConfig implements Serializable {
+    
+    private static final long serialVersionUID = 1L;
     private static final String DEFAULT_SYMBOL = "BTCUSDT";
     private static final double DEFAULT_TRADE_AMOUNT = 0.001;
     private static final int DEFAULT_LEVERAGE = 3;
