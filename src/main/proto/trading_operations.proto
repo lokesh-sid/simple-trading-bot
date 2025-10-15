@@ -1,0 +1,202 @@
+syntax = "proto3";
+
+package tradingbot.grpc.trading;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "tradingbot.grpc.trading";
+option java_outer_classname = "TradingOperationsProto";
+
+// Trading Operations Service
+service TradingService {
+  // Execute a trade
+  rpc ExecuteTrade(ExecuteTradeRequest) returns (ExecuteTradeResponse);
+  
+  // Get current position
+  rpc GetPosition(GetPositionRequest) returns (GetPositionResponse);
+  
+  // Get all positions for a bot
+  rpc GetAllPositions(GetAllPositionsRequest) returns (GetAllPositionsResponse);
+  
+  // Close a position
+  rpc ClosePosition(ClosePositionRequest) returns (ClosePositionResponse);
+  
+  // Update position stop loss and take profit
+  rpc UpdatePositionLimits(UpdatePositionLimitsRequest) returns (UpdatePositionLimitsResponse);
+  
+  // Get trade history
+  rpc GetTradeHistory(GetTradeHistoryRequest) returns (GetTradeHistoryResponse);
+  
+  // Get market data
+  rpc GetMarketData(GetMarketDataRequest) returns (GetMarketDataResponse);
+  
+  // Stream market data (server streaming)
+  rpc StreamMarketData(StreamMarketDataRequest) returns (stream tradingbot.grpc.common.MarketData);
+  
+  // Calculate indicators
+  rpc CalculateIndicators(CalculateIndicatorsRequest) returns (CalculateIndicatorsResponse);
+}
+
+// Execute Trade Request
+message ExecuteTradeRequest {
+  string bot_id = 1;
+  string user_id = 2;
+  string symbol = 3;
+  tradingbot.grpc.common.TradeDirection direction = 4;
+  double quantity = 5;
+  double leverage = 6;
+  double stop_loss = 7;
+  double take_profit = 8;
+  string order_type = 9; // MARKET, LIMIT
+  double limit_price = 10; // For LIMIT orders
+  bool reduce_only = 11;
+}
+
+// Execute Trade Response
+message ExecuteTradeResponse {
+  bool success = 1;
+  string message = 2;
+  string trade_id = 3;
+  tradingbot.grpc.common.Position position = 4;
+  double executed_price = 5;
+  double executed_quantity = 6;
+  int64 execution_time = 7;
+  tradingbot.grpc.common.ErrorResponse error = 8;
+}
+
+// Get Position Request
+message GetPositionRequest {
+  string bot_id = 1;
+  string user_id = 2;
+  string position_id = 3;
+}
+
+// Get Position Response
+message GetPositionResponse {
+  tradingbot.grpc.common.Position position = 1;
+  tradingbot.grpc.common.ErrorResponse error = 2;
+}
+
+// Get All Positions Request
+message GetAllPositionsRequest {
+  string bot_id = 1;
+  string user_id = 2;
+  bool include_closed = 3;
+}
+
+// Get All Positions Response
+message GetAllPositionsResponse {
+  repeated tradingbot.grpc.common.Position positions = 1;
+  int32 total_count = 2;
+  tradingbot.grpc.common.ErrorResponse error = 3;
+}
+
+// Close Position Request
+message ClosePositionRequest {
+  string bot_id = 1;
+  string user_id = 2;
+  string position_id = 3;
+  double close_percentage = 4; // 0-100, 100 = close entire position
+  string order_type = 5; // MARKET, LIMIT
+  double limit_price = 6;
+}
+
+// Close Position Response
+message ClosePositionResponse {
+  bool success = 1;
+  string message = 2;
+  double realized_pnl = 3;
+  double exit_price = 4;
+  int64 exit_time = 5;
+  tradingbot.grpc.common.ErrorResponse error = 6;
+}
+
+// Update Position Limits Request
+message UpdatePositionLimitsRequest {
+  string bot_id = 1;
+  string user_id = 2;
+  string position_id = 3;
+  double new_stop_loss = 4;
+  double new_take_profit = 5;
+}
+
+// Update Position Limits Response
+message UpdatePositionLimitsResponse {
+  bool success = 1;
+  string message = 2;
+  tradingbot.grpc.common.Position updated_position = 3;
+  tradingbot.grpc.common.ErrorResponse error = 4;
+}
+
+// Trade record
+message TradeRecord {
+  string trade_id = 1;
+  string bot_id = 2;
+  string symbol = 3;
+  tradingbot.grpc.common.TradeDirection direction = 4;
+  double entry_price = 5;
+  double exit_price = 6;
+  double quantity = 7;
+  double realized_pnl = 8;
+  int64 entry_time = 9;
+  int64 exit_time = 10;
+  string status = 11; // OPEN, CLOSED, CANCELLED
+  double fee = 12;
+}
+
+// Get Trade History Request
+message GetTradeHistoryRequest {
+  string bot_id = 1;
+  string user_id = 2;
+  int64 start_time = 3;
+  int64 end_time = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+// Get Trade History Response
+message GetTradeHistoryResponse {
+  repeated TradeRecord trades = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  double total_pnl = 5;
+  double total_fees = 6;
+  tradingbot.grpc.common.ErrorResponse error = 7;
+}
+
+// Get Market Data Request
+message GetMarketDataRequest {
+  string symbol = 1;
+  string interval = 2; // 1m, 5m, 15m, 1h, 4h, 1d
+  int32 limit = 3;
+}
+
+// Get Market Data Response
+message GetMarketDataResponse {
+  tradingbot.grpc.common.MarketData current = 1;
+  repeated tradingbot.grpc.common.MarketData historical = 2;
+  tradingbot.grpc.common.ErrorResponse error = 3;
+}
+
+// Stream Market Data Request
+message StreamMarketDataRequest {
+  string symbol = 1;
+  string interval = 2;
+}
+
+// Calculate Indicators Request
+message CalculateIndicatorsRequest {
+  string symbol = 1;
+  string interval = 2;
+  int32 period = 3;
+  repeated string indicator_types = 4; // RSI, MACD, EMA, SMA, BOLLINGER, ATR, ADX
+}
+
+// Calculate Indicators Response
+message CalculateIndicatorsResponse {
+  tradingbot.grpc.common.IndicatorValues indicators = 1;
+  int64 calculated_at = 2;
+  tradingbot.grpc.common.ErrorResponse error = 3;
+}

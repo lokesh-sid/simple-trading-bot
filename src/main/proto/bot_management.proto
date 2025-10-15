@@ -1,0 +1,192 @@
+syntax = "proto3";
+
+package tradingbot.grpc.bot;
+
+import "common.proto";
+
+option java_multiple_files = true;
+option java_package = "tradingbot.grpc.bot";
+option java_outer_classname = "BotManagementProto";
+
+// Bot Management Service
+service BotManagementService {
+  // Create a new trading bot
+  rpc CreateBot(CreateBotRequest) returns (CreateBotResponse);
+  
+  // Start a trading bot
+  rpc StartBot(StartBotRequest) returns (StartBotResponse);
+  
+  // Stop a trading bot
+  rpc StopBot(StopBotRequest) returns (StopBotResponse);
+  
+  // Get bot status
+  rpc GetBotStatus(BotStatusRequest) returns (BotStatusResponse);
+  
+  // Update bot configuration
+  rpc UpdateBot(UpdateBotRequest) returns (UpdateBotResponse);
+  
+  // Delete a trading bot
+  rpc DeleteBot(DeleteBotRequest) returns (DeleteBotResponse);
+  
+  // List all bots for a user
+  rpc ListBots(ListBotsRequest) returns (ListBotsResponse);
+  
+  // Pause a trading bot
+  rpc PauseBot(PauseBotRequest) returns (PauseBotResponse);
+  
+  // Resume a paused bot
+  rpc ResumeBot(ResumeBotRequest) returns (ResumeBotResponse);
+}
+
+// Create Bot Request
+message CreateBotRequest {
+  string user_id = 1;
+  string bot_name = 2;
+  tradingbot.grpc.common.TradingConfig config = 3;
+  string strategy_type = 4;
+  map<string, string> strategy_parameters = 5;
+}
+
+// Create Bot Response
+message CreateBotResponse {
+  string bot_id = 1;
+  string message = 2;
+  bool success = 3;
+  tradingbot.grpc.common.ErrorResponse error = 4;
+}
+
+// Start Bot Request
+message StartBotRequest {
+  string bot_id = 1;
+  string user_id = 2;
+}
+
+// Start Bot Response
+message StartBotResponse {
+  bool success = 1;
+  string message = 2;
+  tradingbot.grpc.common.BotState state = 3;
+  tradingbot.grpc.common.ErrorResponse error = 4;
+}
+
+// Stop Bot Request
+message StopBotRequest {
+  string bot_id = 1;
+  string user_id = 2;
+  bool force_stop = 3;
+}
+
+// Stop Bot Response
+message StopBotResponse {
+  bool success = 1;
+  string message = 2;
+  tradingbot.grpc.common.BotState state = 3;
+  tradingbot.grpc.common.ErrorResponse error = 4;
+}
+
+// Bot Status Request
+message BotStatusRequest {
+  string bot_id = 1;
+  string user_id = 2;
+}
+
+// Bot Status Response
+message BotStatusResponse {
+  string bot_id = 1;
+  tradingbot.grpc.common.BotState state = 2;
+  tradingbot.grpc.common.TradingConfig config = 3;
+  double total_pnl = 4;
+  double win_rate = 5;
+  int32 total_trades = 6;
+  int32 winning_trades = 7;
+  int32 losing_trades = 8;
+  int64 uptime_seconds = 9;
+  repeated tradingbot.grpc.common.Position active_positions = 10;
+  tradingbot.grpc.common.MarketData current_market_data = 11;
+  tradingbot.grpc.common.ErrorResponse error = 12;
+}
+
+// Update Bot Request
+message UpdateBotRequest {
+  string bot_id = 1;
+  string user_id = 2;
+  tradingbot.grpc.common.TradingConfig config = 3;
+  map<string, string> strategy_parameters = 4;
+}
+
+// Update Bot Response
+message UpdateBotResponse {
+  bool success = 1;
+  string message = 2;
+  tradingbot.grpc.common.ErrorResponse error = 3;
+}
+
+// Delete Bot Request
+message DeleteBotRequest {
+  string bot_id = 1;
+  string user_id = 2;
+}
+
+// Delete Bot Response
+message DeleteBotResponse {
+  bool success = 1;
+  string message = 2;
+  tradingbot.grpc.common.ErrorResponse error = 3;
+}
+
+// List Bots Request
+message ListBotsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  string filter_state = 4; // Optional: filter by state
+}
+
+// Bot Summary
+message BotSummary {
+  string bot_id = 1;
+  string bot_name = 2;
+  tradingbot.grpc.common.BotState state = 3;
+  string symbol = 4;
+  double total_pnl = 5;
+  int32 total_trades = 6;
+  int64 created_at = 7;
+  int64 last_active = 8;
+}
+
+// List Bots Response
+message ListBotsResponse {
+  repeated BotSummary bots = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  tradingbot.grpc.common.ErrorResponse error = 5;
+}
+
+// Pause Bot Request
+message PauseBotRequest {
+  string bot_id = 1;
+  string user_id = 2;
+}
+
+// Pause Bot Response
+message PauseBotResponse {
+  bool success = 1;
+  string message = 2;
+  tradingbot.grpc.common.BotState state = 3;
+  tradingbot.grpc.common.ErrorResponse error = 4;
+}
+
+// Resume Bot Request
+message ResumeBotRequest {
+  string bot_id = 1;
+  string user_id = 2;
+}
+
+// Resume Bot Response
+message ResumeBotResponse {
+  bool success = 1;
+  string message = 2;
+  tradingbot.grpc.common.BotState state = 3;
+  tradingbot.grpc.common.ErrorResponse error = 4;
+}
