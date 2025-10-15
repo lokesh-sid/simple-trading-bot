@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.6'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.google.protobuf' version '0.9.4'
 }
 
 group = 'com.tradingbot'
@@ -25,6 +26,10 @@ ext {
     jacksonVersion = '2.15.2'
     resilience4jVersion = '2.1.0'
     springdocVersion = '2.6.0'
+    jjwtVersion = '0.12.5'
+    grpcVersion = '1.60.0'
+    grpcSpringBootVersion = '3.1.0.RELEASE'
+    protobufVersion = '3.25.1'
 }
 
 dependencies {
@@ -32,6 +37,21 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'org.springframework.boot:spring-boot-starter-aop'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    
+    // Spring Security + JWT
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+    runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+    
+    // OAuth2/OpenID Connect (optional - for social login)
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    
+    // Database
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'com.h2database:h2' // For testing
     
     // Resilience4j for rate limiting and circuit breaker
     implementation "io.github.resilience4j:resilience4j-spring-boot3:${resilience4jVersion}"
@@ -67,6 +87,16 @@ dependencies {
     implementation 'org.springframework.kafka:spring-kafka'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
     
+    // gRPC and Protobuf dependencies
+    implementation "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+    implementation "io.grpc:grpc-stub:${grpcVersion}"
+    implementation "io.grpc:grpc-services:${grpcVersion}"
+    implementation "net.devh:grpc-server-spring-boot-starter:${grpcSpringBootVersion}"
+    implementation "net.devh:grpc-client-spring-boot-starter:${grpcSpringBootVersion}"
+    implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
+    compileOnly "org.apache.tomcat:annotations-api:6.0.53" // For javax.annotation.Generated
+    
     // Test dependencies
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
@@ -89,3 +119,31 @@ jar {
     enabled = false
     archiveClassifier = ''
 }
+
+// Protobuf configuration
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${protobufVersion}"
+    }
+    plugins {
+        grpc {
+            artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
+        }
+    }
+    generateProtoTasks {
+        all()*.plugins {
+            grpc {}
+        }
+    }
+}
+
+// Add generated sources to source sets
+sourceSets {
+    main {
+        java {
+            srcDirs 'build/generated/source/proto/main/grpc'
+            srcDirs 'build/generated/source/proto/main/java'
+        }
+    }
+}
+

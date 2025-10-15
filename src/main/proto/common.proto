@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package tradingbot.grpc.common;
+
+option java_multiple_files = true;
+option java_package = "tradingbot.grpc.common";
+option java_outer_classname = "CommonProto";
+
+// Trade direction enumeration
+enum TradeDirection {
+  TRADE_DIRECTION_UNSPECIFIED = 0;
+  LONG = 1;
+  SHORT = 2;
+}
+
+// Bot state enumeration
+enum BotState {
+  BOT_STATE_UNSPECIFIED = 0;
+  CREATED = 1;
+  STARTED = 2;
+  RUNNING = 3;
+  STOPPED = 4;
+  ERROR = 5;
+  PAUSED = 6;
+}
+
+// Market data message
+message MarketData {
+  string symbol = 1;
+  double price = 2;
+  double volume = 3;
+  int64 timestamp = 4;
+  double bid = 5;
+  double ask = 6;
+  double high_24h = 7;
+  double low_24h = 8;
+  double change_24h = 9;
+}
+
+// Trading configuration
+message TradingConfig {
+  string symbol = 1;
+  double initial_capital = 2;
+  double leverage = 3;
+  double risk_per_trade = 4;
+  double stop_loss_percentage = 5;
+  double take_profit_percentage = 6;
+  double trailing_stop_percentage = 7;
+  int32 max_positions = 8;
+  bool paper_trading = 9;
+}
+
+// Indicator values
+message IndicatorValues {
+  double rsi = 1;
+  double macd = 2;
+  double macd_signal = 3;
+  double macd_histogram = 4;
+  double ema_short = 5;
+  double ema_long = 6;
+  double sma = 7;
+  double bollinger_upper = 8;
+  double bollinger_middle = 9;
+  double bollinger_lower = 10;
+  double atr = 11;
+  double adx = 12;
+}
+
+// Position information
+message Position {
+  string position_id = 1;
+  string bot_id = 2;
+  string symbol = 3;
+  TradeDirection direction = 4;
+  double entry_price = 5;
+  double quantity = 6;
+  double leverage = 7;
+  double unrealized_pnl = 8;
+  double realized_pnl = 9;
+  int64 entry_time = 10;
+  double stop_loss = 11;
+  double take_profit = 12;
+  string status = 13;
+}
+
+// Error response
+message ErrorResponse {
+  int32 code = 1;
+  string message = 2;
+  string details = 3;
+  int64 timestamp = 4;
+}
+
+// Timestamp message
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
