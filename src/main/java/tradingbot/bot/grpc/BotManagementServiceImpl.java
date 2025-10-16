@@ -13,11 +13,29 @@ import org.springframework.beans.factory.annotation.Autowired;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
 import tradingbot.bot.controller.dto.BotState;
-import tradingbot.bot.controller.dto.response.BotStatusResponse;
 import tradingbot.bot.service.BotCacheService;
 import tradingbot.config.TradingConfig;
-import tradingbot.grpc.bot.*;
-import tradingbot.grpc.common.*;
+import tradingbot.grpc.bot.BotManagementServiceGrpc;
+import tradingbot.grpc.bot.BotStatusRequest;
+import tradingbot.grpc.bot.BotStatusResponse;
+import tradingbot.grpc.bot.BotSummary;
+import tradingbot.grpc.bot.CreateBotRequest;
+import tradingbot.grpc.bot.CreateBotResponse;
+import tradingbot.grpc.bot.DeleteBotRequest;
+import tradingbot.grpc.bot.DeleteBotResponse;
+import tradingbot.grpc.bot.ListBotsRequest;
+import tradingbot.grpc.bot.ListBotsResponse;
+import tradingbot.grpc.bot.PauseBotRequest;
+import tradingbot.grpc.bot.PauseBotResponse;
+import tradingbot.grpc.bot.ResumeBotRequest;
+import tradingbot.grpc.bot.ResumeBotResponse;
+import tradingbot.grpc.bot.StartBotRequest;
+import tradingbot.grpc.bot.StartBotResponse;
+import tradingbot.grpc.bot.StopBotRequest;
+import tradingbot.grpc.bot.StopBotResponse;
+import tradingbot.grpc.bot.UpdateBotRequest;
+import tradingbot.grpc.bot.UpdateBotResponse;
+import tradingbot.grpc.common.ErrorResponse;
 
 /**
  * gRPC Service implementation for Bot Management operations

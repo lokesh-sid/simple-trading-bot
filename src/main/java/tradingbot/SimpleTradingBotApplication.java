@@ -41,7 +41,9 @@ import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 import tradingbot.config.InstanceConfig;
 import tradingbot.config.TradingConfig;
 
-@SpringBootApplication
+@SpringBootApplication(exclude = {
+    net.devh.boot.grpc.server.autoconfigure.GrpcServerSecurityAutoConfiguration.class
+})
 @EnableKafka  // Enable Kafka support
 @EnableAsync  // Enable async processing for CompletableFuture
 @EnableScheduling
