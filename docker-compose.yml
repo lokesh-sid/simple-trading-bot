@@ -6,9 +6,13 @@ services:
     ports:
       - "8080:8080"
     depends_on:
+      - postgres
       - redis
       - kafka
     environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/trading_bot
+      - SPRING_DATASOURCE_USERNAME=tradingbot
+      - SPRING_DATASOURCE_PASSWORD=tradingbot123
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -66,6 +70,32 @@ services:
     networks:
       - trading-network
 
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: trading-bot-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: trading_bot
+      POSTGRES_USER: tradingbot
+      POSTGRES_PASSWORD: tradingbot123
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tradingbot -d trading_bot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - trading-network
+
 networks:
   trading-network:
     driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
