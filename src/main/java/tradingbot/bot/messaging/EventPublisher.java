@@ -246,21 +246,25 @@ public class EventPublisher {
      */
     public static class EventWrapper {
         @NotBlank
-        private final String eventId;
+        private String eventId;
         
         @NotNull
-        private final LocalDateTime timestamp;
+        private LocalDateTime timestamp;
         
         @NotBlank
-        private final String eventType;
+        private String eventType;
         
         @NotNull
-        private final TradingEvent data;
+        private TradingEvent data;
         
         @NotBlank
-        private final String partitionKey;
+        private String partitionKey;
         
-        private final String eventVersion; // For schema evolution
+        private String eventVersion; // For schema evolution
+        
+        // Default constructor for Jackson deserialization
+        public EventWrapper() {
+        }
         
         public EventWrapper(String eventId, LocalDateTime timestamp, String eventType, 
                           TradingEvent data, String partitionKey) {
@@ -279,6 +283,14 @@ public class EventPublisher {
         public TradingEvent getData() { return data; }
         public String getPartitionKey() { return partitionKey; }
         public String getEventVersion() { return eventVersion; }
+        
+        // Setters for Jackson deserialization
+        public void setEventId(String eventId) { this.eventId = eventId; }
+        public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
+        public void setEventType(String eventType) { this.eventType = eventType; }
+        public void setData(TradingEvent data) { this.data = data; }
+        public void setPartitionKey(String partitionKey) { this.partitionKey = partitionKey; }
+        public void setEventVersion(String eventVersion) { this.eventVersion = eventVersion; }
         
         @Override
         public String toString() {
