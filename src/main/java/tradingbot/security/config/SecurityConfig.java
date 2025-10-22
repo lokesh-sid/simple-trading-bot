@@ -49,7 +49,10 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints - no authentication required
                 .requestMatchers(
-                    "/api/auth/**",           // Authentication endpoints
+                    "/api/auth/**",           // Authentication endpoints (direct)
+                    "/gateway/api/auth/**",   // Authentication endpoints (via gateway)
+                    "/gateway/health",        // Gateway health check
+                    "/gateway/info",          // Gateway info
                     "/api/health",            // Health check
                     "/actuator/**",           // Actuator endpoints
                     "/swagger-ui/**",         // Swagger UI
@@ -86,8 +89,7 @@ public class SecurityConfig {
     
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder());
         return authProvider;
     }

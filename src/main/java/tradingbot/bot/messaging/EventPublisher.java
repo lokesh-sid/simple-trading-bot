@@ -210,17 +210,12 @@ public class EventPublisher {
             var producerFactory = kafkaTemplate.getProducerFactory();
             
             // Check if producer factory is properly configured
-            if (producerFactory == null) {
-                log.error("Kafka producer factory is null");
-                return false;
+            // Try to create a producer to verify connectivity
+            try (var producer = producerFactory.createProducer()) {
+                // If we can create a producer, we're healthy
+                log.debug("Kafka publisher health check: HEALTHY");
+                return true;
             }
-            
-            // Simple health check - if we can get the producer factory, we're healthy
-            boolean healthy = true;
-            
-            log.debug("Kafka publisher health check: HEALTHY");
-            
-            return healthy;
             
         } catch (Exception ex) {
             log.error("Kafka publisher health check failed", ex);
@@ -265,9 +260,8 @@ public class EventPublisher {
         // Default constructor for Jackson deserialization
         public EventWrapper() {
         }
-        
-        public EventWrapper(String eventId, LocalDateTime timestamp, String eventType, 
-                          TradingEvent data, String partitionKey) {
+        public EventWrapper(String eventId, LocalDateTime timestamp, String eventType,
+                            TradingEvent data, String partitionKey) {
             this.eventId = eventId;
             this.timestamp = timestamp;
             this.eventType = eventType;
