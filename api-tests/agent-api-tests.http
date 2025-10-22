@@ -1,0 +1,495 @@
+### Agentic AI Trading Bot API Tests
+### Base URL: http://localhost:8080
+
+###############################################################################
+# 1. CREATE AGENTS
+###############################################################################
+
+### Create Bitcoin Maximizer Agent
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Bitcoin Maximizer",
+  "goalType": "MAXIMIZE_PROFIT",
+  "goalDescription": "Maximize profits trading BTCUSDT",
+  "tradingSymbol": "BTCUSDT",
+  "capital": 10000.0
+}
+
+###
+
+### Create Ethereum Hedger Agent
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Ethereum Hedger",
+  "goalType": "HEDGE_RISK",
+  "goalDescription": "Risk management for ETH positions",
+  "tradingSymbol": "ETHUSDT",
+  "capital": 5000.0
+}
+
+###
+
+### Create BNB Accumulator Agent
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "BNB Accumulator",
+  "goalType": "ACCUMULATE_ASSET",
+  "goalDescription": "Long-term BNB accumulation strategy",
+  "tradingSymbol": "BNBUSDT",
+  "capital": 3000.0
+}
+
+###
+
+### Create Arbitrage Agent
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Multi-Exchange Arbitrage",
+  "goalType": "ARBITRAGE",
+  "goalDescription": "Exploit price differences across exchanges",
+  "tradingSymbol": "BTCUSDT",
+  "capital": 20000.0
+}
+
+###
+
+### Create Market Maker Agent
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "SOL Market Maker",
+  "goalType": "MARKET_MAKING",
+  "goalDescription": "Provide liquidity for SOLUSDT",
+  "tradingSymbol": "SOLUSDT",
+  "capital": 15000.0
+}
+
+###############################################################################
+# 2. GET ALL AGENTS
+###############################################################################
+
+### List all agents
+GET http://localhost:8080/api/agents
+
+###############################################################################
+# 3. GET SPECIFIC AGENT (Replace {id} with actual agent ID)
+###############################################################################
+
+### Get agent details
+GET http://localhost:8080/api/agents/{id}
+
+###
+
+### Example: Get agent by specific ID
+GET http://localhost:8080/api/agents/abc-123-def-456
+
+###############################################################################
+# 4. ACTIVATE AGENTS
+###############################################################################
+
+### Activate agent (Replace {id} with actual agent ID)
+POST http://localhost:8080/api/agents/{id}/activate
+
+###
+
+### Activate Bitcoin Maximizer
+POST http://localhost:8080/api/agents/{bitcoin-agent-id}/activate
+
+###
+
+### Activate Ethereum Hedger
+POST http://localhost:8080/api/agents/{ethereum-agent-id}/activate
+
+###############################################################################
+# 5. PAUSE AGENTS
+###############################################################################
+
+### Pause agent (Replace {id} with actual agent ID)
+POST http://localhost:8080/api/agents/{id}/pause
+
+###
+
+### Pause Bitcoin Maximizer
+POST http://localhost:8080/api/agents/{bitcoin-agent-id}/pause
+
+###############################################################################
+# 6. STOP/DELETE AGENTS
+###############################################################################
+
+### Stop agent (Replace {id} with actual agent ID)
+DELETE http://localhost:8080/api/agents/{id}
+
+###
+
+### Stop Bitcoin Maximizer
+DELETE http://localhost:8080/api/agents/{bitcoin-agent-id}
+
+###############################################################################
+# 7. AGENT LIFECYCLE TEST (Complete flow)
+###############################################################################
+
+### Step 1: Create Test Agent
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Lifecycle Test Agent",
+  "goalType": "MAXIMIZE_PROFIT",
+  "goalDescription": "Testing complete agent lifecycle",
+  "tradingSymbol": "BTCUSDT",
+  "capital": 1000.0
+}
+
+### Step 2: Get agent details (use ID from Step 1)
+GET http://localhost:8080/api/agents/{test-agent-id}
+
+### Step 3: Activate agent
+POST http://localhost:8080/api/agents/{test-agent-id}/activate
+
+### Step 4: Wait 30-60 seconds for agent to run iterations
+
+### Step 5: Check agent status (should see reasoning data)
+GET http://localhost:8080/api/agents/{test-agent-id}
+
+### Step 6: Pause agent
+POST http://localhost:8080/api/agents/{test-agent-id}/pause
+
+### Step 7: Reactivate agent
+POST http://localhost:8080/api/agents/{test-agent-id}/activate
+
+### Step 8: Stop agent
+DELETE http://localhost:8080/api/agents/{test-agent-id}
+
+###############################################################################
+# 8. MULTIPLE AGENTS SCENARIO
+###############################################################################
+
+### Create Agent 1
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "BTC Long Strategy",
+  "goalType": "MAXIMIZE_PROFIT",
+  "goalDescription": "Long-only BTC strategy",
+  "tradingSymbol": "BTCUSDT",
+  "capital": 5000.0
+}
+
+###
+
+### Create Agent 2
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "ETH Short Strategy",
+  "goalType": "MAXIMIZE_PROFIT",
+  "goalDescription": "Short-only ETH strategy",
+  "tradingSymbol": "ETHUSDT",
+  "capital": 5000.0
+}
+
+###
+
+### Activate both agents
+POST http://localhost:8080/api/agents/{agent1-id}/activate
+
+###
+
+POST http://localhost:8080/api/agents/{agent2-id}/activate
+
+###
+
+### List all agents (should show 2 active agents)
+GET http://localhost:8080/api/agents
+
+###
+
+### Check Agent 1 reasoning
+GET http://localhost:8080/api/agents/{agent1-id}
+
+###
+
+### Check Agent 2 reasoning
+GET http://localhost:8080/api/agents/{agent2-id}
+
+###############################################################################
+# 9. ERROR TEST CASES
+###############################################################################
+
+### Test: Create agent with duplicate name (should fail)
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Bitcoin Maximizer",
+  "goalType": "MAXIMIZE_PROFIT",
+  "goalDescription": "Duplicate name test",
+  "tradingSymbol": "BTCUSDT",
+  "capital": 10000.0
+}
+
+###
+
+### Test: Create agent with invalid goal type (should fail)
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Invalid Goal Agent",
+  "goalType": "INVALID_GOAL",
+  "goalDescription": "Testing invalid goal",
+  "tradingSymbol": "BTCUSDT",
+  "capital": 10000.0
+}
+
+###
+
+### Test: Create agent with negative capital (should fail)
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Negative Capital Agent",
+  "goalType": "MAXIMIZE_PROFIT",
+  "goalDescription": "Testing negative capital",
+  "tradingSymbol": "BTCUSDT",
+  "capital": -1000.0
+}
+
+###
+
+### Test: Create agent with missing required fields (should fail)
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "goalType": "MAXIMIZE_PROFIT",
+  "tradingSymbol": "BTCUSDT"
+}
+
+###
+
+### Test: Get non-existent agent (should return 404)
+GET http://localhost:8080/api/agents/non-existent-id-12345
+
+###
+
+### Test: Activate non-existent agent (should return 404)
+POST http://localhost:8080/api/agents/non-existent-id-12345/activate
+
+###
+
+### Test: Pause non-existent agent (should return 404)
+POST http://localhost:8080/api/agents/non-existent-id-12345/pause
+
+###
+
+### Test: Delete non-existent agent (should return 404)
+DELETE http://localhost:8080/api/agents/non-existent-id-12345
+
+###############################################################################
+# 10. MONITORING ACTIVE AGENTS
+###############################################################################
+
+### Create and activate monitoring agent
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Monitor Agent",
+  "goalType": "MAXIMIZE_PROFIT",
+  "goalDescription": "Agent for monitoring iterations",
+  "tradingSymbol": "BTCUSDT",
+  "capital": 2000.0
+}
+
+###
+
+### Activate for monitoring
+POST http://localhost:8080/api/agents/{monitor-agent-id}/activate
+
+###
+
+### Check after 30 seconds (should see iteration 1)
+GET http://localhost:8080/api/agents/{monitor-agent-id}
+
+###
+
+### Check after 60 seconds (should see iteration 2)
+GET http://localhost:8080/api/agents/{monitor-agent-id}
+
+###
+
+### Check after 90 seconds (should see iteration 3)
+GET http://localhost:8080/api/agents/{monitor-agent-id}
+
+###############################################################################
+# 11. GOAL TYPE TESTING
+###############################################################################
+
+### Test MAXIMIZE_PROFIT goal
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Max Profit Test",
+  "goalType": "MAXIMIZE_PROFIT",
+  "goalDescription": "Pure profit seeking",
+  "tradingSymbol": "BTCUSDT",
+  "capital": 5000.0
+}
+
+###
+
+### Test HEDGE_RISK goal
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Hedge Risk Test",
+  "goalType": "HEDGE_RISK",
+  "goalDescription": "Risk management focus",
+  "tradingSymbol": "ETHUSDT",
+  "capital": 5000.0
+}
+
+###
+
+### Test ACCUMULATE_ASSET goal
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Accumulate Test",
+  "goalType": "ACCUMULATE_ASSET",
+  "goalDescription": "Long-term accumulation",
+  "tradingSymbol": "BNBUSDT",
+  "capital": 5000.0
+}
+
+###
+
+### Test ARBITRAGE goal
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Arbitrage Test",
+  "goalType": "ARBITRAGE",
+  "goalDescription": "Price difference exploitation",
+  "tradingSymbol": "BTCUSDT",
+  "capital": 10000.0
+}
+
+###
+
+### Test MARKET_MAKING goal
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Market Maker Test",
+  "goalType": "MARKET_MAKING",
+  "goalDescription": "Liquidity provision",
+  "tradingSymbol": "SOLUSDT",
+  "capital": 8000.0
+}
+
+###############################################################################
+# 12. VERIFY AGENT REASONING STRUCTURE
+###############################################################################
+
+### Create agent for reasoning verification
+POST http://localhost:8080/api/agents
+Content-Type: application/json
+
+{
+  "name": "Reasoning Test Agent",
+  "goalType": "MAXIMIZE_PROFIT",
+  "goalDescription": "Verify reasoning structure",
+  "tradingSymbol": "BTCUSDT",
+  "capital": 3000.0
+}
+
+###
+
+### Activate reasoning test agent
+POST http://localhost:8080/api/agents/{reasoning-agent-id}/activate
+
+###
+
+### Wait 60 seconds, then check reasoning structure
+GET http://localhost:8080/api/agents/{reasoning-agent-id}
+
+# Expected response structure:
+# {
+#   "id": "...",
+#   "name": "Reasoning Test Agent",
+#   "status": "ACTIVE",
+#   "iterationCount": 2,
+#   "lastPerception": {
+#     "symbol": "BTCUSDT",
+#     "currentPrice": 45000.0,
+#     "trend": "UPTREND",
+#     "sentiment": "BULLISH",
+#     "volume": 1000000.0,
+#     "timestamp": "..."
+#   },
+#   "lastReasoning": {
+#     "observation": "...",
+#     "analysis": "...",
+#     "riskAssessment": "...",
+#     "recommendation": "BUY/SELL/HOLD",
+#     "confidence": 85,
+#     "timestamp": "..."
+#   }
+# }
+
+###############################################################################
+# 13. CLEANUP - DELETE ALL TEST AGENTS
+###############################################################################
+
+### List all agents first
+GET http://localhost:8080/api/agents
+
+###
+
+### Delete each agent (replace with actual IDs)
+DELETE http://localhost:8080/api/agents/{agent-id-1}
+
+###
+
+DELETE http://localhost:8080/api/agents/{agent-id-2}
+
+###
+
+DELETE http://localhost:8080/api/agents/{agent-id-3}
+
+###
+
+### Verify all agents deleted
+GET http://localhost:8080/api/agents
+
+###############################################################################
+# NOTES:
+# - Replace {id}, {agent-id}, etc. with actual agent IDs from responses
+# - Agent loop runs every 30 seconds when active
+# - First reasoning appears after first iteration (~30 seconds)
+# - iterationCount increments with each loop execution
+# - lastPerception and lastReasoning are updated each iteration
+# - Status transitions: IDLE -> ACTIVE -> PAUSED -> ACTIVE -> STOPPED
+# - Grok LLM must be configured with GROK_API_KEY environment variable
+# - Without Grok API key, agents use fallback reasoning
+# - PostgreSQL must be running for persistence
+###############################################################################

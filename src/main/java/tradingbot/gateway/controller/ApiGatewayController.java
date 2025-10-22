@@ -35,6 +35,12 @@ import tradingbot.bot.controller.dto.response.ErrorResponse;
 import tradingbot.bot.controller.dto.response.LeverageUpdateResponse;
 import tradingbot.bot.controller.dto.response.SentimentUpdateResponse;
 import tradingbot.gateway.service.GatewayService;
+import tradingbot.security.dto.HealthResponse;
+import tradingbot.security.dto.LoginRequest;
+import tradingbot.security.dto.LoginResponse;
+import tradingbot.security.dto.LogoutResponse;
+import tradingbot.security.dto.RefreshTokenRequest;
+import tradingbot.security.dto.RegisterRequest;
 
 /**
  * API Gateway Controller for routing and proxying requests to backend services
@@ -255,6 +261,121 @@ public class ApiGatewayController {
             null, 
             headers,
             new org.springframework.core.ParameterizedTypeReference<Map<String, String>>() {}
+        );
+    }
+    
+    // Authentication API Gateway Routes
+    
+    @PostMapping("/api/auth/register")
+    @Operation(summary = "User registration via gateway",
+               description = "Register a new user with username, password, and email. Provides OAuth 2.0 compliant response with rate limiting and brute force protection.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "201", description = "User registered successfully",
+                    content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid request or user already exists",
+                    content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+        @ApiResponse(responseCode = "429", description = "Too many requests - rate limit exceeded",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "503", description = "Authentication service unavailable",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<LoginResponse> register(
+            @Valid @RequestBody RegisterRequest request,
+            @RequestHeader HttpHeaders headers) {
+        return gatewayService.proxyAuthRequest(
+            "/register",
+            HttpMethod.POST,
+            request,
+            headers,
+            LoginResponse.class
+        );
+    }
+    
+    @PostMapping("/api/auth/login")
+    @Operation(summary = "User login via gateway",
+               description = "Authenticate user and receive OAuth 2.0 compliant access and refresh tokens. Protected by rate limiting to prevent brute force attacks.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Login successful",
+                    content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+        @ApiResponse(responseCode = "401", description = "Invalid credentials",
+                    content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+        @ApiResponse(responseCode = "429", description = "Too many login attempts - rate limit exceeded",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "503", description = "Authentication service unavailable",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<LoginResponse> login(
+            @Valid @RequestBody LoginRequest request,
+            @RequestHeader HttpHeaders headers) {
+        return gatewayService.proxyAuthRequest(
+            "/login",
+            HttpMethod.POST,
+            request,
+            headers,
+            LoginResponse.class
+        );
+    }
+    
+    @PostMapping("/api/auth/refresh")
+    @Operation(summary = "Refresh access token via gateway",
+               description = "Exchange a valid refresh token for a new access token. Protected by rate limiting.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Token refreshed successfully",
+                    content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+        @ApiResponse(responseCode = "401", description = "Invalid or expired refresh token",
+                    content = @Content(schema = @Schema(implementation = LoginResponse.class))),
+        @ApiResponse(responseCode = "429", description = "Too many requests - rate limit exceeded",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "503", description = "Authentication service unavailable",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<LoginResponse> refreshToken(
+            @Valid @RequestBody RefreshTokenRequest request,
+            @RequestHeader HttpHeaders headers) {
+        return gatewayService.proxyAuthRequest(
+            "/refresh",
+            HttpMethod.POST,
+            request,
+            headers,
+            LoginResponse.class
+        );
+    }
+    
+    @PostMapping("/api/auth/logout")
+    @Operation(summary = "User logout via gateway",
+               description = "Logout the current user. Client should discard stored tokens after successful logout.")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Logout successful",
+                    content = @Content(schema = @Schema(implementation = LogoutResponse.class))),
+        @ApiResponse(responseCode = "503", description = "Authentication service unavailable",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<LogoutResponse> logout(@RequestHeader HttpHeaders headers) {
+        return gatewayService.proxyAuthRequest(
+            "/logout",
+            HttpMethod.POST,
+            null,
+            headers,
+            LogoutResponse.class
+        );
+    }
+    
+    @GetMapping("/api/auth/health")
+    @Operation(summary = "Authentication service health check via gateway",
+               description = "Check the health status of the authentication service")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Authentication service is healthy",
+                    content = @Content(schema = @Schema(implementation = HealthResponse.class))),
+        @ApiResponse(responseCode = "503", description = "Authentication service unavailable",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<HealthResponse> authHealth(@RequestHeader HttpHeaders headers) {
+        return gatewayService.proxyAuthRequest(
+            "/health",
+            HttpMethod.GET,
+            null,
+            headers,
+            HealthResponse.class
         );
     }
     

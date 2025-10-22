@@ -1,0 +1,257 @@
+package tradingbot.agent.api;
+
+import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import java.util.Arrays;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import tradingbot.agent.api.dto.CreateAgentRequest;
+import tradingbot.agent.application.AgentService;
+import tradingbot.agent.domain.model.Agent;
+
+/**
+ * Integration test for AgentController REST API
+ * Uses @WebMvcTest for focused controller testing
+ */
+@WebMvcTest(AgentController.class)
+class AgentControllerIntegrationTest {
+    
+    @Autowired
+    private MockMvc mockMvc;
+    
+    @Autowired
+    private ObjectMapper objectMapper;
+    
+    @MockBean
+    private AgentService agentService;
+    
+    @Test
+    void testCreateAgent_Success() throws Exception {
+        // Given
+        CreateAgentRequest request = new CreateAgentRequest(
+            "Integration Test Agent",
+            "MAXIMIZE_PROFIT",
+            "Test agent for integration",
+            "BTCUSDT",
+            10000.0
+        );
+        
+        UUID agentId = UUID.randomUUID();
+        Agent mockAgent = Agent.create(
+            agentId,
+            "Integration Test Agent",
+            AgentGoalType.MAXIMIZE_PROFIT,
+            "Test agent for integration",
+            "BTCUSDT",
+            10000.0
+        );
+        
+        when(agentService.createAgent(any(), any(), any(), any(), any())).thenReturn(mockAgent);
+        
+        // When & Then
+        mockMvc.perform(post("/api/agents")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(agentId.toString()))
+                .andExpect(jsonPath("$.name").value("Integration Test Agent"))
+                .andExpect(jsonPath("$.goalType").value("MAXIMIZE_PROFIT"))
+                .andExpect(jsonPath("$.tradingSymbol").value("BTCUSDT"))
+                .andExpect(jsonPath("$.capital").value(10000.0))
+                .andExpect(jsonPath("$.status").value("IDLE"))
+                .andExpect(jsonPath("$.iterationCount").value(0));
+    }
+    
+    @Test
+    void testCreateAgent_InvalidRequest() throws Exception {
+        // Given - missing required field (name)
+        String invalidRequest = """
+            {
+                "goalType": "MAXIMIZE_PROFIT",
+                "tradingSymbol": "BTCUSDT",
+                "capital": 10000.0
+            }
+            """;
+        
+        // When & Then
+        mockMvc.perform(post("/api/agents")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(invalidRequest))
+                .andExpect(status().isBadRequest());
+    }
+    
+    @Test
+    void testCreateAgent_DuplicateName() throws Exception {
+        // Given
+        CreateAgentRequest request = new CreateAgentRequest(
+            "Duplicate Test",
+            "MAXIMIZE_PROFIT",
+            "First agent",
+            "BTCUSDT",
+            10000.0
+        );
+        
+        when(agentService.createAgent(any(), any(), any(), any(), any()))
+            .thenThrow(new IllegalArgumentException("Agent with name 'Duplicate Test' already exists"));
+        
+        // When & Then
+        mockMvc.perform(post("/api/agents")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict());
+    }
+    
+    @Test
+    void testGetAllAgents() throws Exception {
+        // Given
+        Agent agent1 = Agent.create(UUID.randomUUID(), "Agent 1", AgentGoalType.MAXIMIZE_PROFIT, 
+            "First", "BTCUSDT", 10000.0);
+        Agent agent2 = Agent.create(UUID.randomUUID(), "Agent 2", AgentGoalType.HEDGE_RISK, 
+            "Second", "ETHUSDT", 5000.0);
+        
+        when(agentService.getAllAgents()).thenReturn(Arrays.asList(agent1, agent2));
+        
+        // When & Then
+        mockMvc.perform(get("/api/agents"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].name").value("Agent 1"))
+                .andExpect(jsonPath("$[1].name").value("Agent 2"))
+                .andExpect(jsonPath("$[0].name").isNotEmpty());
+    }
+    
+    @Test
+    void testGetAgent_Success() throws Exception {
+        // Given
+        UUID agentId = UUID.randomUUID();
+        Agent mockAgent = Agent.create(agentId, "Get Test Agent", AgentGoalType.MAXIMIZE_PROFIT,
+            "Test", "BTCUSDT", 10000.0);
+        
+        when(agentService.getAgent(agentId)).thenReturn(Optional.of(mockAgent));
+        
+        // When & Then
+        mockMvc.perform(get("/api/agents/{id}", agentId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(agentId.toString()))
+                .andExpect(jsonPath("$.name").value("Get Test Agent"));
+    }
+    
+    @Test
+    void testGetAgent_NotFound() throws Exception {
+        // Given
+        UUID nonExistentId = UUID.randomUUID();
+        when(agentService.getAgent(nonExistentId)).thenReturn(Optional.empty());
+        
+        // When & Then
+        mockMvc.perform(get("/api/agents/{id}", nonExistentId.toString()))
+                .andExpect(status().isNotFound());
+    }
+    
+    @Test
+    void testActivateAgent() throws Exception {
+        // Given
+        UUID agentId = UUID.randomUUID();
+        Agent mockAgent = Agent.create(agentId, "Activate Test", AgentGoalType.MAXIMIZE_PROFIT,
+            "Test", "BTCUSDT", 10000.0);
+        mockAgent.activate();
+        
+        when(agentService.activateAgent(agentId)).thenReturn(Optional.of(mockAgent));
+        
+        // When & Then
+        mockMvc.perform(post("/api/agents/{id}/activate", agentId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.lastActiveAt").isNotEmpty());
+    }
+    
+    @Test
+    void testPauseAgent() throws Exception {
+        // Given
+        UUID agentId = UUID.randomUUID();
+        Agent mockAgent = Agent.create(agentId, "Pause Test", AgentGoalType.MAXIMIZE_PROFIT,
+            "Test", "BTCUSDT", 10000.0);
+        mockAgent.activate();
+        mockAgent.pause();
+        
+        when(agentService.pauseAgent(agentId)).thenReturn(Optional.of(mockAgent));
+        
+        // When & Then
+        mockMvc.perform(post("/api/agents/{id}/pause", agentId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAUSED"));
+    }
+    
+    @Test
+    void testStopAgent() throws Exception {
+        // Given
+        UUID agentId = UUID.randomUUID();
+        doNothing().when(agentService).stopAgent(agentId);
+        
+        // When & Then
+        mockMvc.perform(delete("/api/agents/{id}", agentId.toString()))
+                .andExpect(status().isNoContent());
+    }
+    
+    @Test
+    void testCompleteAgentLifecycle() throws Exception {
+        // Given
+        UUID agentId = UUID.randomUUID();
+        Agent mockAgent = Agent.create(agentId, "Lifecycle Test", AgentGoalType.MAXIMIZE_PROFIT,
+            "Full lifecycle test", "BTCUSDT", 10000.0);
+        
+        // 1. Create agent
+        when(agentService.createAgent(any(), any(), any(), any(), any())).thenReturn(mockAgent);
+        
+        mockMvc.perform(post("/api/agents")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new CreateAgentRequest("Lifecycle Test", "MAXIMIZE_PROFIT", 
+                        "Full lifecycle test", "BTCUSDT", 10000.0))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("IDLE"));
+        
+        // 2. Activate agent
+        mockAgent.activate();
+        when(agentService.activateAgent(agentId)).thenReturn(Optional.of(mockAgent));
+        
+        mockMvc.perform(post("/api/agents/{id}/activate", agentId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+        
+        // 3. Pause agent
+        mockAgent.pause();
+        when(agentService.pauseAgent(agentId)).thenReturn(Optional.of(mockAgent));
+        
+        mockMvc.perform(post("/api/agents/{id}/pause", agentId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAUSED"));
+        
+        // 4. Reactivate agent
+        mockAgent.activate();
+        when(agentService.activateAgent(agentId)).thenReturn(Optional.of(mockAgent));
+        
+        mockMvc.perform(post("/api/agents/{id}/activate", agentId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+        
+        // 5. Stop agent
+        doNothing().when(agentService).stopAgent(agentId);
+        
+        mockMvc.perform(delete("/api/agents/{id}", agentId.toString()))
+                .andExpect(status().isNoContent());
+    }
+}

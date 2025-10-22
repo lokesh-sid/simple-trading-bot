@@ -184,12 +184,21 @@ public class AuthService {
         
         long expiresIn = jwtService.getAccessTokenExpirationSeconds();
         
+        // Convert roles to OAuth 2.0 scope format (space-separated, lowercase)
+        // Example: ROLE_USER, ROLE_ADMIN -> "user admin"
+        String scope = roles.stream()
+                .map(role -> role.replace("ROLE_", "").toLowerCase())
+                .sorted()  // Consistent ordering
+                .reduce((a, b) -> a + " " + b)
+                .orElse("user");  // Default scope
+        
         return new LoginResponse(
                 accessToken,
                 refreshToken,
                 expiresIn,
                 user.getId().toString(),
-                user.getUsername()
+                user.getUsername(),
+                scope  // OAuth 2.0 scope field
         );
     }
 }

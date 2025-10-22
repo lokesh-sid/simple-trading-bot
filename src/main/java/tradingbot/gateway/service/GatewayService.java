@@ -173,6 +173,30 @@ public class GatewayService {
     }
     
     /**
+     * Convenience method for authentication requests with stricter rate limiting
+     * Uses dedicated resilience configuration optimized for auth security
+     */
+    @RateLimiter(name = "gateway-auth")  // Stricter rate limiting for auth
+    @CircuitBreaker(name = "gateway-auth", fallbackMethod = "fallbackAuth")
+    @Retry(name = "gateway-auth")
+    public <T> ResponseEntity<T> proxyAuthRequest(
+            String endpoint,
+            HttpMethod method,
+            Object body,
+            HttpHeaders headers,
+            Class<T> responseType) {
+        
+        String url = "/api/auth" + endpoint;
+        return proxyRequest(
+            url,
+            method,
+            body,
+            headers,
+            ParameterizedTypeReference.forType(responseType)
+        );
+    }
+    
+    /**
      * Enhance headers with gateway metadata
      */
     private HttpHeaders enhanceHeaders(HttpHeaders original) {
@@ -326,5 +350,28 @@ public class GatewayService {
             .status(HttpStatus.SERVICE_UNAVAILABLE)
             .body("Documentation service is currently unavailable. Error: " + 
                   (ex.getMessage() != null ? ex.getMessage() : "Unknown error"));
+    }
+    
+    /**
+     * Fallback for authentication requests
+     */
+    @SuppressWarnings("unchecked")
+    public <T> ResponseEntity<T> fallbackAuth(
+            String endpoint,
+            HttpMethod method,
+            Object body,
+            HttpHeaders headers,
+            Class<T> responseType,
+            Exception ex) {
+        
+        ErrorResponse error = new ErrorResponse(
+            "AUTH_SERVICE_UNAVAILABLE",
+            "Authentication service is temporarily unavailable. Please try again later.",
+            ex.getMessage() != null ? ex.getMessage() : "Service unavailable"
+        );
+        
+        return (ResponseEntity<T>) ResponseEntity
+            .status(HttpStatus.SERVICE_UNAVAILABLE)
+            .body(error);
     }
 }

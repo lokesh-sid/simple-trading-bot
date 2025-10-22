@@ -2,8 +2,6 @@ package tradingbot.security.service;
 
 import static org.springframework.security.core.userdetails.User.*;
 
-import java.util.stream.Collectors;
-
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -43,7 +41,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         // Convert roles Set to SimpleGrantedAuthority list
         var authorities = user.getRoles().stream()
                 .map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toList());
+                .toList();
         
         return builder()
                 .username(user.getUsername())
