@@ -135,7 +135,7 @@ public class GatewayExceptionHandler {
         ex.getBindingResult().getAllErrors().forEach(error -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
+            errors.put(fieldName, errorMessage); 
         });
         
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(

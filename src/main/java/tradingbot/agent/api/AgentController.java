@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
-import tradingbot.agent.api.dto.AgentDTOMapper;
+import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.api.dto.AgentResponse;
 import tradingbot.agent.api.dto.CreateAgentRequest;
 import tradingbot.agent.application.AgentService;
@@ -29,9 +29,11 @@ import tradingbot.agent.domain.model.AgentId;
 public class AgentController {
     
     private final AgentService agentService;
+    private final AgentMapper agentMapper;
     
-    public AgentController(AgentService agentService) {
+    public AgentController(AgentService agentService, AgentMapper agentMapper) {
         this.agentService = agentService;
+        this.agentMapper = agentMapper;
     }
     
     /**
@@ -42,7 +44,7 @@ public class AgentController {
     public ResponseEntity<AgentResponse> createAgent(@Valid @RequestBody CreateAgentRequest request) {
         Agent agent = agentService.createAgent(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(AgentDTOMapper.toResponse(agent));
+            .body(agentMapper.toResponse(agent));
     }
     
     /**
@@ -53,7 +55,7 @@ public class AgentController {
     public ResponseEntity<List<AgentResponse>> getAllAgents() {
         List<Agent> agents = agentService.getAllAgents();
         List<AgentResponse> responses = agents.stream()
-            .map(AgentDTOMapper::toResponse)
+            .map(agentMapper::toResponse)
             .collect(Collectors.toList());
         return ResponseEntity.ok(responses);
     }
@@ -65,7 +67,7 @@ public class AgentController {
     @GetMapping("/{id}")
     public ResponseEntity<AgentResponse> getAgent(@PathVariable String id) {
         Agent agent = agentService.getAgent(new AgentId(id));
-        return ResponseEntity.ok(AgentDTOMapper.toResponse(agent));
+        return ResponseEntity.ok(agentMapper.toResponse(agent));
     }
     
     /**
@@ -75,7 +77,7 @@ public class AgentController {
     @PostMapping("/{id}/activate")
     public ResponseEntity<AgentResponse> activateAgent(@PathVariable String id) {
         Agent agent = agentService.activateAgent(new AgentId(id));
-        return ResponseEntity.ok(AgentDTOMapper.toResponse(agent));
+        return ResponseEntity.ok(agentMapper.toResponse(agent));
     }
     
     /**
@@ -85,7 +87,7 @@ public class AgentController {
     @PostMapping("/{id}/pause")
     public ResponseEntity<AgentResponse> pauseAgent(@PathVariable String id) {
         Agent agent = agentService.pauseAgent(new AgentId(id));
-        return ResponseEntity.ok(AgentDTOMapper.toResponse(agent));
+        return ResponseEntity.ok(agentMapper.toResponse(agent));
     }
     
     /**

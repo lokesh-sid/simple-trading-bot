@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import tradingbot.agent.api.dto.AgentDTOMapper;
+import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.api.dto.CreateAgentRequest;
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentId;
@@ -19,9 +19,11 @@ import tradingbot.agent.domain.repository.AgentRepository;
 public class AgentService {
     
     private final AgentRepository agentRepository;
+    private final AgentMapper agentMapper;
     
-    public AgentService(AgentRepository agentRepository) {
+    public AgentService(AgentRepository agentRepository, AgentMapper agentMapper) {
         this.agentRepository = agentRepository;
+        this.agentMapper = agentMapper;
     }
     
     /**
@@ -33,8 +35,8 @@ public class AgentService {
             throw new AgentAlreadyExistsException("Agent with name '" + request.name() + "' already exists");
         }
         
-        // Create and save agent
-        Agent agent = AgentDTOMapper.toDomain(request);
+        // Create and save agent using MapStruct mapper
+        Agent agent = agentMapper.toDomain(request);
         return agentRepository.save(agent);
     }
     

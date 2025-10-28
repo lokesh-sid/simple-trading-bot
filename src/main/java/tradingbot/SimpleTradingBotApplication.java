@@ -113,7 +113,10 @@ public class SimpleTradingBotApplication {
         );
         
         // Skip leverage initialization if using placeholder API credentials
-        boolean skipLeverageInit = "YOUR_BINANCE_API_KEY".equals(apiKey) || apiKey == null || apiKey.trim().isEmpty();
+        boolean skipLeverageInit = "YOUR_BINANCE_API_KEY".equals(apiKey) 
+            || "your-binance-api-key-here".equals(apiKey)
+            || apiKey == null 
+            || apiKey.trim().isEmpty();
         
         // Use BotParams to pass all required parameters
         BotParams botParams = new BotParams.Builder()

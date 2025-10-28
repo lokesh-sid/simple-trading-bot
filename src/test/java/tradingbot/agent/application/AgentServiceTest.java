@@ -15,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.api.dto.CreateAgentRequest;
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentGoal;
@@ -27,6 +28,9 @@ class AgentServiceTest {
     
     @Mock
     private AgentRepository agentRepository;
+    
+    @Mock
+    private AgentMapper agentMapper;
     
     @InjectMocks
     private AgentService agentService;
@@ -52,6 +56,7 @@ class AgentServiceTest {
     void testCreateAgent_Success() {
         // Given
         when(agentRepository.existsByName("Test Agent")).thenReturn(false);
+        when(agentMapper.toDomain(createRequest)).thenReturn(testAgent);
         when(agentRepository.save(any(Agent.class))).thenReturn(testAgent);
         
         // When
@@ -61,6 +66,7 @@ class AgentServiceTest {
         assertNotNull(result);
         assertEquals("Test Agent", result.getName());
         verify(agentRepository).existsByName("Test Agent");
+        verify(agentMapper).toDomain(createRequest);
         verify(agentRepository).save(any(Agent.class));
     }
     

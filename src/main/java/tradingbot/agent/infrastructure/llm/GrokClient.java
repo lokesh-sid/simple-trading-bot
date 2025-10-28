@@ -1,7 +1,7 @@
 package tradingbot.agent.infrastructure.llm;
 
+import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +16,8 @@ import org.springframework.web.client.RestTemplate;
 
 import tradingbot.agent.domain.model.Reasoning;
 import tradingbot.agent.domain.model.ReasoningContext;
+import tradingbot.agent.infrastructure.llm.dto.GrokApiRequest;
+import tradingbot.agent.infrastructure.llm.dto.GrokApiResponse;
 
 /**
  * GrokClient - Integration with X.AI Grok LLM
@@ -62,15 +64,15 @@ public class GrokClient implements LLMProvider {
         try {
             logger.info("Calling Grok LLM for agent reasoning");
             
-            // Build request
-            Map<String, Object> request = Map.of(
-                "model", model,
-                "messages", List.of(
-                    Map.of("role", "system", "content", PromptTemplates.getSystemPrompt()),
-                    Map.of("role", "user", "content", PromptTemplates.buildReasoningPrompt(context))
+            // Build type-safe request
+            GrokApiRequest request = new GrokApiRequest(
+                model,
+                List.of(
+                    new GrokApiRequest.Message("system", PromptTemplates.getSystemPrompt()),
+                    new GrokApiRequest.Message("user", PromptTemplates.buildReasoningPrompt(context))
                 ),
-                "temperature", temperature,
-                "max_tokens", maxTokens
+                temperature,
+                maxTokens
             );
             
             // Set headers
@@ -78,14 +80,14 @@ public class GrokClient implements LLMProvider {
             headers.set("Authorization", "Bearer " + apiKey);
             headers.set("Content-Type", "application/json");
             
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(request, headers);
+            HttpEntity<GrokApiRequest> requestEntity = new HttpEntity<>(request, headers);
             
-            // Call Grok API
-            ResponseEntity<Map> response = restTemplate.exchange(
+            // Call Grok API with type-safe response
+            ResponseEntity<GrokApiResponse> response = restTemplate.exchange(
                 apiUrl,
                 HttpMethod.POST,
-                entity,
-                Map.class
+                requestEntity,
+                GrokApiResponse.class
             );
             
             // Parse response
@@ -116,14 +118,25 @@ public class GrokClient implements LLMProvider {
     /**
      * Extract content from Grok API response
      */
-    @SuppressWarnings("unchecked")
-    private String extractContent(Map<String, Object> responseBody) {
+    private String extractContent(GrokApiResponse response) {
         try {
-            List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
-            if (choices != null && !choices.isEmpty()) {
-                Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-                return (String) message.get("content");
+            if (response.getChoices() != null && !response.getChoices().isEmpty()) {
+                GrokApiResponse.Choice firstChoice = response.getChoices().getFirst();
+                if (firstChoice.getMessage() != null) {
+                    String content = firstChoice.getMessage().getContent();
+                    
+                    // Log token usage if available
+                    if (response.getUsage() != null) {
+                        logger.debug("Grok API usage - Prompt: {} tokens, Completion: {} tokens, Total: {} tokens",
+                            response.getUsage().getPromptTokens(),
+                            response.getUsage().getCompletionTokens(),
+                            response.getUsage().getTotalTokens());
+                    }
+                    
+                    return content;
+                }
             }
+            logger.warn("Grok response contained no choices or content");
         } catch (Exception e) {
             logger.error("Error parsing Grok response: {}", e.getMessage());
         }
@@ -140,7 +153,7 @@ public class GrokClient implements LLMProvider {
             "High risk: No LLM analysis available",
             "HOLD",
             0,
-            java.time.Instant.now()
+            Instant.now()
         );
     }
 }

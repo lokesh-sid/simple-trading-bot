@@ -30,6 +30,7 @@ ext {
     grpcVersion = '1.60.0'
     grpcSpringBootVersion = '3.1.0.RELEASE'
     protobufVersion = '3.25.1'
+    mapstructVersion = '1.5.5.Final'
 }
 
 dependencies {
@@ -82,6 +83,11 @@ dependencies {
     
     // HTTP client for gateway proxying
     implementation "org.springframework.boot:spring-boot-starter-webflux"
+    
+    // MapStruct for DTO mapping
+    implementation "org.mapstruct:mapstruct:${mapstructVersion}"
+    annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
+    testAnnotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
     
     // Message Queue Dependencies
     implementation 'org.springframework.kafka:spring-kafka'
