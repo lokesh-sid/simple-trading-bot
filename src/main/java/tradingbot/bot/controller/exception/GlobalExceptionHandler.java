@@ -40,17 +40,21 @@ public class GlobalExceptionHandler {
                 .add(error.getDefaultMessage() != null ? error.getDefaultMessage() : "Invalid value")
         );
         
+        String requestPath = getRequestPath(request);
+        
         ErrorResponse errorResponse = ErrorResponse.builder()
             .type(ERROR_TYPE_BASE + "validation-failed")
             .title("Validation Failed")
             .httpStatus(HttpStatus.BAD_REQUEST.value())
             .detail("Request validation failed. Please check field errors.")
-            .instance(getRequestPath(request))
+            .instance(requestPath)
             .timestamp(System.currentTimeMillis())
             .fieldErrors(fieldErrors)
             .build();
         
-        log.warn("Validation failed for request {}: {}", getRequestPath(request), fieldErrors);
+        if (log.isWarnEnabled()) {
+            log.warn("Validation failed for request {}: {}", requestPath, fieldErrors);
+        }
         
         return ResponseEntity.badRequest().body(errorResponse);
     }
@@ -69,17 +73,21 @@ public class GlobalExceptionHandler {
                 .add(violation.getMessage())
         );
         
+        String requestPath = getRequestPath(request);
+        
         ErrorResponse errorResponse = ErrorResponse.builder()
             .type(ERROR_TYPE_BASE + "constraint-violation")
             .httpStatus(HttpStatus.BAD_REQUEST.value())
             .title("Constraint Violation")
             .detail("Request parameter constraints violated.")
-            .instance(getRequestPath(request))
+            .instance(requestPath)
             .timestamp(System.currentTimeMillis())
             .fieldErrors(violations)
             .build();
         
-        log.warn("Constraint violation for request {}: {}", getRequestPath(request), violations);
+        if (log.isWarnEnabled()) {
+            log.warn("Constraint violation for request {}: {}", requestPath, violations);
+        }
         
         return ResponseEntity.badRequest().body(errorResponse);
     }
@@ -151,6 +159,28 @@ public class GlobalExceptionHandler {
     }
     
     /**
+     * Handle InvalidBotConfigurationException - 422 Unprocessable Entity
+     */
+    @ExceptionHandler(InvalidBotConfigurationException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidBotConfiguration(
+            InvalidBotConfigurationException ex,
+            WebRequest request) {
+        
+        ErrorResponse errorResponse = ErrorResponse.builder()
+            .type(ERROR_TYPE_BASE + "invalid-bot-configuration")
+            .title("Invalid Bot Configuration")
+            .httpStatus(HttpStatus.UNPROCESSABLE_ENTITY.value())
+            .detail(ex.getMessage())
+            .instance(getRequestPath(request))
+            .timestamp(System.currentTimeMillis())
+            .build();
+        
+        log.warn("Invalid bot configuration: {}", ex.getMessage());
+        
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(errorResponse);
+    }
+    
+    /**
      * Handle IllegalArgumentException - 400 Bad Request
      */
     @ExceptionHandler(IllegalArgumentException.class)
@@ -180,16 +210,20 @@ public class GlobalExceptionHandler {
             Exception ex,
             WebRequest request) {
         
+        String requestPath = getRequestPath(request);
+        
         ErrorResponse errorResponse = ErrorResponse.builder()
             .type(ERROR_TYPE_BASE + "internal-server-error")
             .title("Internal Server Error")
             .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR.value())
             .detail("An unexpected error occurred. Please try again later.")
-            .instance(getRequestPath(request))
+            .instance(requestPath)
             .timestamp(System.currentTimeMillis())
             .build();
         
-        log.error("Unexpected error occurred for request {}", getRequestPath(request), ex);
+        if (log.isErrorEnabled()) {
+            log.error("Unexpected error occurred for request {}", requestPath, ex);
+        }
         
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
     }

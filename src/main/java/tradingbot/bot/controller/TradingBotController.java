@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -50,6 +51,7 @@ import tradingbot.bot.controller.dto.response.PaginationInfo;
 import tradingbot.bot.controller.dto.response.SentimentUpdateResponse;
 import tradingbot.bot.controller.exception.BotAlreadyRunningException;
 import tradingbot.bot.controller.exception.BotNotFoundException;
+import tradingbot.bot.controller.validation.ValidBotId;
 import tradingbot.bot.service.BotCacheService;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.service.PaperFuturesExchangeService;
@@ -64,9 +66,16 @@ import tradingbot.config.TradingConfig;
  * Features Redis-backed persistence for bot state recovery and horizontal scaling.
  * 
  * API Path Pattern: /api/v1/bots/{botId}
+ * 
+ * Security Features:
+ * - Input validation on all endpoints
+ * - UUID validation for bot IDs
+ * - Range validation for numeric parameters
+ * - Global exception handling for consistent error responses
  */
 @RestController
 @RequestMapping("/api/v1/bots")
+@Validated
 @Tag(name = "Trading Bot Controller", description = "API for managing multiple futures trading bot instances")
 public class TradingBotController {
     
@@ -217,11 +226,14 @@ public class TradingBotController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "404", description = "Bot not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "409", description = "Bot already running",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "500", description = "Internal server error",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<BotStartResponse> startBot(
-            @Parameter(description = "Unique bot identifier") @PathVariable String botId,
+            @Parameter(description = "Unique bot identifier (UUID format)") 
+            @PathVariable @ValidBotId String botId,
             @Valid @RequestBody BotStartRequest request) {
         
         FuturesTradingBot currentBot = getBotOrThrow(botId);
@@ -303,7 +315,8 @@ public class TradingBotController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<BotStopResponse> stopBot(
-            @Parameter(description = "Unique bot identifier") @PathVariable String botId) {
+            @Parameter(description = "Unique bot identifier (UUID format)") 
+            @PathVariable @ValidBotId String botId) {
         
         FuturesTradingBot bot = getBotOrThrow(botId);
         String finalPositionStatus = bot.getPositionStatus();
@@ -340,7 +353,8 @@ public class TradingBotController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<BotStatusResponse> getStatus(
-            @Parameter(description = "Unique bot identifier") @PathVariable String botId) {
+            @Parameter(description = "Unique bot identifier (UUID format)") 
+            @PathVariable @ValidBotId String botId) {
         
         FuturesTradingBot bot = getBotOrThrow(botId);
         BotStatusResponse response = new BotStatusResponse();
@@ -370,7 +384,8 @@ public class TradingBotController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<ConfigUpdateResponse> configureBot(
-            @Parameter(description = "Unique bot identifier") @PathVariable String botId,
+            @Parameter(description = "Unique bot identifier (UUID format)") 
+            @PathVariable @ValidBotId String botId,
             @Valid @RequestBody TradingConfig config) {
         
         FuturesTradingBot bot = getBotOrThrow(botId);
@@ -401,7 +416,8 @@ public class TradingBotController {
                         content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<LeverageUpdateResponse> updateLeverage(
-            @Parameter(description = "Unique bot identifier") @PathVariable String botId,
+            @Parameter(description = "Unique bot identifier (UUID format)") 
+            @PathVariable @ValidBotId String botId,
             @Valid @RequestBody LeverageUpdateRequest request) {
         
         FuturesTradingBot bot = getBotOrThrow(botId);
@@ -437,7 +453,8 @@ public class TradingBotController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<SentimentUpdateResponse> enableSentimentAnalysis(
-            @Parameter(description = "Unique bot identifier") @PathVariable String botId,
+            @Parameter(description = "Unique bot identifier (UUID format)") 
+            @PathVariable @ValidBotId String botId,
             @Valid @RequestBody SentimentUpdateRequest request) {
         
         boolean enable = request.getEnable();
@@ -635,7 +652,8 @@ public class TradingBotController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<BotDeletedResponse> deleteBot(
-            @Parameter(description = "Unique bot identifier") @PathVariable String botId) {
+            @Parameter(description = "Unique bot identifier (UUID format)") 
+            @PathVariable @ValidBotId String botId) {
         
         FuturesTradingBot bot = getBotOrThrow(botId);
         if (bot.isRunning()) {
