@@ -1,173 +1,130 @@
 package tradingbot.messaging;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.slf4j.LoggerFactory;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
+import tradingbot.bot.TradeDirection;
+import tradingbot.bot.events.BotStatusEvent;
+import tradingbot.bot.events.MarketDataEvent;
+import tradingbot.bot.events.RiskEvent;
+import tradingbot.bot.events.TradeExecutionEvent;
+import tradingbot.bot.events.TradeSignalEvent;
 import tradingbot.bot.messaging.EventConsumer;
+import tradingbot.bot.messaging.EventPublisher.EventWrapper;
+import tradingbot.bot.persistence.service.EventPersistenceService;
 
 /**
  * Unit tests for the Kafka EventConsumer.
- * 
- * Tests the message consumption and processing logic.
+ *
+ * Tests the message consumption and event persistence logic.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("EventConsumer Tests")
 class EventConsumerTest {
 
+    @Mock
+    private EventPersistenceService eventPersistenceService;
+
     @InjectMocks
     private EventConsumer eventConsumer;
 
-    private ListAppender<ILoggingEvent> logAppender;
-    private Logger logger;
+    @Test
+    @DisplayName("Should persist trade signal event successfully")
+    void shouldPersistTradeSignalEvent() {
+        // Given
+        TradeSignalEvent event = new TradeSignalEvent("bot-1", "BTCUSDT", TradeDirection.LONG);
+        event.setEventId("trade-signal-123");
+        event.setStrength(0.8);
 
-    @BeforeEach
-    void setUp() {
-        // Set up log capture for testing log output
-        logger = (Logger) LoggerFactory.getLogger(EventConsumer.class);
-        logAppender = new ListAppender<>();
-        logAppender.start();
-        logger.addAppender(logAppender);
-        logger.setLevel(Level.DEBUG);
+        EventWrapper wrapper = new EventWrapper(
+            "trade-signal-123", Instant.now(), "TRADE_SIGNAL", event, "bot-1");
+
+        // When
+        eventConsumer.handleTradeSignal(wrapper, 0, 100L, "bot-1");
+
+        // Then
+        verify(eventPersistenceService).persistEvent(event);
     }
 
     @Test
-    @DisplayName("Should handle trade signal event successfully")
-    void shouldHandleTradeSignalEvent() {
+    @DisplayName("Should persist trade execution event successfully")
+    void shouldPersistTradeExecutionEvent() {
         // Given
-        Map<String, Object> payload = createEventPayload("trade-signal-123", "TradeSignalEvent");
-        Map<String, Object> eventData = new HashMap<>();
-        eventData.put("signal", "LONG");
-        eventData.put("symbol", "BTCUSDT");
-        eventData.put("strength", 0.8);
-        payload.put("data", eventData);
+        TradeExecutionEvent event = new TradeExecutionEvent("bot-1", "order-123", "BTCUSDT");
+        event.setEventId("trade-execution-456");
+        event.setSide("BUY");
+        event.setQuantity(1.5);
+        event.setPrice(45000.0);
+
+        EventWrapper wrapper = new EventWrapper(
+            "trade-execution-456", Instant.now(), "TRADE_EXECUTED", event, "bot-1");
 
         // When
-        assertDoesNotThrow(() -> {
-            eventConsumer.handleTradeSignal(payload, 0, 100L, "bot-1");
-        });
+        eventConsumer.handleTradeExecution(wrapper, 0, 101L, "bot-1");
 
         // Then
-        assertTrue(logAppender.list.stream()
-            .anyMatch(event -> event.getFormattedMessage().contains("Received trade signal event")));
-        assertTrue(logAppender.list.stream()
-            .anyMatch(event -> event.getFormattedMessage().contains("Processing TradeSignalEvent event trade-signal-123")));
+        verify(eventPersistenceService).persistEvent(event);
     }
 
     @Test
-    @DisplayName("Should handle trade execution event successfully")
-    void shouldHandleTradeExecutionEvent() {
+    @DisplayName("Should persist risk event successfully")
+    void shouldPersistRiskEvent() {
         // Given
-        Map<String, Object> payload = createEventPayload("trade-execution-456", "TradeExecutionEvent");
-        Map<String, Object> eventData = new HashMap<>();
-        eventData.put("side", "BUY");
-        eventData.put("quantity", 1.5);
-        eventData.put("price", 45000.0);
-        payload.put("data", eventData);
+        RiskEvent event = new RiskEvent("bot-1", "POSITION_SIZE_EXCEEDED", "BTCUSDT");
+        event.setEventId("risk-event-789");
+        event.setSeverity("HIGH");
+        event.setDescription("Reduce position");
+
+        EventWrapper wrapper = new EventWrapper(
+            "risk-event-789", Instant.now(), "RISK_ALERT", event, "bot-1");
 
         // When
-        assertDoesNotThrow(() -> {
-            eventConsumer.handleTradeExecution(payload, 0, 101L, "bot-1");
-        });
+        eventConsumer.handleRiskEvent(wrapper, 0, 102L, "bot-1");
 
         // Then
-        assertTrue(logAppender.list.stream()
-            .anyMatch(event -> event.getFormattedMessage().contains("Received trade execution event")));
-        assertTrue(logAppender.list.stream()
-            .anyMatch(event -> event.getFormattedMessage().contains("Processing TradeExecutionEvent event trade-execution-456")));
+        verify(eventPersistenceService).persistEvent(event);
     }
 
     @Test
-    @DisplayName("Should handle risk event successfully")
-    void shouldHandleRiskEvent() {
+    @DisplayName("Should persist market data event successfully")
+    void shouldPersistMarketDataEvent() {
         // Given
-        Map<String, Object> payload = createEventPayload("risk-event-789", "RiskEvent");
-        Map<String, Object> eventData = new HashMap<>();
-        eventData.put("riskType", "POSITION_SIZE_EXCEEDED");
-        eventData.put("severity", "HIGH");
-        eventData.put("action", "REDUCE_POSITION");
-        payload.put("data", eventData);
+        MarketDataEvent event = new MarketDataEvent("bot-1", "BTCUSDT", 45000.0);
+        event.setEventId("market-data-321");
+        event.setVolume(1000.0);
+
+        EventWrapper wrapper = new EventWrapper(
+            "market-data-321", Instant.now(), "MARKET_DATA", event, "BTCUSDT");
 
         // When
-        assertDoesNotThrow(() -> {
-            eventConsumer.handleRiskEvent(payload, 0, 102L, "bot-1");
-        });
+        eventConsumer.handleMarketData(wrapper, 0, 103L, "BTCUSDT");
 
         // Then
-        assertTrue(logAppender.list.stream()
-            .anyMatch(event -> event.getFormattedMessage().contains("Received risk event") && event.getLevel() == Level.WARN));
-        assertTrue(logAppender.list.stream()
-            .anyMatch(event -> event.getFormattedMessage().contains("Processing RiskEvent risk event risk-event-789")));
+        verify(eventPersistenceService).persistEvent(event);
     }
 
     @Test
-    @DisplayName("Should handle market data event successfully")
-    void shouldHandleMarketDataEvent() {
+    @DisplayName("Should persist bot status event successfully")
+    void shouldPersistBotStatusEvent() {
         // Given
-        Map<String, Object> payload = createEventPayload("market-data-321", "MarketDataEvent");
-        Map<String, Object> eventData = new HashMap<>();
-        eventData.put("symbol", "BTCUSDT");
-        eventData.put("price", 45000.0);
-        eventData.put("volume", 1000.0);
-        payload.put("data", eventData);
+        BotStatusEvent event = new BotStatusEvent("bot-1", "RUNNING");
+        event.setEventId("bot-status-654");
+
+        EventWrapper wrapper = new EventWrapper(
+            "bot-status-654", Instant.now(), "BOT_STATUS", event, "bot-1");
 
         // When
-        assertDoesNotThrow(() -> {
-            eventConsumer.handleMarketData(payload, 0, 103L, "BTCUSDT");
-        });
+        eventConsumer.handleBotStatus(wrapper, 0, 104L, "bot-1");
 
         // Then
-        assertTrue(logAppender.list.stream()
-            .anyMatch(event -> event.getFormattedMessage().contains("Received market data event") && event.getLevel() == Level.DEBUG));
-        assertTrue(logAppender.list.stream()
-            .anyMatch(event -> event.getFormattedMessage().contains("Processing market data event market-data-321")));
-    }
-
-    @Test
-    @DisplayName("Should handle bot status event successfully")
-    void shouldHandleBotStatusEvent() {
-        // Given
-        Map<String, Object> payload = createEventPayload("bot-status-654", "BotStatusEvent");
-        Map<String, Object> eventData = new HashMap<>();
-        eventData.put("status", "RUNNING");
-        eventData.put("message", "Bot is healthy");
-        payload.put("data", eventData);
-
-        // When
-        assertDoesNotThrow(() -> {
-            eventConsumer.handleBotStatus(payload, 0, 104L, "bot-1");
-        });
-
-        // Then
-        assertTrue(logAppender.list.stream()
-            .anyMatch(event -> event.getFormattedMessage().contains("Received bot status event")));
-        assertTrue(logAppender.list.stream()
-            .anyMatch(event -> event.getFormattedMessage().contains("Processing BotStatusEvent status event bot-status-654")));
-    }
-
-    /**
-     * Helper method to create basic event payload structure.
-     */
-    private Map<String, Object> createEventPayload(String eventId, String eventType) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("eventId", eventId);
-        payload.put("eventType", eventType);
-        payload.put("timestamp", Instant.now());
-        payload.put("partitionKey", "test-key");
-        return payload;
+        verify(eventPersistenceService).persistEvent(event);
     }
 }

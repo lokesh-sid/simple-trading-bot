@@ -1,7 +1,5 @@
 package tradingbot.bot.messaging;
 
-import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -10,6 +8,12 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
+import tradingbot.bot.events.BotStatusEvent;
+import tradingbot.bot.events.MarketDataEvent;
+import tradingbot.bot.events.RiskEvent;
+import tradingbot.bot.events.TradeExecutionEvent;
+import tradingbot.bot.events.TradeSignalEvent;
+import tradingbot.bot.messaging.EventPublisher.EventWrapper;
 import tradingbot.bot.persistence.service.EventPersistenceService;
 
 /**
@@ -39,7 +43,7 @@ public class EventConsumer {
      * @param key The partition key
      */
     @KafkaListener(topics = "trading.signals", groupId = "trading-bot-signals")
-    public void handleTradeSignal(@Payload Map<String, Object> payload,
+    public void handleTradeSignal(@Payload EventWrapper payload,
                                   @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
                                   @Header(KafkaHeaders.OFFSET) long offset,
                                   @Header(KafkaHeaders.RECEIVED_KEY) String key) {
@@ -48,14 +52,15 @@ public class EventConsumer {
             log.debug("Trade signal payload: {}", payload);
             
             // Extract event data
-            String eventId = (String) payload.get("eventId");
-            String eventType = (String) payload.get("eventType");
-            Map<String, Object> eventData = (Map<String, Object>) payload.get("data");
+            String eventId = payload.getEventId();
+            String eventType = payload.getEventType();
+            TradeSignalEvent event = (TradeSignalEvent) payload.getData();
             
-            log.info("Processing {} event {} with data: {}", eventType, eventId, eventData);
+            log.info("Processing {} event {} for symbol: {}, signal: {}, strength: {}", 
+                eventType, eventId, event.getSymbol(), event.getSignal(), event.getStrength());
             
-            // Here you would process the trade signal
-            // For now, just log the event
+            // Persist the event
+            eventPersistenceService.persistEvent(event);
             
         } catch (Exception ex) {
             log.error("Failed to process trade signal event from partition {} offset {}", partition, offset, ex);
@@ -67,20 +72,22 @@ public class EventConsumer {
      * Consumes trade execution events from Kafka.
      */
     @KafkaListener(topics = "trading.executions", groupId = "trading-bot-executions")
-    public void handleTradeExecution(@Payload Map<String, Object> payload,
+    public void handleTradeExecution(@Payload EventWrapper payload,
                                      @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
                                      @Header(KafkaHeaders.OFFSET) long offset,
                                      @Header(KafkaHeaders.RECEIVED_KEY) String key) {
         try {
             log.info("Received trade execution event: key={}, partition={}, offset={}", key, partition, offset);
             
-            String eventId = (String) payload.get("eventId");
-            String eventType = (String) payload.get("eventType");
+            String eventId = payload.getEventId();
+            String eventType = payload.getEventType();
+            TradeExecutionEvent event = (TradeExecutionEvent) payload.getData();
             
-            log.info("Processing {} event {}", eventType, eventId);
+            log.info("Processing {} event {} for symbol: {}, side: {}, quantity: {}", 
+                eventType, eventId, event.getSymbol(), event.getSide(), event.getQuantity());
             
-            // Process trade execution event
-            // Update portfolios, send notifications, etc.
+            // Persist the event
+            eventPersistenceService.persistEvent(event);
             
         } catch (Exception ex) {
             log.error("Failed to process trade execution event from partition {} offset {}", partition, offset, ex);
@@ -91,21 +98,22 @@ public class EventConsumer {
      * Consumes risk events from Kafka.
      */
     @KafkaListener(topics = "trading.risk", groupId = "trading-bot-risk")
-    public void handleRiskEvent(@Payload Map<String, Object> payload,
+    public void handleRiskEvent(@Payload EventWrapper payload,
                                 @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
                                 @Header(KafkaHeaders.OFFSET) long offset,
                                 @Header(KafkaHeaders.RECEIVED_KEY) String key) {
         try {
             log.warn("Received risk event: key={}, partition={}, offset={}", key, partition, offset);
             
-            String eventId = (String) payload.get("eventId");
-            String eventType = (String) payload.get("eventType");
-            Map<String, Object> eventData = (Map<String, Object>) payload.get("data");
+            String eventId = payload.getEventId();
+            String eventType = payload.getEventType();
+            RiskEvent event = (RiskEvent) payload.getData();
             
-            log.warn("Processing {} risk event {} with data: {}", eventType, eventId, eventData);
+            log.warn("Processing {} risk event {} - type: {}, severity: {}, action: {}", 
+                eventType, eventId, event.getRiskType(), event.getSeverity(), event.getAction());
             
-            // Process risk event - may need to take immediate action
-            // Close positions, send alerts, etc.
+            // Persist the event
+            eventPersistenceService.persistEvent(event);
             
         } catch (Exception ex) {
             log.error("Failed to process risk event from partition {} offset {}", partition, offset, ex);
@@ -116,7 +124,7 @@ public class EventConsumer {
      * Consumes market data events from Kafka.
      */
     @KafkaListener(topics = "trading.market-data", groupId = "trading-bot-market-data")
-    public void handleMarketData(@Payload Map<String, Object> payload,
+    public void handleMarketData(@Payload EventWrapper payload,
                                  @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
                                  @Header(KafkaHeaders.OFFSET) long offset,
                                  @Header(KafkaHeaders.RECEIVED_KEY) String key) {
@@ -124,11 +132,14 @@ public class EventConsumer {
             log.debug("Received market data event: key={}, partition={}, offset={}", key, partition, offset);
             
             // Market data events are high-frequency, so we use debug level
-            String eventId = (String) payload.get("eventId");
+            String eventId = payload.getEventId();
+            MarketDataEvent event = (MarketDataEvent) payload.getData();
             
-            log.debug("Processing market data event {}", eventId);
+            log.debug("Processing market data event {} for symbol: {}, price: {}", 
+                eventId, event.getSymbol(), event.getPrice());
             
-            // Process market data - update indicators, trigger signals, etc.
+            // Persist the event
+            eventPersistenceService.persistEvent(event);
             
         } catch (Exception ex) {
             log.error("Failed to process market data event from partition {} offset {}", partition, offset, ex);
@@ -139,20 +150,22 @@ public class EventConsumer {
      * Consumes bot status events from Kafka.
      */
     @KafkaListener(topics = "trading.bot-status", groupId = "trading-bot-status")
-    public void handleBotStatus(@Payload Map<String, Object> payload,
+    public void handleBotStatus(@Payload EventWrapper payload,
                                 @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
                                 @Header(KafkaHeaders.OFFSET) long offset,
                                 @Header(KafkaHeaders.RECEIVED_KEY) String key) {
         try {
             log.info("Received bot status event: key={}, partition={}, offset={}", key, partition, offset);
             
-            String eventId = (String) payload.get("eventId");
-            String eventType = (String) payload.get("eventType");
+            String eventId = payload.getEventId();
+            String eventType = payload.getEventType();
+            BotStatusEvent event = (BotStatusEvent) payload.getData();
             
-            log.info("Processing {} status event {}", eventType, eventId);
+            log.info("Processing {} status event {} - status: {}", 
+                eventType, eventId, event.getStatus());
             
-            // Process bot status change
-            // Update dashboards, send notifications, etc.
+            // Persist the event
+            eventPersistenceService.persistEvent(event);
             
         } catch (Exception ex) {
             log.error("Failed to process bot status event from partition {} offset {}", partition, offset, ex);

@@ -9,14 +9,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.test.EmbeddedKafkaBroker;
-import org.springframework.kafka.test.context.EmbeddedKafka;
-import org.springframework.kafka.test.utils.KafkaTestUtils;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
 import tradingbot.bot.TradeDirection;
@@ -30,63 +22,12 @@ import tradingbot.bot.messaging.EventPublisher;
  * This test focuses solely on the messaging functionality without loading
  * the entire Spring Boot application context.
  */
-@SpringJUnitConfig
-@EmbeddedKafka(
-    partitions = 1,
-    controlledShutdown = true,
-    brokerProperties = {
-        "listeners=PLAINTEXT://localhost:0",
-        "port=0"
-    },
-    topics = {
-        "trading.signals",
-        "trading.executions", 
-        "trading.risk",
-        "trading.market-data",
-        "trading.bot-status"
-    }
-)
-@TestPropertySource(
-    properties = {
-        "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
-        "spring.kafka.consumer.group-id=unit-test-group-${random.uuid}",
-        "spring.kafka.consumer.auto-offset-reset=earliest",
-        "spring.kafka.producer.client-id=unit-test-producer-${random.uuid}",
-        "spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer",
-        "spring.kafka.consumer.value-deserializer=org.springframework.kafka.support.serializer.JsonDeserializer",
-        "spring.kafka.consumer.properties.spring.json.trusted.packages=*",
-        "spring.kafka.producer.key-serializer=org.apache.kafka.common.serialization.StringSerializer",
-        "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JsonSerializer"
-    }
-)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SpringJUnitConfig(classes = AbstractEmbeddedKafkaTest.class)
 @DisplayName("EventPublisher Unit Tests")
-class EventPublisherUnitTest {
+class EventPublisherUnitTest extends AbstractEmbeddedKafkaTest {
 
     @Autowired
-    private EventPublisher eventPublisher;
-
-    @TestConfiguration
-    static class TestConfig {
-        
-        @Bean
-        public KafkaTemplate<String, Object> kafkaTemplate(EmbeddedKafkaBroker embeddedKafka) {
-            var producerProps = KafkaTestUtils.producerProps(embeddedKafka);
-            producerProps.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-            producerProps.put("value.serializer", "org.springframework.kafka.support.serializer.JsonSerializer");
-            
-            return new KafkaTemplate<>(
-                new org.springframework.kafka.core.DefaultKafkaProducerFactory<>(producerProps)
-            );
-        }
-        
-        @Bean
-        public EventPublisher eventPublisher(KafkaTemplate<String, Object> kafkaTemplate) {
-            return new EventPublisher(kafkaTemplate);
-        }
-    }
-
-    @Test
+    private EventPublisher eventPublisher;    @Test
     @Timeout(30)
     @DisplayName("Should publish trade signal event successfully")
     void shouldPublishTradeSignalEvent() {
