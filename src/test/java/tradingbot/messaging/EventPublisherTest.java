@@ -79,21 +79,21 @@ class EventPublisherTest {
         // Verify Kafka template was called with correct parameters
         ArgumentCaptor<String> topicCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<EventPublisher.EventWrapper> payloadCaptor = ArgumentCaptor.forClass(EventPublisher.EventWrapper.class);
         
         verify(kafkaTemplate).send(topicCaptor.capture(), keyCaptor.capture(), payloadCaptor.capture());
         
         assertEquals("trading.signals", topicCaptor.getValue());
         assertEquals("bot-1", keyCaptor.getValue());
         
-        Map<String, Object> payload = payloadCaptor.getValue();
-        assertNotNull(payload);
-        assertEquals(event.getEventId(), payload.get("eventId"));
-        assertEquals("TradeSignalEvent", payload.get("eventType"));
-        assertEquals("bot-1", payload.get("partitionKey"));
-        assertNotNull(payload.get("timestamp"));
-        assertNotNull(payload.get("data"));
+        EventPublisher.EventWrapper wrapper = payloadCaptor.getValue();
+        assertNotNull(wrapper);
+        assertEquals(event.getEventId(), wrapper.getEventId());
+        assertEquals("TradeSignalEvent", wrapper.getEventType());
+        assertEquals("bot-1", wrapper.getPartitionKey());
+        assertNotNull(wrapper.getPublishedAt());
+        assertNotNull(wrapper.getData());
+        assertEquals(event, wrapper.getData());
     }
 
     @Test

@@ -1,7 +1,6 @@
 package tradingbot.bot.messaging;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -132,7 +131,7 @@ public class EventPublisher {
             // Create event wrapper with metadata
             EventWrapper eventWrapper = new EventWrapper(
                 event.getEventId(),
-                event.getTimestamp(),
+                Instant.now(), // Message published timestamp
                 event.getClass().getSimpleName(),
                 event,
                 key
@@ -230,7 +229,7 @@ public class EventPublisher {
         public EventPublishingException(String message, Throwable cause) {
             super(message, cause);
         }
-    }
+    } 
     
     /**
      * Wrapper class for Kafka event messages to provide type safety.
@@ -244,7 +243,7 @@ public class EventPublisher {
         private String eventId;
         
         @NotNull
-        private LocalDateTime timestamp;
+        private Instant publishedAt;
         
         @NotBlank
         private String eventType;
@@ -260,10 +259,10 @@ public class EventPublisher {
         // Default constructor for Jackson deserialization
         public EventWrapper() {
         }
-        public EventWrapper(String eventId, LocalDateTime timestamp, String eventType,
+        public EventWrapper(String eventId, Instant publishedAt, String eventType,
                             TradingEvent data, String partitionKey) {
             this.eventId = eventId;
-            this.timestamp = timestamp;
+            this.publishedAt = publishedAt;
             this.eventType = eventType;
             this.data = data;
             this.partitionKey = partitionKey;
@@ -272,7 +271,7 @@ public class EventPublisher {
         
         // Getters
         public String getEventId() { return eventId; }
-        public LocalDateTime getTimestamp() { return timestamp; }
+        public Instant getPublishedAt() { return publishedAt; }
         public String getEventType() { return eventType; }
         public TradingEvent getData() { return data; }
         public String getPartitionKey() { return partitionKey; }
@@ -280,7 +279,7 @@ public class EventPublisher {
         
         // Setters for Jackson deserialization
         public void setEventId(String eventId) { this.eventId = eventId; }
-        public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
+        public void setPublishedAt(Instant publishedAt) { this.publishedAt = publishedAt; }
         public void setEventType(String eventType) { this.eventType = eventType; }
         public void setData(TradingEvent data) { this.data = data; }
         public void setPartitionKey(String partitionKey) { this.partitionKey = partitionKey; }
@@ -293,7 +292,7 @@ public class EventPublisher {
                     ", eventType='" + eventType + '\'' +
                     ", eventVersion='" + eventVersion + '\'' +
                     ", partitionKey='" + partitionKey + '\'' +
-                    ", timestamp=" + timestamp +
+                    ", publishedAt=" + publishedAt +
                     '}';
         }
     }

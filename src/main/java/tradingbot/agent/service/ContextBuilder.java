@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 
 import tradingbot.agent.domain.model.Perception;
 import tradingbot.agent.domain.model.ReasoningContext;
-import tradingbot.agent.domain.model.TradingMemory;
+import tradingbot.agent.domain.model.TradeMemory;
 
 /**
  * ContextBuilder - Builds augmented prompts for RAG-enhanced LLM reasoning
@@ -37,7 +37,7 @@ public class ContextBuilder {
      * @param memories Retrieved similar trading memories
      * @return Augmented context with formatted memories
      */
-    public String buildAugmentedContext(ReasoningContext baseContext, List<TradingMemory> memories) {
+    public String buildAugmentedContext(ReasoningContext baseContext, List<TradeMemory> memories) {
         StringBuilder augmentedContext = new StringBuilder();
         
         // Start with base context
@@ -93,7 +93,7 @@ public class ContextBuilder {
     /**
      * Format memories into readable numbered list
      */
-    private String formatMemories(List<TradingMemory> memories) {
+    private String formatMemories(List<TradeMemory> memories) {
         return memories.stream()
             .limit(5)  // Limit to top 5 to avoid context overflow
             .map(memory -> {
@@ -114,7 +114,7 @@ public class ContextBuilder {
     /**
      * Generate insights from the collection of memories
      */
-    private String generateInsights(List<TradingMemory> memories) {
+    private String generateInsights(List<TradeMemory> memories) {
         if (memories.isEmpty()) {
             return "";
         }
@@ -124,7 +124,7 @@ public class ContextBuilder {
         
         // Calculate success rate
         long profitable = memories.stream()
-            .filter(TradingMemory::wasProfitable)
+            .filter(TradeMemory::wasProfitable)
             .count();
         
         double successRate = (double) profitable / memories.size() * 100;
@@ -147,7 +147,7 @@ public class ContextBuilder {
         // Average profit/loss
         double avgProfit = memories.stream()
             .filter(m -> m.getProfitPercent() != null)
-            .mapToDouble(TradingMemory::getProfitPercent)
+            .mapToDouble(TradeMemory::getProfitPercent)
             .average()
             .orElse(0.0);
         
@@ -157,7 +157,7 @@ public class ContextBuilder {
         var lessons = memories.stream()
             .filter(m -> m.getLessonLearned() != null && !m.getLessonLearned().isEmpty())
             .limit(3)
-            .map(TradingMemory::getLessonLearned)
+            .map(TradeMemory::getLessonLearned)
             .collect(Collectors.toList());
         
         if (!lessons.isEmpty()) {

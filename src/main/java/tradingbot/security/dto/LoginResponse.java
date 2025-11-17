@@ -25,8 +25,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * - error_description: Human-readable error explanation
  * - error_uri: Link to error documentation (optional)
  * 
- * @see <a href="https://tools.ietf.org/html/rfc6749#section-5.1">RFC 6749 Section 5.1 - Successful Response</a>
- * @see <a href="https://tools.ietf.org/html/rfc6749#section-5.2">RFC 6749 Section 5.2 - Error Response</a>
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record LoginResponse(

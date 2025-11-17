@@ -4,18 +4,18 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * TradingMemory - A record of a past trade with its context and outcome
- * 
- * This domain object represents a single trading experience that can be:
+ * TradeMemory - A record of a past trade with its context and outcome
+ *
+ * This domain object represents a single trading memory that can be:
  * 1. Stored in a vector database for semantic search
  * 2. Retrieved when making similar future decisions
  * 3. Used to augment LLM prompts with historical context
- * 
- * The memory includes both structured data (prices, outcome) and 
+ *
+ * The memory includes both structured data (prices, outcome) and
  * unstructured text (scenario description, lessons learned).
  */
-public class TradingMemory {
-    
+public class TradeMemory {
+
     private final String id;
     private final String agentId;
     private final String symbol;
@@ -28,11 +28,11 @@ public class TradingMemory {
     private final String lessonLearned;
     private final Instant timestamp;
     private final double[] embedding;  // Vector representation for semantic search
-    
+
     // Transient field - calculated during retrieval, not stored
     private Double similarityScore;
-    
-    private TradingMemory(Builder builder) {
+
+    private TradeMemory(Builder builder) {
         this.id = builder.id;
         this.agentId = builder.agentId;
         this.symbol = builder.symbol;
@@ -47,11 +47,11 @@ public class TradingMemory {
         this.embedding = builder.embedding;
         this.similarityScore = builder.similarityScore;
     }
-    
+
     public static Builder builder() {
         return new Builder();
     }
-    
+
     // Getters
     public String getId() { return id; }
     public String getAgentId() { return agentId; }
@@ -66,27 +66,27 @@ public class TradingMemory {
     public Instant getTimestamp() { return timestamp; }
     public double[] getEmbedding() { return embedding; }
     public Double getSimilarityScore() { return similarityScore; }
-    
+
     public void setSimilarityScore(Double similarityScore) {
         this.similarityScore = similarityScore;
     }
-    
+
     /**
      * Check if this trade is still open (no exit yet)
      */
     public boolean isOpen() {
         return outcome == TradeOutcome.PENDING;
     }
-    
+
     /**
      * Check if this trade was profitable
      */
     public boolean wasProfitable() {
         return outcome == TradeOutcome.PROFIT && profitPercent != null && profitPercent > 0;
     }
-    
+
     /**
-     * Format memory for display in LLM prompts
+     * Format experience for display in LLM prompts
      */
     public String formatForPrompt() {
         StringBuilder sb = new StringBuilder();
@@ -94,7 +94,7 @@ public class TradingMemory {
         sb.append("- Scenario: ").append(scenarioDescription).append("\n");
         sb.append("- Decision: ").append(direction).append(" ").append(symbol);
         sb.append(" at $").append(String.format("%.2f", entryPrice)).append("\n");
-        
+
         if (!isOpen()) {
             sb.append("- Outcome: ").append(outcome);
             if (profitPercent != null) {
@@ -105,34 +105,34 @@ public class TradingMemory {
         } else {
             sb.append("- Outcome: STILL OPEN\n");
         }
-        
+
         if (lessonLearned != null && !lessonLearned.isEmpty()) {
             sb.append("- Lesson Learned: ").append(lessonLearned).append("\n");
         }
-        
+
         if (similarityScore != null) {
             sb.append("- Similarity Score: ").append(String.format("%.2f%%", similarityScore * 100)).append("\n");
         }
-        
+
         return sb.toString();
     }
-    
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TradingMemory that = (TradingMemory) o;
+        TradeMemory that = (TradeMemory) o;
         return Objects.equals(id, that.id);
     }
-    
+
     @Override
     public int hashCode() {
         return Objects.hash(id);
     }
-    
+
     @Override
     public String toString() {
-        return "TradingMemory{" +
+        return "TradeMemory{" +
                 "id='" + id + '\'' +
                 ", symbol='" + symbol + '\'' +
                 ", direction=" + direction +
@@ -140,9 +140,9 @@ public class TradingMemory {
                 ", profitPercent=" + profitPercent +
                 '}';
     }
-    
+
     /**
-     * Builder for TradingMemory
+     * Builder for TradeMemory
      */
     public static class Builder {
         private String id;
@@ -158,81 +158,81 @@ public class TradingMemory {
         private Instant timestamp = Instant.now();
         private double[] embedding;
         private Double similarityScore;
-        
+
         public Builder id(String id) {
             this.id = id;
             return this;
         }
-        
+
         public Builder agentId(String agentId) {
             this.agentId = agentId;
             return this;
         }
-        
+
         public Builder symbol(String symbol) {
             this.symbol = symbol;
             return this;
         }
-        
+
         public Builder scenarioDescription(String scenarioDescription) {
             this.scenarioDescription = scenarioDescription;
             return this;
         }
-        
+
         public Builder direction(TradeDirection direction) {
             this.direction = direction;
             return this;
         }
-        
+
         public Builder entryPrice(double entryPrice) {
             this.entryPrice = entryPrice;
             return this;
         }
-        
+
         public Builder exitPrice(Double exitPrice) {
             this.exitPrice = exitPrice;
             return this;
         }
-        
+
         public Builder outcome(TradeOutcome outcome) {
             this.outcome = outcome;
             return this;
         }
-        
+
         public Builder profitPercent(Double profitPercent) {
             this.profitPercent = profitPercent;
             return this;
         }
-        
+
         public Builder lessonLearned(String lessonLearned) {
             this.lessonLearned = lessonLearned;
             return this;
         }
-        
+
         public Builder timestamp(Instant timestamp) {
             this.timestamp = timestamp;
             return this;
         }
-        
+
         public Builder embedding(double[] embedding) {
             this.embedding = embedding;
             return this;
         }
-        
+
         public Builder similarityScore(Double similarityScore) {
             this.similarityScore = similarityScore;
             return this;
         }
-        
-        public TradingMemory build() {
+
+        public TradeMemory build() {
             Objects.requireNonNull(id, "id must not be null");
             Objects.requireNonNull(agentId, "agentId must not be null");
             Objects.requireNonNull(symbol, "symbol must not be null");
             Objects.requireNonNull(scenarioDescription, "scenarioDescription must not be null");
             Objects.requireNonNull(direction, "direction must not be null");
             Objects.requireNonNull(timestamp, "timestamp must not be null");
-            
-            return new TradingMemory(this);
+
+            return new TradeMemory(this);
         }
     }
 }

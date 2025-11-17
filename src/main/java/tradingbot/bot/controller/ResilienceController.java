@@ -1,8 +1,5 @@
 package tradingbot.bot.controller;
 
-import java.util.HashMap;
-import java.util.Map;
-
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,6 +13,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import tradingbot.bot.controller.dto.response.AllResilienceMetricsResponse;
+import tradingbot.bot.controller.dto.response.CircuitBreakerMetricsResponse;
+import tradingbot.bot.controller.dto.response.RateLimiterMetricsResponse;
+import tradingbot.bot.controller.dto.response.ResilienceHealthResponse;
+import tradingbot.bot.controller.dto.response.RetryMetricsResponse;
 
 /**
  * REST controller for monitoring rate limiting and resilience metrics
@@ -52,96 +54,119 @@ public class ResilienceController {
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Rate limiter metrics retrieved successfully",
                     content = @Content(mediaType = "application/json", 
-                                     schema = @Schema(type = "object", description = "Rate limiter metrics for each category"))),
+                                     schema = @Schema(implementation = RateLimiterMetricsResponse.class))),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public Map<String, Object> getRateLimiterMetrics() {
-        Map<String, Object> metrics = new HashMap<>();
-        
+    public RateLimiterMetricsResponse getRateLimiterMetrics() {
         // Trading rate limiter metrics
-        Map<String, Object> trading = new HashMap<>();
-        trading.put("availablePermissions", binanceTradingRateLimiter.getMetrics().getAvailablePermissions());
-        trading.put("numberOfWaitingThreads", binanceTradingRateLimiter.getMetrics().getNumberOfWaitingThreads());
-        metrics.put("trading", trading);
+        RateLimiterMetricsResponse.RateLimiterMetrics trading = new RateLimiterMetricsResponse.RateLimiterMetrics(
+            binanceTradingRateLimiter.getMetrics().getAvailablePermissions(),
+            binanceTradingRateLimiter.getMetrics().getNumberOfWaitingThreads()
+        );
         
         // Market rate limiter metrics
-        Map<String, Object> market = new HashMap<>();
-        market.put("availablePermissions", binanceMarketRateLimiter.getMetrics().getAvailablePermissions());
-        market.put("numberOfWaitingThreads", binanceMarketRateLimiter.getMetrics().getNumberOfWaitingThreads());
-        metrics.put("market", market);
+        RateLimiterMetricsResponse.RateLimiterMetrics market = new RateLimiterMetricsResponse.RateLimiterMetrics(
+            binanceMarketRateLimiter.getMetrics().getAvailablePermissions(),
+            binanceMarketRateLimiter.getMetrics().getNumberOfWaitingThreads()
+        );
         
         // Account rate limiter metrics
-        Map<String, Object> account = new HashMap<>();
-        account.put("availablePermissions", binanceAccountRateLimiter.getMetrics().getAvailablePermissions());
-        account.put("numberOfWaitingThreads", binanceAccountRateLimiter.getMetrics().getNumberOfWaitingThreads());
-        metrics.put("account", account);
+        RateLimiterMetricsResponse.RateLimiterMetrics account = new RateLimiterMetricsResponse.RateLimiterMetrics(
+            binanceAccountRateLimiter.getMetrics().getAvailablePermissions(),
+            binanceAccountRateLimiter.getMetrics().getNumberOfWaitingThreads()
+        );
         
-        return metrics;
+        return new RateLimiterMetricsResponse(trading, market, account);
     }
 
     /**
      * Get circuit breaker metrics
      */
     @GetMapping("/circuit-breaker")
-    public Map<String, Object> getCircuitBreakerMetrics() {
-        Map<String, Object> metrics = new HashMap<>();
-        
+    @Operation(summary = "Get circuit breaker metrics", 
+               description = "Returns current circuit breaker state and metrics")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Circuit breaker metrics retrieved successfully",
+                    content = @Content(mediaType = "application/json", 
+                                     schema = @Schema(implementation = CircuitBreakerMetricsResponse.class))),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public CircuitBreakerMetricsResponse getCircuitBreakerMetrics() {
         CircuitBreaker.Metrics cbMetrics = binanceApiCircuitBreaker.getMetrics();
-        metrics.put("state", binanceApiCircuitBreaker.getState().toString());
-        metrics.put("failureRate", cbMetrics.getFailureRate());
-        metrics.put("numberOfBufferedCalls", cbMetrics.getNumberOfBufferedCalls());
-        metrics.put("numberOfFailedCalls", cbMetrics.getNumberOfFailedCalls());
-        metrics.put("numberOfSuccessfulCalls", cbMetrics.getNumberOfSuccessfulCalls());
-        metrics.put("numberOfNotPermittedCalls", cbMetrics.getNumberOfNotPermittedCalls());
         
-        return metrics;
+        return new CircuitBreakerMetricsResponse(
+            binanceApiCircuitBreaker.getState().toString(),
+            cbMetrics.getFailureRate(),
+            cbMetrics.getNumberOfBufferedCalls(),
+            cbMetrics.getNumberOfFailedCalls(),
+            cbMetrics.getNumberOfSuccessfulCalls(),
+            cbMetrics.getNumberOfNotPermittedCalls()
+        );
     }
 
     /**
      * Get retry metrics
      */
     @GetMapping("/retry")
-    public Map<String, Object> getRetryMetrics() {
-        Map<String, Object> metrics = new HashMap<>();
-        
+    @Operation(summary = "Get retry metrics", 
+               description = "Returns retry attempt statistics")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Retry metrics retrieved successfully",
+                    content = @Content(mediaType = "application/json", 
+                                     schema = @Schema(implementation = RetryMetricsResponse.class))),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public RetryMetricsResponse getRetryMetrics() {
         Retry.Metrics retryMetrics = binanceApiRetry.getMetrics();
-        metrics.put("numberOfSuccessfulCallsWithoutRetryAttempt", 
-                   retryMetrics.getNumberOfSuccessfulCallsWithoutRetryAttempt());
-        metrics.put("numberOfSuccessfulCallsWithRetryAttempt", 
-                   retryMetrics.getNumberOfSuccessfulCallsWithRetryAttempt());
-        metrics.put("numberOfFailedCallsWithRetryAttempt", 
-                   retryMetrics.getNumberOfFailedCallsWithRetryAttempt());
-        metrics.put("numberOfFailedCallsWithoutRetryAttempt", 
-                   retryMetrics.getNumberOfFailedCallsWithoutRetryAttempt());
         
-        return metrics;
+        return new RetryMetricsResponse(
+            retryMetrics.getNumberOfSuccessfulCallsWithoutRetryAttempt(),
+            retryMetrics.getNumberOfSuccessfulCallsWithRetryAttempt(),
+            retryMetrics.getNumberOfFailedCallsWithRetryAttempt(),
+            retryMetrics.getNumberOfFailedCallsWithoutRetryAttempt()
+        );
     }
 
     /**
      * Get all resilience metrics in one call
      */
     @GetMapping("/metrics")
-    public Map<String, Object> getAllMetrics() {
-        Map<String, Object> allMetrics = new HashMap<>();
-        allMetrics.put("rateLimiters", getRateLimiterMetrics());
-        allMetrics.put("circuitBreaker", getCircuitBreakerMetrics());
-        allMetrics.put("retry", getRetryMetrics());
-        return allMetrics;
+    @Operation(summary = "Get all resilience metrics", 
+               description = "Returns combined rate limiter, circuit breaker, and retry metrics")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "All resilience metrics retrieved successfully",
+                    content = @Content(mediaType = "application/json", 
+                                     schema = @Schema(implementation = AllResilienceMetricsResponse.class))),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public AllResilienceMetricsResponse getAllMetrics() {
+        return new AllResilienceMetricsResponse(
+            getRateLimiterMetrics(),
+            getCircuitBreakerMetrics(),
+            getRetryMetrics()
+        );
     }
 
     /**
      * Health check endpoint for resilience components
      */
     @GetMapping("/health")
-    public Map<String, Object> getHealthStatus() {
-        Map<String, Object> health = new HashMap<>();
-        
+    @Operation(summary = "Get resilience health status", 
+               description = "Returns health status of circuit breaker and rate limiters")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Health status retrieved successfully",
+                    content = @Content(mediaType = "application/json", 
+                                     schema = @Schema(implementation = ResilienceHealthResponse.class))),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResilienceHealthResponse getHealthStatus() {
         // Check if circuit breaker is operational
         boolean circuitBreakerHealthy = binanceApiCircuitBreaker.getState() != CircuitBreaker.State.OPEN;
-        health.put("circuitBreaker", Map.of(
-            "healthy", circuitBreakerHealthy,
-            "state", binanceApiCircuitBreaker.getState().toString()
-        ));
+        ResilienceHealthResponse.CircuitBreakerHealth circuitBreakerHealth = 
+            new ResilienceHealthResponse.CircuitBreakerHealth(
+                circuitBreakerHealthy,
+                binanceApiCircuitBreaker.getState().toString()
+            );
         
         // Check if rate limiters have available capacity
         boolean rateLimitersHealthy = 
@@ -149,12 +174,14 @@ public class ResilienceController {
             binanceMarketRateLimiter.getMetrics().getAvailablePermissions() > 0 ||
             binanceAccountRateLimiter.getMetrics().getAvailablePermissions() > 0;
         
-        health.put("rateLimiters", Map.of("healthy", rateLimitersHealthy));
+        ResilienceHealthResponse.RateLimiterHealth rateLimitersHealth = 
+            new ResilienceHealthResponse.RateLimiterHealth(rateLimitersHealthy);
         
         // Overall health
         boolean overallHealthy = circuitBreakerHealthy && rateLimitersHealthy;
-        health.put("overall", Map.of("healthy", overallHealthy));
+        ResilienceHealthResponse.OverallHealth overallHealth = 
+            new ResilienceHealthResponse.OverallHealth(overallHealthy);
         
-        return health;
+        return new ResilienceHealthResponse(circuitBreakerHealth, rateLimitersHealth, overallHealth);
     }
 }

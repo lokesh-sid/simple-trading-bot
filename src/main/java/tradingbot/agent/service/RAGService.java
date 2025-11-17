@@ -14,8 +14,8 @@ import tradingbot.agent.domain.model.Perception;
 import tradingbot.agent.domain.model.Reasoning;
 import tradingbot.agent.domain.model.ReasoningContext;
 import tradingbot.agent.domain.model.TradeDirection;
+import tradingbot.agent.domain.model.TradeMemory;
 import tradingbot.agent.domain.model.TradeOutcome;
-import tradingbot.agent.domain.model.TradingMemory;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 
 /**
@@ -80,7 +80,7 @@ public class RAGService {
             logger.debug("Generated embedding with {} dimensions", queryEmbedding.length);
             
             // Step 2: Retrieve similar memories
-            List<TradingMemory> similarMemories = memoryStore.findSimilar(
+            List<TradeMemory> similarMemories = memoryStore.findSimilar(
                 queryEmbedding,
                 context.getTradingSymbol(),
                 retrievalTopK,
@@ -129,7 +129,7 @@ public class RAGService {
      */
     private ReasoningContext createAugmentedContext(
             ReasoningContext baseContext,
-            List<TradingMemory> memories) {
+            List<TradeMemory> memories) {
         
         // Build augmented perception with memory context
         String basePerceptionText = contextBuilder.buildScenarioDescription(
@@ -192,7 +192,7 @@ public class RAGService {
             double[] embedding = embeddingService.embed(scenarioDescription);
             
             // Build memory
-            TradingMemory memory = TradingMemory.builder()
+            TradeMemory memory = TradeMemory.builder()
                 .id(UUID.randomUUID().toString())
                 .agentId(agentId)
                 .symbol(symbol)
@@ -231,7 +231,7 @@ public class RAGService {
         // Store immediately with PENDING status
         // This will be updated later when the trade executes/completes
         try {
-            TradingMemory memory = TradingMemory.builder()
+            TradeMemory memory = TradeMemory.builder()
                 .id(UUID.randomUUID().toString())
                 .agentId(agentId)
                 .symbol(context.getTradingSymbol())

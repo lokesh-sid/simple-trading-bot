@@ -2,10 +2,10 @@ package tradingbot.agent.service;
 
 import java.util.List;
 
-import tradingbot.agent.domain.model.TradingMemory;
+import tradingbot.agent.domain.model.TradeMemory;
 
 /**
- * MemoryStoreService - Vector database interface for storing and retrieving trading memories
+ * MemoryStoreService - Vector database interface for storing and retrieving trading experiences
  * 
  * This service manages the storage and semantic search of historical trading experiences
  * in a vector database (Pinecone, Weaviate, or Qdrant).
@@ -13,33 +13,33 @@ import tradingbot.agent.domain.model.TradingMemory;
 public interface MemoryStoreService {
     
     /**
-     * Store a trading memory in the vector database
+     * Store a trading experience in the vector database
      * 
-     * @param memory The trading memory to store (must include embedding vector)
+     * @param experience The trading experience to store (must include embedding vector)
      */
-    void store(TradingMemory memory);
+    void store(TradeMemory experience);
     
     /**
-     * Find similar trading memories for a given scenario
+     * Find similar trading experiences for a given scenario
      * 
      * @param queryEmbedding The embedding vector of the current scenario
      * @param symbol The trading symbol to filter by (e.g., "BTCUSDT")
-     * @param topK Number of most similar memories to retrieve
-     * @return List of similar memories, sorted by similarity score (highest first)
+     * @param topK Number of most similar experiences to retrieve
+     * @return List of similar experiences, sorted by similarity score (highest first)
      */
-    List<TradingMemory> findSimilar(double[] queryEmbedding, String symbol, int topK);
+    List<TradeMemory> findSimilar(double[] queryEmbedding, String symbol, int topK);
     
     /**
-     * Find similar trading memories with additional filters
+     * Find similar trading experiences with additional filters
      * 
      * @param queryEmbedding The embedding vector of the current scenario
      * @param symbol The trading symbol to filter by
-     * @param topK Number of most similar memories to retrieve
+     * @param topK Number of most similar experiences to retrieve
      * @param minSimilarity Minimum similarity threshold (0-1)
-     * @param maxAgeDays Only include memories from last N days (0 = no limit)
-     * @return List of similar memories, sorted by similarity score (highest first)
+     * @param maxAgeDays Only include experiences from last N days (0 = no limit)
+     * @return List of similar experiences, sorted by similarity score (highest first)
      */
-    List<TradingMemory> findSimilar(
+    List<TradeMemory> findSimilar(
         double[] queryEmbedding, 
         String symbol, 
         int topK,
@@ -48,11 +48,11 @@ public interface MemoryStoreService {
     );
     
     /**
-     * Delete a trading memory from the vector database
+     * Delete a trading experience from the vector database
      * 
-     * @param memoryId The ID of the memory to delete
+     * @param experienceId The ID of the experience to delete
      */
-    void delete(String memoryId);
+    void delete(String experienceId);
     
     /**
      * Check if the vector database is healthy and accessible

@@ -5,6 +5,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -20,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * vector embeddings for semantic similarity search.
  */
 @Service
+@ConditionalOnProperty(name = "rag.embedding.provider", havingValue = "openai", matchIfMissing = true)
 public class OpenAIEmbeddingService implements EmbeddingService {
     
     private static final Logger logger = LoggerFactory.getLogger(OpenAIEmbeddingService.class);

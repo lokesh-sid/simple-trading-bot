@@ -21,12 +21,13 @@ import org.springframework.web.client.RestTemplate;
 
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.FuturesTradingBot.BotParams;
-import tradingbot.bot.TradeDirection;
 import tradingbot.bot.events.BotStatusEvent;
+import tradingbot.bot.TradeDirection;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.messaging.EventTopic;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.service.RateLimitedBinanceFuturesService;
+import tradingbot.bot.service.RateLimitedBybitFuturesService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.bot.strategy.calculator.IndicatorCalculator;
 import tradingbot.bot.strategy.exit.LiquidationRiskExit;
@@ -50,7 +51,8 @@ import tradingbot.config.TradingConfig;
 @EnableCaching
 
 public class SimpleTradingBotApplication {
-
+    
+    private static final Logger logger = LoggerFactory.getLogger(SimpleTradingBotApplication.class);
     private static final Logger log = LoggerFactory.getLogger(SimpleTradingBotApplication.class);
     
     private final EventPublisher eventPublisher;
@@ -72,14 +74,31 @@ public class SimpleTradingBotApplication {
 
     @Bean
     FuturesExchangeService exchangeService(
-            @Value("${trading.binance.api.key}") String apiKey,
-            @Value("${trading.binance.api.secret}") String apiSecret) {
-        String exchange = System.getProperty("exchange", "binance"); // Default to Binance
-        if ("binance".equals(exchange)) {
-            return new RateLimitedBinanceFuturesService(apiKey, apiSecret);
-        } else {
-            throw new IllegalArgumentException("Unsupported exchange: " + exchange);
-        }
+            @Value("${trading.exchange.provider:binance}") String provider,
+            @Value("${trading.binance.api.key}") String binanceApiKey,
+            @Value("${trading.binance.api.secret}") String binanceApiSecret,
+            @Value("${trading.bybit.api.key:}") String bybitApiKey,
+            @Value("${trading.bybit.api.secret:}") String bybitApiSecret,
+            @Value("${trading.bybit.domain:MAINNET_DOMAIN}") String bybitDomain) {
+        
+        logger.info("Initializing exchange service: {}", provider);
+        
+        return switch(provider.toLowerCase()) {
+            case "binance" -> {
+                logger.info("Using Binance Futures exchange");
+                yield new RateLimitedBinanceFuturesService(binanceApiKey, binanceApiSecret);
+            }
+            case "bybit" -> {
+                logger.info("Using Bybit Futures exchange (domain: {})", bybitDomain);
+                String baseUrl = "TESTNET_DOMAIN".equals(bybitDomain) 
+                    ? "https://api-testnet.bybit.com"
+                    : "https://api.bybit.com";
+                yield new RateLimitedBybitFuturesService(bybitApiKey, bybitApiSecret, baseUrl);
+            }
+            default -> throw new IllegalArgumentException(
+                "Unsupported exchange: " + provider + ". Supported: binance, bybit"
+            );
+        };
     }
 
     @Bean

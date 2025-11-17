@@ -1,4 +1,4 @@
-package tradingbot.agent.infrastructure.persistence;
+package tradingbot.agent.infrastructure.repository;
 
 import java.util.List;
 import java.util.Optional;

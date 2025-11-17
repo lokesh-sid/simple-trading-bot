@@ -55,20 +55,15 @@ public class EventPersistenceService {
      * Converts a domain event to a JPA entity.
      */
     private TradingEventEntity convertToEntity(TradingEvent event) {
-        TradingEventEntity entity;
-        
-        if (event instanceof TradeSignalEvent signalEvent) {
-            entity = convertTradeSignalEvent(signalEvent);
-        } else if (event instanceof TradeExecutionEvent executionEvent) {
-            entity = convertTradeExecutionEvent(executionEvent);
-        } else {
-            // Generic event entity for other event types (including RiskEvent)
-            entity = new GenericEventEntity();
-        }
+        TradingEventEntity entity = switch (event) {
+            case TradeSignalEvent signalEvent -> convertTradeSignalEvent(signalEvent);
+            case TradeExecutionEvent executionEvent -> convertTradeExecutionEvent(executionEvent);
+            default -> new GenericEventEntity();
+        };
         
         // Set common fields
         entity.setEventId(event.getEventId());
-        entity.setTimestamp(event.getTimestamp());
+        entity.setTimestamp(event.getOccurredAt());
         entity.setBotId(event.getBotId());
         entity.setEventType(event.getEventType());
         
@@ -84,8 +79,8 @@ public class EventPersistenceService {
         // Extract current price from metadata if available
         if (event.getMetadata() != null && event.getMetadata().containsKey("currentPrice")) {
             Object priceObj = event.getMetadata().get("currentPrice");
-            if (priceObj instanceof Number) {
-                entity.setCurrentPrice(((Number) priceObj).doubleValue());
+            if (priceObj instanceof Number number) {
+                entity.setCurrentPrice(number.doubleValue());
             }
         }
         

@@ -1,6 +1,6 @@
 package tradingbot.bot.persistence.entity;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,7 +44,7 @@ public abstract class TradingEventEntity {
     private String eventId;
     
     @Column(name = "timestamp", nullable = false)
-    private LocalDateTime timestamp;
+    private Instant timestamp;
     
     @Column(name = "bot_id", nullable = false)
     private String botId;
@@ -62,11 +62,11 @@ public abstract class TradingEventEntity {
     private Map<String, String> metadata = new HashMap<>();
     
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
     
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        createdAt = Instant.now();
     }
     
     // Getters and Setters
@@ -86,11 +86,11 @@ public abstract class TradingEventEntity {
         this.eventId = eventId;
     }
     
-    public LocalDateTime getTimestamp() {
+    public Instant getTimestamp() {
         return timestamp;
     }
     
-    public void setTimestamp(LocalDateTime timestamp) {
+    public void setTimestamp(Instant timestamp) {
         this.timestamp = timestamp;
     }
     
@@ -126,11 +126,11 @@ public abstract class TradingEventEntity {
         this.metadata = metadata;
     }
     
-    public LocalDateTime getCreatedAt() {
+    public Instant getCreatedAt() {
         return createdAt;
     }
     
-    public void setCreatedAt(LocalDateTime createdAt) {
+    public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
 }

@@ -1,7 +1,6 @@
 package tradingbot.agent.api;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -56,7 +55,7 @@ public class AgentController {
         List<Agent> agents = agentService.getAllAgents();
         List<AgentResponse> responses = agents.stream()
             .map(agentMapper::toResponse)
-            .collect(Collectors.toList());
+            .toList();
         return ResponseEntity.ok(responses);
     }
     

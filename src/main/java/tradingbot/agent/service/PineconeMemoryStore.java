@@ -5,7 +5,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,8 +19,8 @@ import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import tradingbot.agent.domain.model.TradeDirection;
+import tradingbot.agent.domain.model.TradeMemory;
 import tradingbot.agent.domain.model.TradeOutcome;
-import tradingbot.agent.domain.model.TradingMemory;
 
 /**
  * PineconeMemoryStore - Pinecone implementation of MemoryStoreService
@@ -32,6 +31,12 @@ import tradingbot.agent.domain.model.TradingMemory;
 @Service
 public class PineconeMemoryStore implements MemoryStoreService {
     
+    private static final String TIMESTAMP = "timestamp";
+
+    private static final String SYMBOL = "symbol";
+
+    private static final String API_KEY = "Api-Key";
+
     private static final Logger logger = LoggerFactory.getLogger(PineconeMemoryStore.class);
     
     private final String apiKey;
@@ -60,7 +65,7 @@ public class PineconeMemoryStore implements MemoryStoreService {
     }
     
     @Override
-    public void store(TradingMemory memory) {
+    public void store(TradeMemory memory) {
         if (memory.getEmbedding() == null || memory.getEmbedding().length == 0) {
             throw new IllegalArgumentException("Memory must have embedding vector to store");
         }
@@ -71,10 +76,10 @@ public class PineconeMemoryStore implements MemoryStoreService {
             // Build metadata for filtering
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("agentId", memory.getAgentId());
-            metadata.put("symbol", memory.getSymbol());
+            metadata.put(SYMBOL, memory.getSymbol());
             metadata.put("direction", memory.getDirection().name());
             metadata.put("outcome", memory.getOutcome().name());
-            metadata.put("timestamp", memory.getTimestamp().toEpochMilli());
+            metadata.put(TIMESTAMP, memory.getTimestamp().toEpochMilli());
             
             if (memory.getEntryPrice() > 0) {
                 metadata.put("entryPrice", memory.getEntryPrice());
@@ -103,7 +108,7 @@ public class PineconeMemoryStore implements MemoryStoreService {
             
             var headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Api-Key", apiKey);
+            headers.set(API_KEY, apiKey);
             
             var httpEntity = new HttpEntity<>(request, headers);
             
@@ -123,12 +128,12 @@ public class PineconeMemoryStore implements MemoryStoreService {
     }
     
     @Override
-    public List<TradingMemory> findSimilar(double[] queryEmbedding, String symbol, int topK) {
+    public List<TradeMemory> findSimilar(double[] queryEmbedding, String symbol, int topK) {
         return findSimilar(queryEmbedding, symbol, topK, 0.0, 0);
     }
     
     @Override
-    public List<TradingMemory> findSimilar(
+    public List<TradeMemory> findSimilar(
             double[] queryEmbedding,
             String symbol,
             int topK,
@@ -141,13 +146,13 @@ public class PineconeMemoryStore implements MemoryStoreService {
             
             // Build metadata filter
             Map<String, Object> filter = new HashMap<>();
-            filter.put("symbol", Map.of("$eq", symbol));
+            filter.put(SYMBOL, Map.of("$eq", symbol));
             
             if (maxAgeDays > 0) {
                 long cutoffTimestamp = Instant.now()
                     .minus(maxAgeDays, ChronoUnit.DAYS)
                     .toEpochMilli();
-                filter.put("timestamp", Map.of("$gte", cutoffTimestamp));
+                filter.put(TIMESTAMP, Map.of("$gte", cutoffTimestamp));
             }
             
             // Build query request
@@ -162,7 +167,7 @@ public class PineconeMemoryStore implements MemoryStoreService {
             
             var headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Api-Key", apiKey);
+            headers.set(API_KEY, apiKey);
             
             var httpEntity = new HttpEntity<>(request, headers);
             
@@ -178,15 +183,15 @@ public class PineconeMemoryStore implements MemoryStoreService {
                 return List.of();
             }
             
-            // Convert matches to TradingMemory objects
-            List<TradingMemory> memories = response.matches().stream()
+            // Convert matches to TradeExperience objects
+            List<TradeMemory> memories = response.matches().stream()
                 .filter(match -> match.score() >= minSimilarity)
                 .map(match -> {
                     var metadata = match.metadata();
-                    var memory = TradingMemory.builder()
+                    return TradeMemory.builder()
                         .id(match.id())
                         .agentId((String) metadata.get("agentId"))
-                        .symbol((String) metadata.get("symbol"))
+                        .symbol((String) metadata.get(SYMBOL))
                         .scenarioDescription((String) metadata.get("scenarioDescription"))
                         .direction(TradeDirection.valueOf((String) metadata.get("direction")))
                         .entryPrice(getDoubleValue(metadata, "entryPrice"))
@@ -194,14 +199,12 @@ public class PineconeMemoryStore implements MemoryStoreService {
                         .outcome(TradeOutcome.valueOf((String) metadata.get("outcome")))
                         .profitPercent(getDoubleValue(metadata, "profitPercent"))
                         .lessonLearned((String) metadata.get("lessonLearned"))
-                        .timestamp(Instant.ofEpochMilli(getLongValue(metadata, "timestamp")))
+                        .timestamp(Instant.ofEpochMilli(getLongValue(metadata, TIMESTAMP)))
                         .embedding(match.values())
                         .similarityScore(match.score())
                         .build();
-                    
-                    return memory;
                 })
-                .collect(Collectors.toList());
+                .toList();
             
             logger.debug("Retrieved {} similar memories from Pinecone", memories.size());
             return memories;
@@ -221,7 +224,7 @@ public class PineconeMemoryStore implements MemoryStoreService {
             
             var headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("Api-Key", apiKey);
+            headers.set(API_KEY, apiKey);
             
             var httpEntity = new HttpEntity<>(request, headers);
             
@@ -244,7 +247,7 @@ public class PineconeMemoryStore implements MemoryStoreService {
     public boolean isHealthy() {
         try {
             var headers = new HttpHeaders();
-            headers.set("Api-Key", apiKey);
+            headers.set(API_KEY, apiKey);
             var httpEntity = new HttpEntity<>(headers);
             
             restTemplate.exchange(
@@ -266,14 +269,14 @@ public class PineconeMemoryStore implements MemoryStoreService {
     private double getDoubleValue(Map<String, Object> metadata, String key) {
         Object value = metadata.get(key);
         if (value == null) return 0.0;
-        if (value instanceof Number) return ((Number) value).doubleValue();
+        if (value instanceof Number number) return number.doubleValue();
         return Double.parseDouble(value.toString());
     }
     
     private long getLongValue(Map<String, Object> metadata, String key) {
         Object value = metadata.get(key);
         if (value == null) return 0L;
-        if (value instanceof Number) return ((Number) value).longValue();
+        if (value instanceof Number number) return number.longValue();
         return Long.parseLong(value.toString());
     }
     

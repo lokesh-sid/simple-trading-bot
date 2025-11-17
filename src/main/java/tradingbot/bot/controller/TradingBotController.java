@@ -1,5 +1,6 @@
 package tradingbot.bot.controller;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,12 +37,16 @@ import tradingbot.bot.controller.dto.BotState;
 import tradingbot.bot.controller.dto.request.BotStartRequest;
 import tradingbot.bot.controller.dto.request.LeverageUpdateRequest;
 import tradingbot.bot.controller.dto.request.SentimentUpdateRequest;
+import tradingbot.bot.controller.dto.response.BotCreatedResponse;
+import tradingbot.bot.controller.dto.response.BotDeletedResponse;
+import tradingbot.bot.controller.dto.response.BotListResponse;
 import tradingbot.bot.controller.dto.response.BotStartResponse;
 import tradingbot.bot.controller.dto.response.BotStatusResponse;
 import tradingbot.bot.controller.dto.response.BotStopResponse;
 import tradingbot.bot.controller.dto.response.ConfigUpdateResponse;
 import tradingbot.bot.controller.dto.response.ErrorResponse;
 import tradingbot.bot.controller.dto.response.LeverageUpdateResponse;
+import tradingbot.bot.controller.dto.response.PaginationInfo;
 import tradingbot.bot.controller.dto.response.SentimentUpdateResponse;
 import tradingbot.bot.controller.exception.BotAlreadyRunningException;
 import tradingbot.bot.controller.exception.BotNotFoundException;
@@ -57,10 +63,10 @@ import tradingbot.config.TradingConfig;
  * 
  * Features Redis-backed persistence for bot state recovery and horizontal scaling.
  * 
- * API Path Pattern: /api/bots/{botId}/{action}
+ * API Path Pattern: /api/v1/bots/{botId}
  */
 @RestController
-@RequestMapping("/api/bots")
+@RequestMapping("/api/v1/bots")
 @Tag(name = "Trading Bot Controller", description = "API for managing multiple futures trading bot instances")
 public class TradingBotController {
     
@@ -93,32 +99,37 @@ public class TradingBotController {
             
             int recoveredCount = 0;
             for (String botId : botIds) {
-                try {
-                    BotState state = botCacheService.getBotState(botId);
-                    if (state != null) {
-                        logger.info("Recovering bot: {} (running: {})", botId, state.isRunning());
-                        
-                        // Reconstruct bot from state
-                        FuturesTradingBot bot = reconstructBotFromState(state);
-                        tradingBots.put(botId, bot);
-                        
-                        // Restart if it was running
-                        if (state.isRunning()) {
-                            bot.start();
-                            logger.info("Restarted bot: {}", botId);
-                        }
-                        
-                        recoveredCount++;
-                    }
-                } catch (Exception e) {
-                    logger.error("Failed to recover bot: {}", botId, e);
-                }
+                recoveredCount = handleBotRecovery(recoveredCount, botId);
             }
             
             logger.info("Bot recovery complete. Recovered {}/{} bot(s)", recoveredCount, botIds.size());
         } catch (Exception e) {
             logger.error("Failed to recover bots from Redis", e);
         }
+    }
+
+    private int handleBotRecovery(int recoveredCount, String botId) {
+        try {
+            BotState state = botCacheService.getBotState(botId);
+            if (state != null) {
+                logger.info("Recovering bot: {} (running: {})", botId, state.isRunning());
+                
+                // Reconstruct bot from state
+                FuturesTradingBot bot = reconstructBotFromState(state);
+                tradingBots.put(botId, bot);
+                
+                // Restart if it was running
+                if (state.isRunning()) {
+                    bot.start();
+                    logger.info("Restarted bot: {}", botId);
+                }
+                
+                recoveredCount++;
+            }
+        } catch (Exception e) {
+            logger.error("Failed to recover bot: {}", botId, e);
+        }
+        return recoveredCount;
     }
     
     /**
@@ -157,11 +168,11 @@ public class TradingBotController {
                description = "Creates a new trading bot instance and returns its unique ID")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "201", description = "Bot created successfully",
-                    content = @Content(mediaType = "application/json")),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = BotCreatedResponse.class))),
         @ApiResponse(responseCode = "500", description = "Internal server error",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Map<String, String>> createBot() {
+    public ResponseEntity<BotCreatedResponse> createBot() {
         String botId = UUID.randomUUID().toString();
         
         // Create new bot instance from template
@@ -172,8 +183,8 @@ public class TradingBotController {
         builder.sentimentAnalyzer(tradingBot.getSentimentAnalyzer());
         builder.exitConditions(tradingBot.getExitConditions());
         builder.config(tradingBot.getConfig());
-        builder.tradeDirection(null); // Will be set on start
-        builder.skipLeverageInit(false);
+        builder.tradeDirection(TradeDirection.LONG); // Default direction, will be updated on start
+        builder.skipLeverageInit(true); // Skip leverage init for template bot
         
         FuturesTradingBot newBot = new FuturesTradingBot(builder.build());
         tradingBots.put(botId, newBot);
@@ -192,10 +203,7 @@ public class TradingBotController {
         botCacheService.saveBotState(botId, state);
         logger.info("Created new bot: {} and saved to Redis", botId);
         
-        Map<String, String> response = Map.of(
-            "botId", botId,
-            "message", "Trading bot created successfully"
-        );
+        BotCreatedResponse response = new BotCreatedResponse(botId, "Trading bot created successfully");
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -455,33 +463,178 @@ public class TradingBotController {
     }
 
     @GetMapping
-    @Operation(summary = "List all bot IDs", 
-               description = "Returns a list of all bot identifiers from both memory and Redis")
+    @Operation(summary = "List all trading bots with filtering and pagination",
+               description = "Returns a paginated list of bots with optional filters for status, paper trading, direction, and search")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Bot list retrieved successfully")
+        @ApiResponse(responseCode = "200", description = "Bot list retrieved successfully",
+                    content = @Content(schema = @Schema(implementation = BotListResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid filter parameters",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Map<String, Object>> listBots() {
+    public ResponseEntity<BotListResponse> listBots(
+            @RequestParam(required = false) @Parameter(description = "Filter by bot status (RUNNING, STOPPED, ERROR)") String status,
+            @RequestParam(required = false) @Parameter(description = "Filter by paper trading mode (true/false)") Boolean paper,
+            @RequestParam(required = false) @Parameter(description = "Filter by trade direction (LONG, SHORT)") String direction,
+            @RequestParam(required = false) @Parameter(description = "Search in botId or symbol") String search,
+            @RequestParam(defaultValue = "0") @Parameter(description = "Page number (0-indexed)") int page,
+            @RequestParam(defaultValue = "20") @Parameter(description = "Page size (1-100)") int size,
+            @RequestParam(defaultValue = "createdAt") @Parameter(description = "Sort field (botId, createdAt, status)") String sortBy,
+            @RequestParam(defaultValue = "DESC") @Parameter(description = "Sort order (ASC, DESC)") String sortOrder) {
+
+        // Validate pagination parameters
+        if (page < 0) {
+            page = 0;
+        }
+        if (size <= 0 || size > 100) {
+            size = 20; // Default page size
+        }
+
         // Get all bot IDs from Redis (source of truth)
         Set<String> allBotIds = botCacheService.getAllBotIds();
-        List<String> botIds = new java.util.ArrayList<>(allBotIds);
         
-        Map<String, Object> response = Map.of(
-            "botIds", botIds,
-            "count", botIds.size(),
-            "activeInMemory", tradingBots.size()
+        // Filter bots based on criteria
+        List<BotState> filteredBots = new ArrayList<>();
+        for (String botId : allBotIds) {
+            BotState state = botCacheService.getBotState(botId);
+            if (state != null && matchesFilters(state, status, paper, direction, search)) {
+                filteredBots.add(state);
+            }
+        }
+
+        // Sort bots
+        sortBots(filteredBots, sortBy, sortOrder);
+
+        // Calculate pagination
+        int totalElements = filteredBots.size();
+        int totalPages = totalElements == 0 ? 1 : (int) Math.ceil((double) totalElements / size);
+        int startIndex = page * size;
+        int endIndex = Math.min(startIndex + size, totalElements);
+
+        // Get paginated subset
+        List<String> paginatedBotIds = new ArrayList<>();
+        if (startIndex < totalElements) {
+            for (int i = startIndex; i < endIndex; i++) {
+                paginatedBotIds.add(filteredBots.get(i).getBotId());
+            }
+        }
+
+        // Create pagination info
+        PaginationInfo paginationInfo = new PaginationInfo(
+            page,
+            size,
+            totalElements,
+            totalPages,
+            totalElements > 0 && page < totalPages - 1,
+            page > 0,
+            page == 0,
+            totalElements == 0 || page >= totalPages - 1
         );
+
+        // Create response
+        BotListResponse response = new BotListResponse(
+            paginatedBotIds,
+            paginationInfo,
+            tradingBots.size()
+        );
+
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Check if bot state matches filter criteria
+     */
+    private boolean matchesFilters(BotState state, String status, Boolean paper, String direction, String search) {
+        // Filter by status
+        if (status != null && !status.isEmpty()) {
+            String botStatus = state.isRunning() ? "RUNNING" : "STOPPED";
+            if (!botStatus.equalsIgnoreCase(status)) {
+                return false;
+            }
+        }
+
+        // Filter by paper trading mode
+        if (paper != null && state.isPaper() != paper) {
+            return false;
+        }
+
+        // Filter by direction
+        if (direction != null && !direction.isEmpty()) {
+            if (state.getDirection() == null || !state.getDirection().equalsIgnoreCase(direction)) {
+                return false;
+            }
+        }
+
+        // Text search in botId or symbol
+        if (search != null && !search.isEmpty()) {
+            String searchLower = search.toLowerCase();
+            boolean matchesBotId = state.getBotId() != null && 
+                                  state.getBotId().toLowerCase().contains(searchLower);
+            boolean matchesSymbol = state.getConfig() != null && 
+                                   state.getConfig().getSymbol() != null &&
+                                   state.getConfig().getSymbol().toLowerCase().contains(searchLower);
+            if (!matchesBotId && !matchesSymbol) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Sort bots based on sort field and order
+     */
+    private void sortBots(List<BotState> bots, String sortBy, String sortOrder) {
+        boolean ascending = "ASC".equalsIgnoreCase(sortOrder);
+
+        bots.sort((bot1, bot2) -> {
+            int comparison = 0;
+
+            switch (sortBy) {
+                case "botId":
+                    comparison = compareNullSafe(bot1.getBotId(), bot2.getBotId());
+                    break;
+                case "createdAt":
+                    comparison = compareNullSafe(bot1.getCreatedAt(), bot2.getCreatedAt());
+                    break;
+                case "status":
+                    String status1 = bot1.isRunning() ? "RUNNING" : "STOPPED";
+                    String status2 = bot2.isRunning() ? "RUNNING" : "STOPPED";
+                    comparison = status1.compareTo(status2);
+                    break;
+                case "symbol":
+                    String symbol1 = bot1.getConfig() != null ? bot1.getConfig().getSymbol() : "";
+                    String symbol2 = bot2.getConfig() != null ? bot2.getConfig().getSymbol() : "";
+                    comparison = symbol1.compareTo(symbol2);
+                    break;
+                default:
+                    // Default to createdAt
+                    comparison = compareNullSafe(bot1.getCreatedAt(), bot2.getCreatedAt());
+            }
+
+            return ascending ? comparison : -comparison;
+        });
+    }
+
+    /**
+     * Compare two Comparable objects handling nulls
+     */
+    private <T extends Comparable<T>> int compareNullSafe(T obj1, T obj2) {
+        if (obj1 == null && obj2 == null) return 0;
+        if (obj1 == null) return -1;
+        if (obj2 == null) return 1;
+        return obj1.compareTo(obj2);
     }
 
     @DeleteMapping("/{botId}")
     @Operation(summary = "Delete a bot", 
                description = "Stops and removes the specified trading bot")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Bot deleted successfully"),
+        @ApiResponse(responseCode = "200", description = "Bot deleted successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = BotDeletedResponse.class))),
         @ApiResponse(responseCode = "404", description = "Bot not found",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Map<String, String>> deleteBot(
+    public ResponseEntity<BotDeletedResponse> deleteBot(
             @Parameter(description = "Unique bot identifier") @PathVariable String botId) {
         
         FuturesTradingBot bot = getBotOrThrow(botId);
@@ -494,9 +647,7 @@ public class TradingBotController {
         botCacheService.deleteBotState(botId);
         logger.info("Deleted bot: {} from memory and Redis", botId);
         
-        Map<String, String> response = Map.of(
-            "message", "Bot " + botId + " deleted successfully"
-        );
+        BotDeletedResponse response = new BotDeletedResponse("Bot " + botId + " deleted successfully");
         return ResponseEntity.ok(response);
     }
 
@@ -524,5 +675,19 @@ public class TradingBotController {
             throw new BotNotFoundException(botId);
         }
         return bot;
+    }
+    
+    /**
+     * Public accessor for BotStateController and other controllers
+     */
+    public FuturesTradingBot getTradingBot(String botId) {
+        return getBotOrThrow(botId);
+    }
+    
+    /**
+     * Update bot instance in memory (for state controller)
+     */
+    public void updateBotInstance(String botId, FuturesTradingBot bot) {
+        tradingBots.put(botId, bot);
     }
 }

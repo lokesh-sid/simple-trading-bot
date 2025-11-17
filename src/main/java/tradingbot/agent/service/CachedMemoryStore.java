@@ -6,15 +6,16 @@ import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import tradingbot.agent.domain.model.TradingMemory;
+import tradingbot.agent.domain.model.TradeMemory;
 
 /**
  * CachedMemoryStore - Redis cache wrapper for MemoryStoreService
  * 
- * Provides fast access to recently retrieved memories while delegating
+ * Provides fast access to recently retrieved experiences while delegating
  * storage and long-term retrieval to the underlying vector database.
  * 
  * Cache Strategy:
@@ -23,10 +24,11 @@ import tradingbot.agent.domain.model.TradingMemory;
  * - TTL: 1 hour for query results
  */
 @Service
+@Primary
 public class CachedMemoryStore implements MemoryStoreService {
     
     private static final Logger logger = LoggerFactory.getLogger(CachedMemoryStore.class);
-    private static final String CACHE_KEY_PREFIX = "memory:";
+    private static final String CACHE_KEY_PREFIX = "experience:";
     private static final String QUERY_CACHE_PREFIX = "query:";
     private static final Duration CACHE_TTL = Duration.ofHours(1);
     
@@ -44,27 +46,26 @@ public class CachedMemoryStore implements MemoryStoreService {
     }
     
     @Override
-    public void store(TradingMemory memory) {
+    public void store(TradeMemory experience) {
         // Write-through: store in both cache and vector DB
         try {
-            String cacheKey = CACHE_KEY_PREFIX + memory.getId();
-            redisTemplate.opsForValue().set(cacheKey, memory, CACHE_TTL);
-            logger.debug("Cached memory {}", memory.getId());
+            String cacheKey = CACHE_KEY_PREFIX + experience.getId();
+            redisTemplate.opsForValue().set(cacheKey, experience, CACHE_TTL);
+            logger.debug("Cached experience {}", experience.getId());
         } catch (Exception e) {
-            logger.warn("Failed to cache memory, continuing with vector DB store", e);
+            logger.warn("Failed to cache experience, continuing with vector DB store", e);
         }
         
         // Always write to vector DB
-        delegate.store(memory);
+        delegate.store(experience);
     }
     
     @Override
-    public List<TradingMemory> findSimilar(double[] queryEmbedding, String symbol, int topK) {
+    public List<TradeMemory> findSimilar(double[] queryEmbedding, String symbol, int topK) {
         return findSimilar(queryEmbedding, symbol, topK, 0.0, 0);
     }
-    
     @Override
-    public List<TradingMemory> findSimilar(
+    public List<TradeMemory> findSimilar(
             double[] queryEmbedding,
             String symbol,
             int topK,
@@ -77,18 +78,18 @@ public class CachedMemoryStore implements MemoryStoreService {
         try {
             // Check cache first
             @SuppressWarnings("unchecked")
-            List<TradingMemory> cached = (List<TradingMemory>) redisTemplate.opsForValue().get(queryCacheKey);
+            List<TradeMemory> cached = (List<TradeMemory>) redisTemplate.opsForValue().get(queryCacheKey);
             
             if (cached != null && !cached.isEmpty()) {
                 logger.debug("Cache hit for query: {}", queryCacheKey);
                 
                 // Recalculate similarity scores with current query
-                cached.forEach(memory -> {
+                cached.forEach(experience -> {
                     double similarity = embeddingService.cosineSimilarity(
                         queryEmbedding,
-                        memory.getEmbedding()
+                        experience.getEmbedding()
                     );
-                    memory.setSimilarityScore(similarity);
+                    experience.setSimilarityScore(similarity);
                 });
                 
                 return cached;
@@ -100,7 +101,7 @@ public class CachedMemoryStore implements MemoryStoreService {
         }
         
         // Cache miss or error - query vector DB
-        List<TradingMemory> results = delegate.findSimilar(
+        List<TradeMemory> results = delegate.findSimilar(
             queryEmbedding,
             symbol,
             topK,
@@ -120,12 +121,12 @@ public class CachedMemoryStore implements MemoryStoreService {
     }
     
     @Override
-    public void delete(String memoryId) {
+    public void delete(String experienceId) {
         // Delete from cache
         try {
-            String cacheKey = CACHE_KEY_PREFIX + memoryId;
+            String cacheKey = CACHE_KEY_PREFIX + experienceId;
             redisTemplate.delete(cacheKey);
-            logger.debug("Deleted memory {} from cache", memoryId);
+            logger.debug("Deleted experience {} from cache", experienceId);
             
             // Invalidate related query caches
             invalidateQueryCaches();
@@ -134,7 +135,7 @@ public class CachedMemoryStore implements MemoryStoreService {
         }
         
         // Delete from vector DB
-        delegate.delete(memoryId);
+        delegate.delete(experienceId);
     }
     
     @Override

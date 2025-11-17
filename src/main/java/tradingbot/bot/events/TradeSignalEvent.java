@@ -74,7 +74,7 @@ public class TradeSignalEvent extends TradingEvent {
                 ", signal=" + signal +
                 ", strength=" + strength +
                 ", eventId='" + getEventId() + '\'' +
-                ", timestamp=" + getTimestamp() +
+                ", occurredAt=" + getOccurredAt() +
                 '}';
     }
 }

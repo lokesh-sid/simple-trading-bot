@@ -1,4 +1,4 @@
-package tradingbot.agent.infrastructure.persistence;
+package tradingbot.agent.infrastructure.repository;
 
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentGoal;

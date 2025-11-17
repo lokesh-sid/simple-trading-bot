@@ -194,8 +194,12 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
              * Sets the exit conditions for position management.
              * @param exitConditions the list of exit conditions (required, non-empty)
              * @return this builder
+             * @throws IllegalArgumentException if exit conditions list is empty
              */
             public Builder exitConditions(List<PositionExitCondition> exitConditions) {
+                if (exitConditions != null && exitConditions.isEmpty()) {
+                    throw new IllegalArgumentException("Exit conditions cannot be empty");
+                }
                 this.exitConditions = exitConditions != null ? new ArrayList<>(exitConditions) : null;
                 return this;
             }

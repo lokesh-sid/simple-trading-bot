@@ -12,13 +12,13 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -29,10 +29,21 @@ import jakarta.validation.Valid;
 import tradingbot.bot.controller.dto.request.BotStartRequest;
 import tradingbot.bot.controller.dto.request.LeverageUpdateRequest;
 import tradingbot.bot.controller.dto.request.SentimentUpdateRequest;
+import tradingbot.bot.controller.dto.response.AllResilienceMetricsResponse;
+import tradingbot.bot.controller.dto.response.BotCreatedResponse;
+import tradingbot.bot.controller.dto.response.BotDeletedResponse;
+import tradingbot.bot.controller.dto.response.BotListResponse;
 import tradingbot.bot.controller.dto.response.BotStartResponse;
 import tradingbot.bot.controller.dto.response.BotStatusResponse;
+import tradingbot.bot.controller.dto.response.BotStopResponse;
+import tradingbot.bot.controller.dto.response.CircuitBreakerMetricsResponse;
 import tradingbot.bot.controller.dto.response.ErrorResponse;
+import tradingbot.bot.controller.dto.response.GatewayHealthResponse;
+import tradingbot.bot.controller.dto.response.GatewayInfoResponse;
 import tradingbot.bot.controller.dto.response.LeverageUpdateResponse;
+import tradingbot.bot.controller.dto.response.RateLimiterMetricsResponse;
+import tradingbot.bot.controller.dto.response.ResilienceHealthResponse;
+import tradingbot.bot.controller.dto.response.RetryMetricsResponse;
 import tradingbot.bot.controller.dto.response.SentimentUpdateResponse;
 import tradingbot.gateway.service.GatewayService;
 import tradingbot.security.dto.HealthResponse;
@@ -85,17 +96,18 @@ public class ApiGatewayController {
                description = "Creates a new bot instance and returns its unique ID")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "201", description = "Bot created successfully",
-                    content = @Content(schema = @Schema(implementation = Map.class))),
+                    content = @Content(schema = @Schema(implementation = BotCreatedResponse.class))),
         @ApiResponse(responseCode = "503", description = "Service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Map<String, String>> createBot(@RequestHeader HttpHeaders headers) {
+    public ResponseEntity<BotCreatedResponse> createBot(HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyTradingBotRequest(
             "", 
             HttpMethod.POST, 
             null, 
             headers,
-            new org.springframework.core.ParameterizedTypeReference<Map<String, String>>() {}
+            BotCreatedResponse.class
         );
     }
     
@@ -114,44 +126,45 @@ public class ApiGatewayController {
     })
     public ResponseEntity<BotStartResponse> startBot(
             @PathVariable String botId,
-            @Valid @RequestBody BotStartRequest request,
-            @RequestHeader HttpHeaders headers) {
+            @Valid @RequestBody BotStartRequest requestBody,
+            HttpServletRequest request) {
         
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyTradingBotRequest(
             "/" + botId + "/start", 
             HttpMethod.POST, 
-            request, 
+            requestBody, 
             headers,
             BotStartResponse.class
         );
     }
     
-    @PutMapping("/api/bots/{botId}/stop")
-    @Operation(summary = "Stop trading bot via gateway",
-               description = "Stops the specified trading bot")
+        @PostMapping("/api/bots/{botId}/stop")
+    @Operation(summary = "Stop trading bot via gateway")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Bot stopped successfully",
-                    content = @Content(schema = @Schema(implementation = BotStatusResponse.class))),
+                    content = @Content(schema = @Schema(implementation = BotStopResponse.class))),
         @ApiResponse(responseCode = "404", description = "Bot not found",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "503", description = "Service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<BotStatusResponse> stopBot(
+    public ResponseEntity<BotStopResponse> stopBot(
             @PathVariable String botId,
-            @RequestHeader HttpHeaders headers) {
+            HttpServletRequest request) {
+        
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyTradingBotRequest(
             "/" + botId + "/stop", 
-            HttpMethod.PUT, 
+            HttpMethod.POST, 
             null, 
             headers,
-            BotStatusResponse.class
+            BotStopResponse.class
         );
     }
     
-    @GetMapping("/api/bots/{botId}/status")
-    @Operation(summary = "Get trading bot status via gateway",
-               description = "Returns the current status of the specified trading bot")
+        @GetMapping("/api/bots/{botId}/status")
+    @Operation(summary = "Get bot status via gateway")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Status retrieved successfully",
                     content = @Content(schema = @Schema(implementation = BotStatusResponse.class))),
@@ -160,9 +173,11 @@ public class ApiGatewayController {
         @ApiResponse(responseCode = "503", description = "Service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<BotStatusResponse> getStatus(
+    public ResponseEntity<BotStatusResponse> getBotStatus(
             @PathVariable String botId,
-            @RequestHeader HttpHeaders headers) {
+            HttpServletRequest request) {
+        
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyTradingBotRequest(
             "/" + botId + "/status", 
             HttpMethod.GET, 
@@ -187,13 +202,14 @@ public class ApiGatewayController {
     })
     public ResponseEntity<LeverageUpdateResponse> setLeverage(
             @PathVariable String botId,
-            @Valid @RequestBody LeverageUpdateRequest request,
-            @RequestHeader HttpHeaders headers) {
+            @Valid @RequestBody LeverageUpdateRequest requestBody,
+            HttpServletRequest request) {
         
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyTradingBotRequest(
             "/" + botId + "/leverage", 
             HttpMethod.POST, 
-            request, 
+            requestBody, 
             headers,
             LeverageUpdateResponse.class
         );
@@ -212,33 +228,70 @@ public class ApiGatewayController {
     })
     public ResponseEntity<SentimentUpdateResponse> setSentiment(
             @PathVariable String botId,
-            @Valid @RequestBody SentimentUpdateRequest request,
-            @RequestHeader HttpHeaders headers) {
+            @Valid @RequestBody SentimentUpdateRequest requestBody,
+            HttpServletRequest request) {
         
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyTradingBotRequest(
             "/" + botId + "/sentiment", 
             HttpMethod.POST, 
-            request, 
+            requestBody, 
             headers,
             SentimentUpdateResponse.class
         );
     }
     
     @GetMapping("/api/bots")
-    @Operation(summary = "List all bot IDs via gateway",
-               description = "Returns a list of all trading bot identifiers")
+    @Operation(summary = "List all trading bots with filtering and pagination",
+               description = "Returns a paginated list of bots with optional filters")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Bot list retrieved successfully"),
+        @ApiResponse(responseCode = "200", description = "Bot list retrieved successfully",
+                    content = @Content(schema = @Schema(implementation = BotListResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid filter parameters",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "503", description = "Service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Map<String, Object>> listBots(@RequestHeader HttpHeaders headers) {
+    public ResponseEntity<BotListResponse> listBots(
+            @RequestParam(required = false) @Parameter(description = "Filter by bot status (RUNNING, STOPPED, ERROR)") String status,
+            @RequestParam(required = false) @Parameter(description = "Filter by paper trading mode") Boolean paper,
+            @RequestParam(required = false) @Parameter(description = "Filter by trade direction (LONG, SHORT)") String direction,
+            @RequestParam(required = false) @Parameter(description = "Search in botId or symbol") String search,
+            @RequestParam(defaultValue = "0") @Parameter(description = "Page number (0-indexed)") int page,
+            @RequestParam(defaultValue = "20") @Parameter(description = "Page size (1-100)") int size,
+            @RequestParam(defaultValue = "createdAt") @Parameter(description = "Sort field (botId, createdAt, status, symbol)") String sortBy,
+            @RequestParam(defaultValue = "DESC") @Parameter(description = "Sort order (ASC, DESC)") String sortOrder,
+            HttpServletRequest request) {
+
+        HttpHeaders headers = extractHeaders(request);
+        
+        // Build URL with query parameters
+        StringBuilder urlBuilder = new StringBuilder("?");
+        urlBuilder.append("page=").append(page);
+        urlBuilder.append("&size=").append(size);
+        urlBuilder.append("&sortBy=").append(sortBy);
+        urlBuilder.append("&sortOrder=").append(sortOrder);
+
+        // Add optional filters
+        if (status != null && !status.isEmpty()) {
+            urlBuilder.append("&status=").append(status);
+        }
+        if (paper != null) {
+            urlBuilder.append("&paper=").append(paper);
+        }
+        if (direction != null && !direction.isEmpty()) {
+            urlBuilder.append("&direction=").append(direction);
+        }
+        if (search != null && !search.isEmpty()) {
+            urlBuilder.append("&search=").append(search);
+        }
+
         return gatewayService.proxyTradingBotRequest(
-            "", 
-            HttpMethod.GET, 
-            null, 
+            urlBuilder.toString(),
+            HttpMethod.GET,
+            null,
             headers,
-            new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {}
+            BotListResponse.class
         );
     }
     
@@ -246,21 +299,23 @@ public class ApiGatewayController {
     @Operation(summary = "Delete a bot via gateway",
                description = "Stops and removes the specified trading bot")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Bot deleted successfully"),
+        @ApiResponse(responseCode = "200", description = "Bot deleted successfully",
+                    content = @Content(schema = @Schema(implementation = BotDeletedResponse.class))),
         @ApiResponse(responseCode = "404", description = "Bot not found",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "503", description = "Service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Map<String, String>> deleteBot(
+    public ResponseEntity<BotDeletedResponse> deleteBot(
             @PathVariable String botId,
-            @RequestHeader HttpHeaders headers) {
+            HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyTradingBotRequest(
             "/" + botId, 
             HttpMethod.DELETE, 
             null, 
             headers,
-            new org.springframework.core.ParameterizedTypeReference<Map<String, String>>() {}
+            BotDeletedResponse.class
         );
     }
     
@@ -280,12 +335,13 @@ public class ApiGatewayController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<LoginResponse> register(
-            @Valid @RequestBody RegisterRequest request,
-            @RequestHeader HttpHeaders headers) {
+            @Valid @RequestBody RegisterRequest requestBody,
+            HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyAuthRequest(
             "/register",
             HttpMethod.POST,
-            request,
+            requestBody,
             headers,
             LoginResponse.class
         );
@@ -305,12 +361,13 @@ public class ApiGatewayController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<LoginResponse> login(
-            @Valid @RequestBody LoginRequest request,
-            @RequestHeader HttpHeaders headers) {
+            @Valid @RequestBody LoginRequest requestBody,
+            HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyAuthRequest(
             "/login",
             HttpMethod.POST,
-            request,
+            requestBody,
             headers,
             LoginResponse.class
         );
@@ -330,12 +387,13 @@ public class ApiGatewayController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<LoginResponse> refreshToken(
-            @Valid @RequestBody RefreshTokenRequest request,
-            @RequestHeader HttpHeaders headers) {
+            @Valid @RequestBody RefreshTokenRequest requestBody,
+            HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyAuthRequest(
             "/refresh",
             HttpMethod.POST,
-            request,
+            requestBody,
             headers,
             LoginResponse.class
         );
@@ -350,7 +408,8 @@ public class ApiGatewayController {
         @ApiResponse(responseCode = "503", description = "Authentication service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<LogoutResponse> logout(@RequestHeader HttpHeaders headers) {
+    public ResponseEntity<LogoutResponse> logout(HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyAuthRequest(
             "/logout",
             HttpMethod.POST,
@@ -369,7 +428,8 @@ public class ApiGatewayController {
         @ApiResponse(responseCode = "503", description = "Authentication service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<HealthResponse> authHealth(@RequestHeader HttpHeaders headers) {
+    public ResponseEntity<HealthResponse> authHealth(HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
         return gatewayService.proxyAuthRequest(
             "/health",
             HttpMethod.GET,
@@ -384,56 +444,96 @@ public class ApiGatewayController {
     @GetMapping("/api/resilience/rate-limiters")
     @Operation(summary = "Get rate limiter metrics via gateway")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Rate limiter metrics retrieved"),
+        @ApiResponse(responseCode = "200", description = "Rate limiter metrics retrieved",
+                    content = @Content(schema = @Schema(implementation = RateLimiterMetricsResponse.class))),
         @ApiResponse(responseCode = "503", description = "Service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Map<String, Object>> getRateLimiters(@RequestHeader HttpHeaders headers) {
-        return gatewayService.proxyResilienceRequest("/rate-limiters", headers);
+    public ResponseEntity<RateLimiterMetricsResponse> getRateLimiters(HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
+        return gatewayService.proxyTradingBotRequest(
+            "/resilience/rate-limiters", 
+            HttpMethod.GET, 
+            null, 
+            headers,
+            RateLimiterMetricsResponse.class
+        );
     }
     
     @GetMapping("/api/resilience/circuit-breaker")
     @Operation(summary = "Get circuit breaker metrics via gateway")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Circuit breaker metrics retrieved"),
+        @ApiResponse(responseCode = "200", description = "Circuit breaker metrics retrieved",
+                    content = @Content(schema = @Schema(implementation = CircuitBreakerMetricsResponse.class))),
         @ApiResponse(responseCode = "503", description = "Service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Map<String, Object>> getCircuitBreaker(@RequestHeader HttpHeaders headers) {
-        return gatewayService.proxyResilienceRequest("/circuit-breaker", headers);
+    public ResponseEntity<CircuitBreakerMetricsResponse> getCircuitBreaker(HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
+        return gatewayService.proxyTradingBotRequest(
+            "/resilience/circuit-breaker", 
+            HttpMethod.GET, 
+            null, 
+            headers,
+            CircuitBreakerMetricsResponse.class
+        );
     }
     
     @GetMapping("/api/resilience/retry")
     @Operation(summary = "Get retry metrics via gateway")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Retry metrics retrieved"),
+        @ApiResponse(responseCode = "200", description = "Retry metrics retrieved",
+                    content = @Content(schema = @Schema(implementation = RetryMetricsResponse.class))),
         @ApiResponse(responseCode = "503", description = "Service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Map<String, Object>> getRetry(@RequestHeader HttpHeaders headers) {
-        return gatewayService.proxyResilienceRequest("/retry", headers);
+    public ResponseEntity<RetryMetricsResponse> getRetry(HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
+        return gatewayService.proxyTradingBotRequest(
+            "/resilience/retry", 
+            HttpMethod.GET, 
+            null, 
+            headers,
+            RetryMetricsResponse.class
+        );
     }
     
     @GetMapping("/api/resilience/metrics")
     @Operation(summary = "Get all resilience metrics via gateway")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "All resilience metrics retrieved"),
+        @ApiResponse(responseCode = "200", description = "All resilience metrics retrieved",
+                    content = @Content(schema = @Schema(implementation = AllResilienceMetricsResponse.class))),
         @ApiResponse(responseCode = "503", description = "Service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Map<String, Object>> getAllMetrics(@RequestHeader HttpHeaders headers) {
-        return gatewayService.proxyResilienceRequest("/metrics", headers);
+    public ResponseEntity<AllResilienceMetricsResponse> getAllMetrics(HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
+        return gatewayService.proxyTradingBotRequest(
+            "/resilience/metrics", 
+            HttpMethod.GET, 
+            null, 
+            headers,
+            AllResilienceMetricsResponse.class
+        );
     }
     
     @GetMapping("/api/resilience/health")
     @Operation(summary = "Get resilience health status via gateway")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Resilience health status retrieved"),
+        @ApiResponse(responseCode = "200", description = "Resilience health status retrieved",
+                    content = @Content(schema = @Schema(implementation = ResilienceHealthResponse.class))),
         @ApiResponse(responseCode = "503", description = "Service unavailable",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<Map<String, Object>> getHealth(@RequestHeader HttpHeaders headers) {
-        return gatewayService.proxyResilienceRequest("/health", headers);
+    public ResponseEntity<ResilienceHealthResponse> getHealth(HttpServletRequest request) {
+        HttpHeaders headers = extractHeaders(request);
+        return gatewayService.proxyTradingBotRequest(
+            "/resilience/health", 
+            HttpMethod.GET, 
+            null, 
+            headers,
+            ResilienceHealthResponse.class
+        );
     }
     
     // Documentation Gateway Routes
@@ -458,32 +558,38 @@ public class ApiGatewayController {
     @Operation(summary = "API Gateway health check")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Gateway is healthy",
-                    content = @Content(mediaType = "application/json"))
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = GatewayHealthResponse.class)))
     })
-    public ResponseEntity<Map<String, Object>> gatewayHealth() {
-        return ResponseEntity.ok(Map.of(
-            "status", "UP",
-            "gateway", "operational",
-            "timestamp", System.currentTimeMillis(),
-            "version", "1.0.0"
-        ));
+    public ResponseEntity<GatewayHealthResponse> gatewayHealth() {
+        GatewayHealthResponse response = new GatewayHealthResponse(
+            "UP",
+            "operational",
+            System.currentTimeMillis(),
+            gatewayVersion
+        );
+        return ResponseEntity.ok(response);
     }
     
     @GetMapping("/info")
     @Operation(summary = "API Gateway information")
-    public ResponseEntity<Map<String, Object>> gatewayInfo() {
-        return ResponseEntity.ok(Map.of(
-            "name", "Simple Trading Bot API Gateway",
-            "version", "1.0.0",
-            "description", "Centralized API Gateway for routing requests with resilience patterns",
-            "features", Map.of(
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Gateway information retrieved",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = GatewayInfoResponse.class)))
+    })
+    public ResponseEntity<GatewayInfoResponse> gatewayInfo() {
+        GatewayInfoResponse response = new GatewayInfoResponse(
+            gatewayName,
+            gatewayVersion,
+            "Centralized API Gateway for routing requests with resilience patterns",
+            Map.of(
                 "rate-limiting", true,
                 "circuit-breaker", true,
                 "retry", true,
                 "security", true,
                 "monitoring", true
             )
-        ));
+        );
+        return ResponseEntity.ok(response);
     }
     
     /**

@@ -62,8 +62,7 @@ dependencies {
     
     // External API dependencies
     implementation "io.github.binance:binance-futures-connector-java:${binanceConnectorVersion}"
-    // Commented out bybit dependency as it was commented in Maven
-    // implementation "io.github.wuhewuhe:bybit-java-api:${bybitApiVersion}"
+    implementation "io.github.wuhewuhe:bybit-java-api:${bybitApiVersion}"
     
     // Technical analysis
     implementation "org.ta4j:ta4j-core:${ta4jVersion}"

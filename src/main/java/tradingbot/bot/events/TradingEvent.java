@@ -1,6 +1,6 @@
 package tradingbot.bot.events;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
@@ -21,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 public abstract class TradingEvent {
     
     private String eventId = UUID.randomUUID().toString();
-    private LocalDateTime timestamp = LocalDateTime.now();
+    private Instant occurredAt = Instant.now();
     private String botId;
     private String eventType;
     
@@ -41,12 +41,12 @@ public abstract class TradingEvent {
         this.eventId = eventId;
     }
     
-    public LocalDateTime getTimestamp() {
-        return timestamp;
+    public Instant getOccurredAt() {
+        return occurredAt;
     }
     
-    public void setTimestamp(LocalDateTime timestamp) {
-        this.timestamp = timestamp;
+    public void setOccurredAt(Instant occurredAt) {
+        this.occurredAt = occurredAt;
     }
     
     public String getBotId() {
@@ -69,7 +69,7 @@ public abstract class TradingEvent {
     public String toString() {
         return "TradingEvent{" +
                 "eventId='" + eventId + '\'' +
-                ", timestamp=" + timestamp +
+                ", occurredAt=" + occurredAt +
                 ", botId='" + botId + '\'' +
                 ", eventType='" + eventType + '\'' +
                 '}';

@@ -4,30 +4,34 @@ import java.time.Instant;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentId;
+import tradingbot.agent.domain.model.Order;
 import tradingbot.agent.domain.model.Perception;
 import tradingbot.agent.domain.model.Reasoning;
 import tradingbot.agent.domain.model.ReasoningContext;
 import tradingbot.agent.domain.repository.AgentRepository;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
+import tradingbot.agent.service.OrderPlacementService;
+import tradingbot.agent.service.RAGService;
 
 /**
  * AgentOrchestrator - Coordinates the agent's sense-think-act loop
  * 
  * This is the "brain" that runs each agent's decision-making cycle:
  * 1. PERCEIVE - Observe market conditions
- * 2. REASON - Use LLM to decide what to do
- * 3. ACT - Execute the recommendation (future: integrate with trading)
+ * 2. REASON - Use RAG-enhanced LLM to decide what to do
+ * 3. ACT - Execute orders through OrderPlacementService
  * 
- * MVP Simplification:
- * - Single-threaded execution
- * - Basic market data perception
- * - Grok-powered reasoning
- * - Logging recommendations (no actual trading yet)
+ * RAG Enhancement:
+ * - Retrieves similar historical trading experiences
+ * - Augments LLM prompts with relevant memories
+ * - Stores new experiences for future retrieval
+ * - Improves decision quality through learning
  */
 @Service
 public class AgentOrchestrator {
@@ -36,12 +40,21 @@ public class AgentOrchestrator {
     
     private final AgentRepository agentRepository;
     private final LLMProvider llmProvider;
+    private final RAGService ragService;
+    private final OrderPlacementService orderPlacementService;
+    
+    @Value("${rag.enabled:true}")
+    private boolean ragEnabled;
     
     public AgentOrchestrator(
             AgentRepository agentRepository,
-            LLMProvider llmProvider) {
+            LLMProvider llmProvider,
+            RAGService ragService,
+            OrderPlacementService orderPlacementService) {
         this.agentRepository = agentRepository;
         this.llmProvider = llmProvider;
+        this.ragService = ragService;
+        this.orderPlacementService = orderPlacementService;
     }
     
     /**
@@ -87,15 +100,36 @@ public class AgentOrchestrator {
             logger.debug("Agent {} perceived market - Price: {} Trend: {}", 
                         agent.getId(), perception.getCurrentPrice(), perception.getTrend());
             
-            // 2. REASON - Use Grok to decide what to do
+            // 2. REASON - Use RAG-enhanced LLM (if enabled) or traditional LLM
             ReasoningContext context = buildReasoningContext(agent, perception);
-            Reasoning reasoning = llmProvider.generateReasoning(context);
+            Reasoning reasoning;
+            
+            if (ragEnabled) {
+                logger.debug("Using RAG-enhanced reasoning for agent {}", agent.getId());
+                reasoning = ragService.generateReasoningWithRAG(agent, context);
+            } else {
+                logger.debug("Using traditional LLM reasoning for agent {}", agent.getId());
+                reasoning = llmProvider.generateReasoning(context);
+            }
+            
             agent.reason(reasoning);
             
             logger.info("Agent {} reasoning complete. Recommendation: {} (Confidence: {}%)", 
                        agent.getId(), reasoning.getRecommendation(), reasoning.getConfidence());
             
-            // 3. ACT - Log the recommendation (future: execute trades)
+            // 3. ACT - Execute order based on reasoning
+            Order order = orderPlacementService.processReasoning(agent, perception, reasoning);
+            
+            if (order != null) {
+                logger.info("Agent {} placed order: {} {} @ ${} (qty: {})",
+                    agent.getId(), order.getDirection(), order.getSymbol(),
+                    String.format("%.2f", order.getPrice()), order.getQuantity());
+            } else {
+                logger.info("Agent {} decided to HOLD (confidence too low or unclear direction)",
+                    agent.getId());
+            }
+            
+            // Also log detailed recommendation for review
             logRecommendation(agent, reasoning);
             
             // 4. SAVE - Persist agent state

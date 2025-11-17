@@ -104,7 +104,7 @@ public class EventDrivenTradingController {
                 EVENT_ID, signalEvent.getEventId(),
                 STATUS, PUBLISHED,
                 MESSAGE, "Trade signal event published and processing started",
-                TIMESTAMP, signalEvent.getTimestamp()
+                TIMESTAMP, signalEvent.getOccurredAt()
             );
             
             return ResponseEntity.accepted().body(tradeSignalResponse);
@@ -166,7 +166,7 @@ public class EventDrivenTradingController {
                 EVENT_ID, riskEvent.getEventId(),
                 STATUS, PUBLISHED,
                 MESSAGE, "Risk event published and processing started",
-                TIMESTAMP, riskEvent.getTimestamp(),
+                TIMESTAMP, riskEvent.getOccurredAt(),
                 "severity", severity,
                 "action", action
             );
@@ -233,7 +233,7 @@ public class EventDrivenTradingController {
                 EVENT_ID, statusEvent.getEventId(),
                 STATUS, PUBLISHED,
                 MESSAGE, "Bot status event published to real-time stream",
-                TIMESTAMP, statusEvent.getTimestamp(),
+                TIMESTAMP, statusEvent.getOccurredAt(),
                 "botStatus", status
             );
             return ResponseEntity.accepted().body(response);

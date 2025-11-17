@@ -20,7 +20,7 @@ public class Reasoning {
         this.analysis = analysis;
         this.riskAssessment = riskAssessment;
         this.recommendation = recommendation;
-        this.confidence = Math.max(0, Math.min(100, confidence)); // 0-100
+        this.confidence = Math.clamp(confidence, 0, 100); // 0-100
         this.timestamp = timestamp;
     }
     
