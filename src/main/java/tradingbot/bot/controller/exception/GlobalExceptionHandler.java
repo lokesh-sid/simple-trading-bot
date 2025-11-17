@@ -181,6 +181,72 @@ public class GlobalExceptionHandler {
     }
     
     /**
+     * Handle InvalidTradingOperationException - 400 Bad Request
+     */
+    @ExceptionHandler(InvalidTradingOperationException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidTradingOperation(
+            InvalidTradingOperationException ex,
+            WebRequest request) {
+        
+        ErrorResponse errorResponse = ErrorResponse.builder()
+            .type(ERROR_TYPE_BASE + "invalid-trading-operation")
+            .title("Invalid Trading Operation")
+            .httpStatus(HttpStatus.BAD_REQUEST.value())
+            .detail(ex.getMessage())
+            .instance(getRequestPath(request))
+            .timestamp(System.currentTimeMillis())
+            .build();
+        
+        log.warn("Invalid trading operation: {}", ex.getMessage());
+        
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
+    
+    /**
+     * Handle LeverageLimitExceededException - 400 Bad Request
+     */
+    @ExceptionHandler(LeverageLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleLeverageLimitExceeded(
+            LeverageLimitExceededException ex,
+            WebRequest request) {
+        
+        ErrorResponse errorResponse = ErrorResponse.builder()
+            .type(ERROR_TYPE_BASE + "leverage-limit-exceeded")
+            .title("Leverage Limit Exceeded")
+            .httpStatus(HttpStatus.BAD_REQUEST.value())
+            .detail(ex.getMessage())
+            .instance(getRequestPath(request))
+            .timestamp(System.currentTimeMillis())
+            .build();
+        
+        log.warn("Leverage limit exceeded: {}", ex.getMessage());
+        
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
+    
+    /**
+     * Handle InvalidBotStateException - 409 Conflict
+     */
+    @ExceptionHandler(InvalidBotStateException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidBotState(
+            InvalidBotStateException ex,
+            WebRequest request) {
+        
+        ErrorResponse errorResponse = ErrorResponse.builder()
+            .type(ERROR_TYPE_BASE + "invalid-bot-state")
+            .title("Invalid Bot State")
+            .httpStatus(HttpStatus.CONFLICT.value())
+            .detail(ex.getMessage())
+            .instance(getRequestPath(request))
+            .timestamp(System.currentTimeMillis())
+            .build();
+        
+        log.warn("Invalid bot state: {}", ex.getMessage());
+        
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+    }
+    
+    /**
      * Handle IllegalArgumentException - 400 Bad Request
      */
     @ExceptionHandler(IllegalArgumentException.class)
