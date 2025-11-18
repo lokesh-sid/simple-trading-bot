@@ -33,6 +33,9 @@ public interface AgentMapper {
     @Mapping(source = "state.iterationCount", target = "iterationCount")
     @Mapping(source = "lastPerception", target = "lastPerception")
     @Mapping(source = "lastReasoning", target = "lastReasoning")
+    @Mapping(target = "timestamp", expression = "java(System.currentTimeMillis())")
+    @Mapping(target = "requestId", expression = "java(java.util.UUID.randomUUID().toString())")
+    @Mapping(target = "success", constant = "true")
     AgentResponse toResponse(Agent agent);
     
     /**

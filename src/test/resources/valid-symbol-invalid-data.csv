@@ -1,0 +1,5 @@
+symbol,description
+ABC,symbol too short
+ABCDEFGHIJKLMNOPQRSTUVWXYZ,symbol too long
+abcd,lowercase letters
+ABC!,special characters

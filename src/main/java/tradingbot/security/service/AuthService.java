@@ -175,12 +175,12 @@ public class AuthService {
         Set<String> roles = user.getRoles();
         
         String accessToken = jwtService.generateAccessToken(
-                user.getId().toString(),
+                user.getId(),
                 user.getUsername(),
                 roles
         );
         
-        String refreshToken = jwtService.generateRefreshToken(user.getId().toString());
+        String refreshToken = jwtService.generateRefreshToken(user.getId());
         
         long expiresIn = jwtService.getAccessTokenExpirationSeconds();
         
@@ -196,7 +196,7 @@ public class AuthService {
                 accessToken,
                 refreshToken,
                 expiresIn,
-                user.getId().toString(),
+                user.getId(),
                 user.getUsername(),
                 scope  // OAuth 2.0 scope field
         );

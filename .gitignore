@@ -32,6 +32,7 @@ logs/
 
 # Application specific
 application-local.properties
+.env
 *.md
 .gitignore
 build.gradle

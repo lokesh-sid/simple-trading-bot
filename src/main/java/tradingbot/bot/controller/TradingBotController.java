@@ -243,7 +243,7 @@ public class TradingBotController {
             throw new BotAlreadyRunningException();
         }
         
-        FuturesExchangeService exchangeService = request.isPaper() ? 
+        FuturesExchangeService exchangeService = request.isPaper().booleanValue() ? 
             new PaperFuturesExchangeService() : currentBot.getExchangeService();
         
         BotParams.Builder builder = new BotParams.Builder();
@@ -279,7 +279,7 @@ public class TradingBotController {
         state.setLastUpdated(java.time.Instant.now());
         botCacheService.saveBotState(botId, state);
         logger.info("Started bot: {} in {} mode ({})", botId, request.getDirection(), 
-            request.isPaper() ? "paper" : "live");
+            request.isPaper().booleanValue() ? "paper" : "live");
         
         // Create status response with data
         BotStatusResponse statusResponse = new BotStatusResponse();
@@ -291,7 +291,7 @@ public class TradingBotController {
         statusResponse.setSentimentEnabled(newBot.isSentimentEnabled());
         statusResponse.setStatusMessage(newBot.getStatus());
         
-        String mode = request.isPaper() ? "paper" : "live";
+        String mode = request.isPaper().booleanValue() ? "paper" : "live";
         String message = "Trading bot " + botId + " started in " + request.getDirection() + " mode (" + mode + ")";
         
         BotStartResponse response = new BotStartResponse(

@@ -52,7 +52,10 @@ public class AgentDTOMapper {
             agent.getState().getLastActiveAt(),
             agent.getState().getIterationCount(),
             perceptionDTO,
-            reasoningDTO
+            reasoningDTO,
+            System.currentTimeMillis(),
+            java.util.UUID.randomUUID().toString(),
+            true
         );
     }
     
