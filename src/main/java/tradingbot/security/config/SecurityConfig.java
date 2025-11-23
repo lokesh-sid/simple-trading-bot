@@ -54,6 +54,7 @@ public class SecurityConfig {
                     "/gateway/health",        // Gateway health check
                     "/gateway/info",          // Gateway info
                     "/api/health",            // Health check
+                    "/api/v1/backtest/**",    // Backtest endpoint (public for testing)
                     "/actuator/**",           // Actuator endpoints
                     "/swagger-ui/**",         // Swagger UI
                     "/swagger-ui.html",       // Swagger UI HTML

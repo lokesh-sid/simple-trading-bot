@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.domain.model.TradeMemory;
 import tradingbot.agent.domain.model.TradeOutcome;
+import tradingbot.bot.controller.exception.BotOperationException;
 
 /**
  * PineconeMemoryStore - Pinecone implementation of MemoryStoreService
@@ -123,7 +124,7 @@ public class PineconeMemoryStore implements MemoryStoreService {
             
         } catch (Exception e) {
             logger.error("Failed to store memory in Pinecone", e);
-            throw new RuntimeException("Failed to store memory: " + e.getMessage(), e);
+            throw new BotOperationException("store_memory", "Failed to store memory: " + e.getMessage(), e);
         }
     }
     
@@ -211,7 +212,7 @@ public class PineconeMemoryStore implements MemoryStoreService {
             
         } catch (Exception e) {
             logger.error("Failed to query Pinecone", e);
-            throw new RuntimeException("Failed to query memories: " + e.getMessage(), e);
+            throw new BotOperationException("query_memories", "Failed to query memories: " + e.getMessage(), e);
         }
     }
     
@@ -239,7 +240,7 @@ public class PineconeMemoryStore implements MemoryStoreService {
             
         } catch (Exception e) {
             logger.error("Failed to delete memory from Pinecone", e);
-            throw new RuntimeException("Failed to delete memory: " + e.getMessage(), e);
+            throw new BotOperationException("delete_memory", "Failed to delete memory: " + e.getMessage(), e);
         }
     }
     

@@ -18,6 +18,7 @@ import tradingbot.agent.domain.repository.AgentRepository;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.agent.service.OrderPlacementService;
 import tradingbot.agent.service.RAGService;
+import tradingbot.bot.model.MarketData;
 
 /**
  * AgentOrchestrator - Coordinates the agent's sense-think-act loop
@@ -153,10 +154,10 @@ public class AgentOrchestrator {
         
         return new Perception(
             agent.getTradingSymbol(),
-            data.getCurrentPrice(),
-            data.getTrend(),
-            data.getSentiment(),
-            data.getVolume(),
+            data.currentPrice(),
+            data.trend(),
+            data.sentiment(),
+            data.volume(),
             java.time.Instant.now()
         );
     }

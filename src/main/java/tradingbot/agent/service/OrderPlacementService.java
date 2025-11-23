@@ -17,6 +17,7 @@ import tradingbot.agent.domain.model.Reasoning;
 import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.infrastructure.persistence.OrderEntity;
 import tradingbot.agent.infrastructure.repository.OrderRepository;
+import tradingbot.bot.controller.exception.BotOperationException;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.service.FuturesExchangeService;
 
@@ -331,7 +332,7 @@ public class OrderPlacementService {
         } catch (Exception e) {
             logger.error("Failed to execute order on Binance", e);
             order.markFailed(e.getMessage());
-            throw new RuntimeException("Binance order execution failed: " + e.getMessage(), e);
+            throw new BotOperationException("execute_order", "Binance order execution failed: " + e.getMessage(), e);
         }
     }
     

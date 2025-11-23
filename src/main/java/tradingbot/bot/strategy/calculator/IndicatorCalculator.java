@@ -32,6 +32,14 @@ public class IndicatorCalculator {
     }
 
     public IndicatorValues computeIndicators(String timeframe, String symbol) {
+        if (redisTemplate == null) {
+             List<Candle> candles = exchangeService.fetchOhlcv(symbol, timeframe, CANDLE_LIMIT);
+             if (!hassufficientData(candles, symbol, timeframe)) {
+                return null;
+            }
+            return calculateIndicatorValues(candles);
+        }
+
         String cacheKey = "indicators:%s:%s".formatted(symbol, timeframe);
         ValueOperations<String, IndicatorValues> valueOps = redisTemplate.opsForValue();
         IndicatorValues cached = valueOps.get(cacheKey);
@@ -91,7 +99,7 @@ public class IndicatorCalculator {
         return values;
     }
 
-    private boolean hassufficientData(List<Candle> candles, String symbol, String timeframe) {
+    protected boolean hassufficientData(List<Candle> candles, String symbol, String timeframe) {
         if (candles == null || candles.size() < 26) {
             if (LOGGER.isLoggable(java.util.logging.Level.WARNING)) {
                 LOGGER.warning("Insufficient data for indicators: %s, timeframe: %s".formatted(symbol, timeframe));
@@ -101,7 +109,7 @@ public class IndicatorCalculator {
         return true;
     }
 
-    private IndicatorValues calculateIndicatorValues(List<Candle> candles) {
+    protected IndicatorValues calculateIndicatorValues(List<Candle> candles) {
         IndicatorValues values = new IndicatorValues();
         values.setCloseTime(candles.get(candles.size() - 1).getCloseTime());
         

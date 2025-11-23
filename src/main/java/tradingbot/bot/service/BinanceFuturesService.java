@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import tradingbot.bot.controller.exception.BotOperationException;
+
 public class BinanceFuturesService implements FuturesExchangeService {
     private UMFuturesClientImpl futuresClient;
     private ObjectMapper objectMapper;
@@ -43,7 +45,7 @@ public class BinanceFuturesService implements FuturesExchangeService {
             }
             return candles;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch OHLCV data for " + symbol, e);
+            throw new BotOperationException("fetch_ohlcv", "Failed to fetch OHLCV data for " + symbol, e);
         }
     }
 
@@ -56,7 +58,7 @@ public class BinanceFuturesService implements FuturesExchangeService {
             ObjectNode markPrice = (ObjectNode) objectMapper.readTree(result);
             return markPrice.get("markPrice").asDouble();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch current price for " + symbol, e);
+            throw new BotOperationException("fetch_price", "Failed to fetch current price for " + symbol, e);
         }
     }
 
@@ -74,60 +76,80 @@ public class BinanceFuturesService implements FuturesExchangeService {
             }
             return 0.0;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to fetch margin balance", e);
+            throw new BotOperationException("fetch_balance", "Failed to fetch margin balance", e);
         }
     }
 
     @Override
     public void setLeverage(String symbol, int leverage) {
-        LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
-        parameters.put("symbol", symbol);
-        parameters.put("leverage", leverage);
-        futuresClient.account().changeInitialLeverage(parameters);
+        try {
+            LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+            parameters.put("symbol", symbol);
+            parameters.put("leverage", leverage);
+            futuresClient.account().changeInitialLeverage(parameters);
+        } catch (Exception e) {
+            throw new BotOperationException("set_leverage", "Failed to set leverage for " + symbol, e);
+        }
     }
 
     @Override
     public void enterLongPosition(String symbol, double tradeAmount) {
-        LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
-        parameters.put("symbol", symbol);
-        parameters.put("side", "BUY");
-        parameters.put("positionSide", "LONG");
-        parameters.put("type", "MARKET");
-        parameters.put("quantity", tradeAmount);
-        futuresClient.account().newOrder(parameters);
+        try {
+            LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+            parameters.put("symbol", symbol);
+            parameters.put("side", "BUY");
+            parameters.put("positionSide", "LONG");
+            parameters.put("type", "MARKET");
+            parameters.put("quantity", tradeAmount);
+            futuresClient.account().newOrder(parameters);
+        } catch (Exception e) {
+            throw new BotOperationException("enter_long_position", "Failed to enter long position for " + symbol, e);
+        }
     }
 
     @Override
     public void enterShortPosition(String symbol, double tradeAmount) {
-        LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
-        parameters.put("symbol", symbol);
-        parameters.put("side", "SELL");
-        parameters.put("positionSide", "SHORT");
-        parameters.put("type", "MARKET");
-        parameters.put("quantity", tradeAmount);
-        futuresClient.account().newOrder(parameters);
+        try {
+            LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+            parameters.put("symbol", symbol);
+            parameters.put("side", "SELL");
+            parameters.put("positionSide", "SHORT");
+            parameters.put("type", "MARKET");
+            parameters.put("quantity", tradeAmount);
+            futuresClient.account().newOrder(parameters);
+        } catch (Exception e) {
+            throw new BotOperationException("enter_short_position", "Failed to enter short position for " + symbol, e);
+        }
     }
 
     @Override
     public void exitLongPosition(String symbol, double tradeAmount) {
-        LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
-        parameters.put("symbol", symbol);
-        parameters.put("side", "SELL");
-        parameters.put("positionSide", "LONG");
-        parameters.put("type", "MARKET");
-        parameters.put("quantity", tradeAmount);
-        futuresClient.account().newOrder(parameters);
+        try {
+            LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+            parameters.put("symbol", symbol);
+            parameters.put("side", "SELL");
+            parameters.put("positionSide", "LONG");
+            parameters.put("type", "MARKET");
+            parameters.put("quantity", tradeAmount);
+            futuresClient.account().newOrder(parameters);
+        } catch (Exception e) {
+            throw new BotOperationException("exit_long_position", "Failed to exit long position for " + symbol, e);
+        }
     }
 
     @Override
     public void exitShortPosition(String symbol, double tradeAmount) {
-        LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
-        parameters.put("symbol", symbol);
-        parameters.put("side", "BUY");
-        parameters.put("positionSide", "SHORT");
-        parameters.put("type", "MARKET");
-        parameters.put("quantity", tradeAmount);
-        futuresClient.account().newOrder(parameters);
+        try {
+            LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+            parameters.put("symbol", symbol);
+            parameters.put("side", "BUY");
+            parameters.put("positionSide", "SHORT");
+            parameters.put("type", "MARKET");
+            parameters.put("quantity", tradeAmount);
+            futuresClient.account().newOrder(parameters);
+        } catch (Exception e) {
+            throw new BotOperationException("exit_short_position", "Failed to exit short position for " + symbol, e);
+        }
     }
 
     public static class Candle {

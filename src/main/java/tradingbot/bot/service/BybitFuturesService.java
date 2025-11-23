@@ -18,8 +18,12 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import tradingbot.bot.controller.exception.BotOperationException;
 
 /**
  * Bybit Futures Service - Alternative to Binance
@@ -98,7 +102,7 @@ public class BybitFuturesService implements FuturesExchangeService {
             
         } catch (Exception e) {
             logger.error("Failed to fetch OHLCV for {}", symbol, e);
-            throw new RuntimeException("Failed to fetch OHLCV for " + symbol, e);
+            throw new BotOperationException("fetch_ohlcv", "Failed to fetch OHLCV for " + symbol, e);
         }
     }
     
@@ -111,22 +115,23 @@ public class BybitFuturesService implements FuturesExchangeService {
                 baseUrl, symbol);
             
             ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-            JsonNode root = objectMapper.readTree(response.getBody());
             
-            if (root.has("result") && root.get("result").has("list")) {
-                JsonNode list = root.get("result").get("list");
-                if (list.size() > 0) {
-                    double price = list.get(0).get("lastPrice").asDouble();
-                    logger.debug("Current price for {}: {}", symbol, price);
-                    return price;
-                }
+            BybitResponse<BybitTickerResult> root = objectMapper.readValue(
+                response.getBody(), 
+                new TypeReference<BybitResponse<BybitTickerResult>>() {}
+            );
+            
+            if (root != null && root.result() != null && root.result().list() != null && !root.result().list().isEmpty()) {
+                double price = Double.parseDouble(root.result().list().get(0).lastPrice());
+                logger.debug("Current price for {}: {}", symbol, price);
+                return price;
             }
             
-            throw new RuntimeException("No price data for " + symbol);
+            throw new BotOperationException("fetch_price", "No price data for " + symbol);
             
         } catch (Exception e) {
             logger.error("Failed to fetch price for {}", symbol, e);
-            throw new RuntimeException("Failed to fetch price for " + symbol, e);
+            throw new BotOperationException("fetch_price", "Failed to fetch price for " + symbol, e);
         }
     }
     
@@ -171,7 +176,7 @@ public class BybitFuturesService implements FuturesExchangeService {
             
         } catch (Exception e) {
             logger.error("Failed to fetch balance", e);
-            throw new RuntimeException("Failed to fetch balance", e);
+            throw new BotOperationException("fetch_balance", "Failed to fetch balance", e);
         }
     }
     
@@ -206,7 +211,7 @@ public class BybitFuturesService implements FuturesExchangeService {
             
         } catch (Exception e) {
             logger.error("Failed to set leverage for {}", symbol, e);
-            throw new RuntimeException("Failed to set leverage for " + symbol, e);
+            throw new BotOperationException("set_leverage", "Failed to set leverage for " + symbol, e);
         }
     }
     
@@ -260,12 +265,12 @@ public class BybitFuturesService implements FuturesExchangeService {
                 logger.info("Order placed successfully. ID: {}", orderId);
             } else {
                 logger.error("Order failed: {}", response.getBody());
-                throw new RuntimeException("Order failed: " + root.get("retMsg").asText());
+                throw new BotOperationException("place_order", "Order failed: " + root.get("retMsg").asText());
             }
             
         } catch (Exception e) {
             logger.error("Failed to place order", e);
-            throw new RuntimeException("Failed to place order: " + e.getMessage(), e);
+            throw new BotOperationException("place_order", "Failed to place order: " + e.getMessage(), e);
         }
     }
     
@@ -286,7 +291,7 @@ public class BybitFuturesService implements FuturesExchangeService {
             return hexString.toString();
             
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            throw new RuntimeException("Failed to generate signature", e);
+            throw new BotOperationException("generate_signature", "Failed to generate signature", e);
         }
     }
     
@@ -330,4 +335,23 @@ public class BybitFuturesService implements FuturesExchangeService {
             default -> 3_600_000L;
         };
     }
+    
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record BybitResponse<T>(
+        int retCode,
+        String retMsg,
+        T result
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record BybitTickerResult(
+        String category,
+        List<BybitTicker> list
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record BybitTicker(
+        String symbol,
+        String lastPrice
+    ) {}
 }

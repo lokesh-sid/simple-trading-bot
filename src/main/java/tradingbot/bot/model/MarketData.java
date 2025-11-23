@@ -13,5 +13,20 @@ import tradingbot.bot.strategy.calculator.IndicatorValues;
  */
 public record MarketData(
     IndicatorValues dailyIndicators,
-    IndicatorValues weeklyIndicators
-) {}
+    IndicatorValues weeklyIndicators,
+    double currentPrice,
+    double priceChange24h,
+    double volume,
+    String trend,
+    String sentiment,
+    double sentimentScore
+) {
+
+    public MarketData(IndicatorValues dailyIndicators, IndicatorValues weeklyIndicators) {
+        this(dailyIndicators, weeklyIndicators, 0.0, 0.0, 0.0, "UNKNOWN", "UNKNOWN", 0.0);
+    }
+
+    public MarketData(double currentPrice, double priceChange24h, double volume, String trend, String sentiment, double sentimentScore) {
+        this(null, null, currentPrice, priceChange24h, volume, trend, sentiment, sentimentScore);
+    }
+}

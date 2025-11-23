@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.github.resilience4j.retry.annotation.Retry;
+import tradingbot.bot.controller.exception.BotOperationException;
 
 /**
  * Rate-limited wrapper for BybitFuturesService using Resilience4j
@@ -115,48 +116,48 @@ public class RateLimitedBybitFuturesService implements FuturesExchangeService {
     @SuppressWarnings("unused")
     private List<BinanceFuturesService.Candle> fetchOhlcvFallback(String symbol, String timeframe, int limit, Throwable t) {
         logger.error("Fallback triggered for fetchOhlcv: {}", t.getMessage());
-        throw new RuntimeException("Failed to fetch OHLCV after retries: " + t.getMessage(), t);
+        throw new BotOperationException("fetch_ohlcv", t.getMessage(), t);
     }
     
     @SuppressWarnings("unused")
     private double getCurrentPriceFallback(String symbol, Throwable t) {
         logger.error("Fallback triggered for getCurrentPrice: {}", t.getMessage());
-        throw new RuntimeException("Failed to fetch price after retries: " + t.getMessage(), t);
+        throw new BotOperationException("fetch_price", t.getMessage(), t);
     }
     
     @SuppressWarnings("unused")
     private double getMarginBalanceFallback(Throwable t) {
         logger.error("Fallback triggered for getMarginBalance: {}", t.getMessage());
-        throw new RuntimeException("Failed to fetch balance after retries: " + t.getMessage(), t);
+        throw new BotOperationException("fetch_balance", t.getMessage(), t);
     }
     
     @SuppressWarnings("unused")
     private void setLeverageFallback(String symbol, int leverage, Throwable t) {
         logger.error("Fallback triggered for setLeverage: {}", t.getMessage());
-        throw new RuntimeException("Failed to set leverage after retries: " + t.getMessage(), t);
+        throw new BotOperationException("set_leverage", t.getMessage(), t);
     }
     
     @SuppressWarnings("unused")
     private void enterLongPositionFallback(String symbol, double tradeAmount, Throwable t) {
         logger.error("Fallback triggered for enterLongPosition: {}", t.getMessage());
-        throw new RuntimeException("Failed to enter LONG position after retries: " + t.getMessage(), t);
+        throw new BotOperationException("enter_long_position", t.getMessage(), t);
     }
     
     @SuppressWarnings("unused")
     private void enterShortPositionFallback(String symbol, double tradeAmount, Throwable t) {
         logger.error("Fallback triggered for enterShortPosition: {}", t.getMessage());
-        throw new RuntimeException("Failed to enter SHORT position after retries: " + t.getMessage(), t);
+        throw new BotOperationException("enter_short_position", t.getMessage(), t);
     }
     
     @SuppressWarnings("unused")
     private void exitLongPositionFallback(String symbol, double tradeAmount, Throwable t) {
         logger.error("Fallback triggered for exitLongPosition: {}", t.getMessage());
-        throw new RuntimeException("Failed to exit LONG position after retries: " + t.getMessage(), t);
+        throw new BotOperationException("exit_long_position", t.getMessage(), t);
     }
     
     @SuppressWarnings("unused")
     private void exitShortPositionFallback(String symbol, double tradeAmount, Throwable t) {
         logger.error("Fallback triggered for exitShortPosition: {}", t.getMessage());
-        throw new RuntimeException("Failed to exit SHORT position after retries: " + t.getMessage(), t);
+        throw new BotOperationException("exit_short_position", t.getMessage(), t);
     }
 }

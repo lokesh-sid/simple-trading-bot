@@ -2,10 +2,8 @@ package tradingbot.bot.controller;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +20,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -29,12 +30,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.annotation.PostConstruct;
 import jakarta.validation.Valid;
+import tradingbot.agent.TradingAgent;
+import tradingbot.agent.manager.AgentManager;
+import tradingbot.agent.persistence.AgentEntity;
+import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.bot.FuturesTradingBot;
-import tradingbot.bot.FuturesTradingBot.BotParams;
-import tradingbot.bot.TradeDirection;
-import tradingbot.bot.controller.dto.BotState;
 import tradingbot.bot.controller.dto.request.BotStartRequest;
 import tradingbot.bot.controller.dto.request.LeverageUpdateRequest;
 import tradingbot.bot.controller.dto.request.SentimentUpdateRequest;
@@ -52,9 +53,6 @@ import tradingbot.bot.controller.dto.response.SentimentUpdateResponse;
 import tradingbot.bot.controller.exception.BotAlreadyRunningException;
 import tradingbot.bot.controller.exception.BotNotFoundException;
 import tradingbot.bot.controller.validation.ValidBotId;
-import tradingbot.bot.service.BotCacheService;
-import tradingbot.bot.service.FuturesExchangeService;
-import tradingbot.bot.service.PaperFuturesExchangeService;
 import tradingbot.config.TradingConfig;
 
 /**
@@ -63,7 +61,7 @@ import tradingbot.config.TradingConfig;
  * Supports creating, starting, stopping, and configuring multiple independent
  * trading bots, each identified by a unique bot ID.
  * 
- * Features Redis-backed persistence for bot state recovery and horizontal scaling.
+ * Features Database-backed persistence for bot state recovery and horizontal scaling.
  * 
  * API Path Pattern: /api/v1/bots/{botId}
  * 
@@ -81,96 +79,18 @@ public class TradingBotController {
     
     private static final Logger logger = LoggerFactory.getLogger(TradingBotController.class);
     
-    // Thread-safe map to store active bot instances (in-memory for performance)
-    private final Map<String, FuturesTradingBot> tradingBots = new ConcurrentHashMap<>();
-    
-    // Template bot for creating new instances
-    private final FuturesTradingBot tradingBot;
-    
-    // Redis cache service for bot state persistence
-    private final BotCacheService botCacheService;
+    private final AgentManager agentManager;
+    private final AgentRepository agentRepository;
+    private final ObjectMapper objectMapper;
 
-    public TradingBotController(FuturesTradingBot tradingBot, BotCacheService botCacheService) {
-        this.tradingBot = tradingBot;
-        this.botCacheService = botCacheService;
+    public TradingBotController(AgentManager agentManager, AgentRepository agentRepository, ObjectMapper objectMapper) {
+        this.agentManager = agentManager;
+        this.agentRepository = agentRepository;
+        this.objectMapper = objectMapper;
     }
     
-    /**
-     * Recover bot states from Redis on application startup
-     */
-    @PostConstruct
-    public void recoverBotsFromRedis() {
-        logger.info("Starting bot recovery from Redis...");
-        
-        try {
-            Set<String> botIds = botCacheService.getAllBotIds();
-            logger.info("Found {} bot(s) in Redis", botIds.size());
-            
-            int recoveredCount = 0;
-            for (String botId : botIds) {
-                recoveredCount = handleBotRecovery(recoveredCount, botId);
-            }
-            
-            logger.info("Bot recovery complete. Recovered {}/{} bot(s)", recoveredCount, botIds.size());
-        } catch (Exception e) {
-            logger.error("Failed to recover bots from Redis", e);
-        }
-    }
+    // Recovery logic is now handled by AgentManager on startup
 
-    private int handleBotRecovery(int recoveredCount, String botId) {
-        try {
-            BotState state = botCacheService.getBotState(botId);
-            if (state != null) {
-                logger.info("Recovering bot: {} (running: {})", botId, state.isRunning());
-                
-                // Reconstruct bot from state
-                FuturesTradingBot bot = reconstructBotFromState(state);
-                tradingBots.put(botId, bot);
-                
-                // Restart if it was running
-                if (state.isRunning()) {
-                    bot.start();
-                    logger.info("Restarted bot: {}", botId);
-                }
-                
-                recoveredCount++;
-            }
-        } catch (Exception e) {
-            logger.error("Failed to recover bot: {}", botId, e);
-        }
-        return recoveredCount;
-    }
-    
-    /**
-     * Reconstruct bot instance from cached state
-     */
-    private FuturesTradingBot reconstructBotFromState(BotState state) {
-        FuturesExchangeService exchangeService = state.isPaper() ? 
-            new PaperFuturesExchangeService() : tradingBot.getExchangeService();
-        
-        BotParams.Builder builder = new BotParams.Builder();
-        builder.exchangeService(exchangeService);
-        builder.indicatorCalculator(tradingBot.getIndicatorCalculator());
-        builder.trailingStopTracker(tradingBot.getTrailingStopTracker());
-        builder.sentimentAnalyzer(tradingBot.getSentimentAnalyzer());
-        builder.exitConditions(tradingBot.getExitConditions());
-        builder.config(state.getConfig() != null ? state.getConfig() : tradingBot.getConfig());
-        builder.tradeDirection(state.getDirection() != null ? 
-            TradeDirection.valueOf(state.getDirection()) : null);
-        builder.skipLeverageInit(state.isPaper());
-        
-        FuturesTradingBot bot = new FuturesTradingBot(builder.build());
-        
-        // Restore additional state
-        if (state.isSentimentEnabled()) {
-            bot.enableSentimentAnalysis(true);
-        }
-        if (state.getCurrentLeverage() > 0) {
-            bot.setDynamicLeverage((int) state.getCurrentLeverage());
-        }
-        
-        return bot;
-    }
 
     @PostMapping
     @Operation(summary = "Create a new trading bot", 
@@ -184,36 +104,30 @@ public class TradingBotController {
     public ResponseEntity<BotCreatedResponse> createBot() {
         String botId = UUID.randomUUID().toString();
         
-        // Create new bot instance from template
-        BotParams.Builder builder = new BotParams.Builder();
-        builder.exchangeService(tradingBot.getExchangeService());
-        builder.indicatorCalculator(tradingBot.getIndicatorCalculator());
-        builder.trailingStopTracker(tradingBot.getTrailingStopTracker());
-        builder.sentimentAnalyzer(tradingBot.getSentimentAnalyzer());
-        builder.exitConditions(tradingBot.getExitConditions());
-        builder.config(tradingBot.getConfig());
-        builder.tradeDirection(TradeDirection.LONG); // Default direction, will be updated on start
-        builder.skipLeverageInit(true); // Skip leverage init for template bot
+        TradingConfig config = new TradingConfig(); // Default config
         
-        FuturesTradingBot newBot = new FuturesTradingBot(builder.build());
-        tradingBots.put(botId, newBot);
+        AgentEntity entity = new AgentEntity();
+        entity.setId(botId);
+        entity.setName("Bot-" + botId.substring(0, 8));
+        entity.setType("FUTURES");
+        entity.setSymbol(config.getSymbol());
+        entity.setStatus(AgentEntity.AgentStatus.CREATED);
+        entity.setDirection("LONG");
+        entity.setSentimentEnabled(false);
+        entity.setCreatedAt(java.time.Instant.now());
+        entity.setUpdatedAt(java.time.Instant.now());
         
-        // Save bot state to Redis for persistence
-        BotState state = BotState.builder()
-            .botId(botId)
-            .config(tradingBot.getConfig())
-            .running(false)
-            .paper(false)
-            .sentimentEnabled(false)
-            .currentLeverage(tradingBot.getConfig().getLeverage())
-            .createdAt(java.time.Instant.now())
-            .lastUpdated(java.time.Instant.now())
-            .build();
-        botCacheService.saveBotState(botId, state);
-        logger.info("Created new bot: {} and saved to Redis", botId);
-        
-        BotCreatedResponse response = new BotCreatedResponse(botId, "Trading bot created successfully");
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        try {
+            entity.setConfigurationJson(objectMapper.writeValueAsString(config));
+            agentManager.createAgent(entity);
+            logger.info("Created new bot: {} and saved to DB", botId);
+            
+            BotCreatedResponse response = new BotCreatedResponse(botId, "Trading bot created successfully");
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (JsonProcessingException e) {
+            logger.error("Failed to serialize config", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @PostMapping("/{botId}/start")
@@ -236,62 +150,38 @@ public class TradingBotController {
             @PathVariable @ValidBotId String botId,
             @Valid @RequestBody BotStartRequest request) {
         
-        FuturesTradingBot currentBot = getBotOrThrow(botId);
+        AgentEntity entity = agentRepository.findById(botId)
+            .orElseThrow(() -> new BotNotFoundException(botId));
         
         // Check if bot is already running
-        if (currentBot.isRunning()) {
+        TradingAgent currentAgent = agentManager.getAgent(botId);
+        if (currentAgent != null && currentAgent.isRunning()) {
             throw new BotAlreadyRunningException();
         }
         
-        FuturesExchangeService exchangeService = request.isPaper().booleanValue() ? 
-            new PaperFuturesExchangeService() : currentBot.getExchangeService();
+        // Update entity
+        entity.setDirection(request.getDirection().toString());
+        entity.setType(request.isPaper() ? "FUTURES_PAPER" : "FUTURES");
+        entity.setUpdatedAt(java.time.Instant.now());
+        agentRepository.save(entity);
         
-        BotParams.Builder builder = new BotParams.Builder();
-        builder.exchangeService(exchangeService);
-        builder.indicatorCalculator(currentBot.getIndicatorCalculator());
-        builder.trailingStopTracker(currentBot.getTrailingStopTracker());
-        builder.sentimentAnalyzer(currentBot.getSentimentAnalyzer());
-        builder.exitConditions(currentBot.getExitConditions());
-        builder.config(currentBot.getConfig());
-        builder.tradeDirection(request.getDirection());
-        builder.skipLeverageInit(request.isPaper());
-
-        FuturesTradingBot newBot = new FuturesTradingBot(builder.build());
-        tradingBots.put(botId, newBot);
-        newBot.start();
+        // Refresh agent to pick up changes
+        agentManager.refreshAgent(botId);
+        agentManager.startAgent(botId);
         
-        // Update bot state in Redis
-        BotState state = botCacheService.getBotState(botId);
-        if (state == null) {
-            state = BotState.builder()
-                .botId(botId)
-                .createdAt(java.time.Instant.now())
-                .build();
-        }
-        state.setRunning(true);
-        state.setDirection(request.getDirection().toString());
-        state.setPaper(request.isPaper());
-        state.setConfig(newBot.getConfig());
-        state.setCurrentLeverage(newBot.getCurrentLeverage());
-        state.setSentimentEnabled(newBot.isSentimentEnabled());
-        state.setPositionStatus(newBot.getPositionStatus());
-        state.setEntryPrice(newBot.getEntryPrice());
-        state.setLastUpdated(java.time.Instant.now());
-        botCacheService.saveBotState(botId, state);
-        logger.info("Started bot: {} in {} mode ({})", botId, request.getDirection(), 
-            request.isPaper().booleanValue() ? "paper" : "live");
+        FuturesTradingBot bot = (FuturesTradingBot) agentManager.getAgent(botId);
         
         // Create status response with data
         BotStatusResponse statusResponse = new BotStatusResponse();
-        statusResponse.setRunning(newBot.isRunning());
-        statusResponse.setSymbol(newBot.getConfig().getSymbol());
-        statusResponse.setPositionStatus(newBot.getPositionStatus());
-        statusResponse.setEntryPrice(newBot.getEntryPrice());
-        statusResponse.setLeverage(newBot.getCurrentLeverage());
-        statusResponse.setSentimentEnabled(newBot.isSentimentEnabled());
-        statusResponse.setStatusMessage(newBot.getStatus());
+        statusResponse.setRunning(bot.isRunning());
+        statusResponse.setSymbol(bot.getConfig().getSymbol());
+        statusResponse.setPositionStatus(bot.getPositionStatus());
+        statusResponse.setEntryPrice(bot.getEntryPrice());
+        statusResponse.setLeverage(bot.getCurrentLeverage());
+        statusResponse.setSentimentEnabled(bot.isSentimentEnabled());
+        statusResponse.setStatusMessage(bot.getStatus());
         
-        String mode = request.isPaper().booleanValue() ? "paper" : "live";
+        String mode = request.isPaper() ? "paper" : "live";
         String message = "Trading bot " + botId + " started in " + request.getDirection() + " mode (" + mode + ")";
         
         BotStartResponse response = new BotStartResponse(
@@ -318,20 +208,25 @@ public class TradingBotController {
             @Parameter(description = "Unique bot identifier (UUID format)") 
             @PathVariable @ValidBotId String botId) {
         
-        FuturesTradingBot bot = getBotOrThrow(botId);
-        String finalPositionStatus = bot.getPositionStatus();
-        boolean wasRunning = bot.isRunning();
-        bot.stop();
-        
-        // Update bot state in Redis
-        BotState state = botCacheService.getBotState(botId);
-        if (state != null) {
-            state.setRunning(false);
-            state.setPositionStatus(finalPositionStatus);
-            state.setLastUpdated(java.time.Instant.now());
-            botCacheService.saveBotState(botId, state);
-            logger.info("Stopped bot: {}", botId);
+        TradingAgent agent = agentManager.getAgent(botId);
+        if (agent == null) {
+            throw new BotNotFoundException(botId);
         }
+        
+        boolean wasRunning = agent.isRunning();
+        String finalPositionStatus = null;
+        if (agent instanceof FuturesTradingBot) {
+            finalPositionStatus = ((FuturesTradingBot) agent).getPositionStatus();
+        }
+        
+        agentManager.stopAgent(botId);
+        
+        // Update entity status
+        agentRepository.findById(botId).ifPresent(entity -> {
+            entity.setStatus(AgentEntity.AgentStatus.STOPPED);
+            entity.setUpdatedAt(java.time.Instant.now());
+            agentRepository.save(entity);
+        });
         
         BotStopResponse response = new BotStopResponse(
             "Trading bot " + botId + " stopped successfully",
@@ -356,7 +251,12 @@ public class TradingBotController {
             @Parameter(description = "Unique bot identifier (UUID format)") 
             @PathVariable @ValidBotId String botId) {
         
-        FuturesTradingBot bot = getBotOrThrow(botId);
+        TradingAgent agent = agentManager.getAgent(botId);
+        if (agent == null) {
+            throw new BotNotFoundException(botId);
+        }
+        
+        FuturesTradingBot bot = (FuturesTradingBot) agent;
         BotStatusResponse response = new BotStatusResponse();
         
         response.setRunning(bot.isRunning());
@@ -388,20 +288,36 @@ public class TradingBotController {
             @PathVariable @ValidBotId String botId,
             @Valid @RequestBody TradingConfig config) {
         
-        FuturesTradingBot bot = getBotOrThrow(botId);
-        bot.updateConfig(config);
-        
-        // Update config in Redis
-        botCacheService.updateBotConfig(botId, config);
-        logger.info("Updated configuration for bot: {}", botId);
-        
-        ConfigUpdateResponse response = new ConfigUpdateResponse(
-            "Configuration updated successfully for bot " + botId,
-            config.getSymbol(),
-            (double) config.getLeverage(),
-            config.getTrailingStopPercent()
-        );
-        return ResponseEntity.ok(response);
+        AgentEntity entity = agentRepository.findById(botId)
+            .orElseThrow(() -> new BotNotFoundException(botId));
+            
+        try {
+            // Update DB
+            entity.setConfigurationJson(objectMapper.writeValueAsString(config));
+            entity.setSymbol(config.getSymbol());
+            entity.setUpdatedAt(java.time.Instant.now());
+            agentRepository.save(entity);
+            
+            // Update runtime agent if exists
+            TradingAgent agent = agentManager.getAgent(botId);
+            if (agent instanceof FuturesTradingBot) {
+                ((FuturesTradingBot) agent).updateConfig(config);
+            }
+            
+            logger.info("Updated configuration for bot: {}", botId);
+            
+            ConfigUpdateResponse response = new ConfigUpdateResponse(
+                "Configuration updated successfully for bot " + botId,
+                config.getSymbol(),
+                (double) config.getLeverage(),
+                config.getTrailingStopPercent()
+            );
+            return ResponseEntity.ok(response);
+            
+        } catch (JsonProcessingException e) {
+            logger.error("Failed to serialize config", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @PostMapping("/{botId}/leverage")
@@ -420,17 +336,28 @@ public class TradingBotController {
             @PathVariable @ValidBotId String botId,
             @Valid @RequestBody LeverageUpdateRequest request) {
         
-        FuturesTradingBot bot = getBotOrThrow(botId);
+        TradingAgent agent = agentManager.getAgent(botId);
+        if (agent == null) {
+            throw new BotNotFoundException(botId);
+        }
+        
+        FuturesTradingBot bot = (FuturesTradingBot) agent;
         double previousLeverage = bot.getCurrentLeverage();
         bot.setDynamicLeverage(request.getLeverage().intValue());
         
-        // Update leverage in Redis
-        BotState state = botCacheService.getBotState(botId);
-        if (state != null) {
-            state.setCurrentLeverage(request.getLeverage());
-            state.setLastUpdated(java.time.Instant.now());
-            botCacheService.saveBotState(botId, state);
-        }
+        // Update DB
+        agentRepository.findById(botId).ifPresent(entity -> {
+            try {
+                TradingConfig config = objectMapper.readValue(entity.getConfigurationJson(), TradingConfig.class);
+                config.setLeverage(request.getLeverage().intValue());
+                entity.setConfigurationJson(objectMapper.writeValueAsString(config));
+                entity.setUpdatedAt(java.time.Instant.now());
+                agentRepository.save(entity);
+            } catch (Exception e) {
+                logger.error("Failed to update leverage in DB for bot: {}", botId, e);
+            }
+        });
+        
         logger.info("Updated leverage for bot: {} to {}x", botId, request.getLeverage());
         
         LeverageUpdateResponse response = new LeverageUpdateResponse(
@@ -458,17 +385,22 @@ public class TradingBotController {
             @Valid @RequestBody SentimentUpdateRequest request) {
         
         boolean enable = request.getEnable();
-        FuturesTradingBot bot = getBotOrThrow(botId);
+        TradingAgent agent = agentManager.getAgent(botId);
+        if (agent == null) {
+            throw new BotNotFoundException(botId);
+        }
+        
+        FuturesTradingBot bot = (FuturesTradingBot) agent;
         boolean previousStatus = bot.isSentimentEnabled();
         bot.enableSentimentAnalysis(enable);
         
-        // Update sentiment flag in Redis
-        BotState state = botCacheService.getBotState(botId);
-        if (state != null) {
-            state.setSentimentEnabled(enable);
-            state.setLastUpdated(java.time.Instant.now());
-            botCacheService.saveBotState(botId, state);
-        }
+        // Update DB
+        agentRepository.findById(botId).ifPresent(entity -> {
+            entity.setSentimentEnabled(enable);
+            entity.setUpdatedAt(java.time.Instant.now());
+            agentRepository.save(entity);
+        });
+        
         logger.info("{} sentiment analysis for bot: {}", enable ? "Enabled" : "Disabled", botId);
         
         SentimentUpdateResponse response = new SentimentUpdateResponse(
@@ -506,32 +438,27 @@ public class TradingBotController {
             size = 20; // Default page size
         }
 
-        // Get all bot IDs from Redis (source of truth)
-        Set<String> allBotIds = botCacheService.getAllBotIds();
+        // Get all entities
+        List<AgentEntity> allAgents = agentRepository.findAll();
         
-        // Filter bots based on criteria
-        List<BotState> filteredBots = new ArrayList<>();
-        for (String botId : allBotIds) {
-            BotState state = botCacheService.getBotState(botId);
-            if (state != null && matchesFilters(state, status, paper, direction, search)) {
-                filteredBots.add(state);
-            }
-        }
+        // Filter
+        List<AgentEntity> filteredAgents = allAgents.stream()
+            .filter(agent -> matchesFilters(agent, status, paper, direction, search))
+            .collect(Collectors.toList());
 
-        // Sort bots
-        sortBots(filteredBots, sortBy, sortOrder);
+        // Sort
+        sortAgents(filteredAgents, sortBy, sortOrder);
 
-        // Calculate pagination
-        int totalElements = filteredBots.size();
+        // Pagination
+        int totalElements = filteredAgents.size();
         int totalPages = totalElements == 0 ? 1 : (int) Math.ceil((double) totalElements / size);
         int startIndex = page * size;
         int endIndex = Math.min(startIndex + size, totalElements);
 
-        // Get paginated subset
         List<String> paginatedBotIds = new ArrayList<>();
         if (startIndex < totalElements) {
             for (int i = startIndex; i < endIndex; i++) {
-                paginatedBotIds.add(filteredBots.get(i).getBotId());
+                paginatedBotIds.add(filteredAgents.get(i).getId());
             }
         }
 
@@ -551,7 +478,7 @@ public class TradingBotController {
         BotListResponse response = new BotListResponse(
             paginatedBotIds,
             paginationInfo,
-            tradingBots.size()
+            agentManager.getAgents().size()
         );
 
         return ResponseEntity.ok(response);
@@ -560,23 +487,25 @@ public class TradingBotController {
     /**
      * Check if bot state matches filter criteria
      */
-    private boolean matchesFilters(BotState state, String status, Boolean paper, String direction, String search) {
+    private boolean matchesFilters(AgentEntity agent, String status, Boolean paper, String direction, String search) {
         // Filter by status
         if (status != null && !status.isEmpty()) {
-            String botStatus = state.isRunning() ? "RUNNING" : "STOPPED";
-            if (!botStatus.equalsIgnoreCase(status)) {
+            if (!agent.getStatus().name().equalsIgnoreCase(status)) {
                 return false;
             }
         }
 
         // Filter by paper trading mode
-        if (paper != null && state.isPaper() != paper) {
-            return false;
+        if (paper != null) {
+            boolean isPaper = "FUTURES_PAPER".equalsIgnoreCase(agent.getType());
+            if (isPaper != paper) {
+                return false;
+            }
         }
 
         // Filter by direction
         if (direction != null && !direction.isEmpty()) {
-            if (state.getDirection() == null || !state.getDirection().equalsIgnoreCase(direction)) {
+            if (agent.getDirection() == null || !agent.getDirection().equalsIgnoreCase(direction)) {
                 return false;
             }
         }
@@ -584,11 +513,10 @@ public class TradingBotController {
         // Text search in botId or symbol
         if (search != null && !search.isEmpty()) {
             String searchLower = search.toLowerCase();
-            boolean matchesBotId = state.getBotId() != null && 
-                                  state.getBotId().toLowerCase().contains(searchLower);
-            boolean matchesSymbol = state.getConfig() != null && 
-                                   state.getConfig().getSymbol() != null &&
-                                   state.getConfig().getSymbol().toLowerCase().contains(searchLower);
+            boolean matchesBotId = agent.getId() != null && 
+                                  agent.getId().toLowerCase().contains(searchLower);
+            boolean matchesSymbol = agent.getSymbol() != null && 
+                                   agent.getSymbol().toLowerCase().contains(searchLower);
             if (!matchesBotId && !matchesSymbol) {
                 return false;
             }
@@ -600,32 +528,28 @@ public class TradingBotController {
     /**
      * Sort bots based on sort field and order
      */
-    private void sortBots(List<BotState> bots, String sortBy, String sortOrder) {
+    private void sortAgents(List<AgentEntity> agents, String sortBy, String sortOrder) {
         boolean ascending = "ASC".equalsIgnoreCase(sortOrder);
 
-        bots.sort((bot1, bot2) -> {
+        agents.sort((a1, a2) -> {
             int comparison = 0;
 
             switch (sortBy) {
                 case "botId":
-                    comparison = compareNullSafe(bot1.getBotId(), bot2.getBotId());
+                    comparison = compareNullSafe(a1.getId(), a2.getId());
                     break;
                 case "createdAt":
-                    comparison = compareNullSafe(bot1.getCreatedAt(), bot2.getCreatedAt());
+                    comparison = compareNullSafe(a1.getCreatedAt(), a2.getCreatedAt());
                     break;
                 case "status":
-                    String status1 = bot1.isRunning() ? "RUNNING" : "STOPPED";
-                    String status2 = bot2.isRunning() ? "RUNNING" : "STOPPED";
-                    comparison = status1.compareTo(status2);
+                    comparison = compareNullSafe(a1.getStatus(), a2.getStatus());
                     break;
                 case "symbol":
-                    String symbol1 = bot1.getConfig() != null ? bot1.getConfig().getSymbol() : "";
-                    String symbol2 = bot2.getConfig() != null ? bot2.getConfig().getSymbol() : "";
-                    comparison = symbol1.compareTo(symbol2);
+                    comparison = compareNullSafe(a1.getSymbol(), a2.getSymbol());
                     break;
                 default:
                     // Default to createdAt
-                    comparison = compareNullSafe(bot1.getCreatedAt(), bot2.getCreatedAt());
+                    comparison = compareNullSafe(a1.getCreatedAt(), a2.getCreatedAt());
             }
 
             return ascending ? comparison : -comparison;
@@ -655,57 +579,25 @@ public class TradingBotController {
             @Parameter(description = "Unique bot identifier (UUID format)") 
             @PathVariable @ValidBotId String botId) {
         
-        FuturesTradingBot bot = getBotOrThrow(botId);
-        if (bot.isRunning()) {
-            bot.stop();
+        if (!agentRepository.existsById(botId)) {
+            throw new BotNotFoundException(botId);
         }
-        tradingBots.remove(botId);
         
-        // Delete bot state from Redis
-        botCacheService.deleteBotState(botId);
-        logger.info("Deleted bot: {} from memory and Redis", botId);
+        agentManager.deleteAgent(botId);
+        logger.info("Deleted bot: {} from memory and DB", botId);
         
         BotDeletedResponse response = new BotDeletedResponse("Bot " + botId + " deleted successfully");
         return ResponseEntity.ok(response);
     }
 
     /**
-     * Helper method to retrieve a bot by ID or throw BotNotFoundException
-     * Attempts to load from memory first, then from Redis if not found
-     */
-    private FuturesTradingBot getBotOrThrow(String botId) {
-        FuturesTradingBot bot = tradingBots.computeIfAbsent(botId, id -> {
-            BotState state = botCacheService.getBotState(id);
-            if (state != null) {
-                logger.info("Bot {} not in memory, recovering from Redis", id);
-                FuturesTradingBot recoveredBot = reconstructBotFromState(state);
-                
-                // Restart if it was running
-                if (state.isRunning()) {
-                    recoveredBot.start();
-                }
-                return recoveredBot;
-            }
-            return null;
-        });
-        
-        if (bot == null) {
-            throw new BotNotFoundException(botId);
-        }
-        return bot;
-    }
-    
-    /**
      * Public accessor for BotStateController and other controllers
      */
     public FuturesTradingBot getTradingBot(String botId) {
-        return getBotOrThrow(botId);
-    }
-    
-    /**
-     * Update bot instance in memory (for state controller)
-     */
-    public void updateBotInstance(String botId, FuturesTradingBot bot) {
-        tradingBots.put(botId, bot);
+        TradingAgent agent = agentManager.getAgent(botId);
+        if (agent == null) {
+            throw new BotNotFoundException(botId);
+        }
+        return (FuturesTradingBot) agent;
     }
 }

@@ -23,7 +23,7 @@ ext {
     ta4jVersion = '0.15'
     junitVersion = '5.9.2'
     mockitoVersion = '5.20.0'
-    jacksonVersion = '2.15.2'
+    jacksonVersion = '2.19.2'
     resilience4jVersion = '2.1.0'
     springdocVersion = '2.6.0'
     jjwtVersion = '0.12.5'
@@ -108,6 +108,14 @@ dependencies {
     testImplementation "org.mockito:mockito-core:${mockitoVersion}"
     testImplementation 'org.springframework.kafka:spring-kafka-test'
     testImplementation 'org.testcontainers:kafka'
+}
+
+configurations.all {
+    resolutionStrategy {
+        force "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+        force "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
+        force "com.fasterxml.jackson.core:jackson-annotations:${jacksonVersion}"
+    }
 }
 
 tasks.named('test') {

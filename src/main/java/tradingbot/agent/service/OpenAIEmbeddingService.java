@@ -14,6 +14,8 @@ import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import tradingbot.bot.controller.exception.BotOperationException;
+
 /**
  * OpenAIEmbeddingService - OpenAI implementation of EmbeddingService
  * 
@@ -61,7 +63,7 @@ public class OpenAIEmbeddingService implements EmbeddingService {
             );
             
             if (response == null || response.data() == null || response.data().isEmpty()) {
-                throw new RuntimeException("OpenAI API returned empty response");
+                throw new BotOperationException("generate_embedding", "OpenAI API returned empty response");
             }
             
             var embedding = response.data().get(0).embedding();
@@ -71,7 +73,7 @@ public class OpenAIEmbeddingService implements EmbeddingService {
             
         } catch (Exception e) {
             logger.error("Failed to generate embedding", e);
-            throw new RuntimeException("Failed to generate embedding: " + e.getMessage(), e);
+            throw new BotOperationException("generate_embedding", "Failed to generate embedding: " + e.getMessage(), e);
         }
     }
     

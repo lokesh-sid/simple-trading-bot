@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import tradingbot.bot.controller.exception.BotOperationException;
 import tradingbot.bot.service.BinanceFuturesService.Candle;
 
 public class PaperFuturesExchangeService implements FuturesExchangeService {
@@ -37,7 +38,7 @@ public class PaperFuturesExchangeService implements FuturesExchangeService {
     public void enterLongPosition(String symbol, double tradeAmount) {
         double price = getCurrentPrice(symbol);
         double requiredMargin = tradeAmount * price / leverage;
-        if (marginBalance < requiredMargin) throw new RuntimeException("Insufficient margin");
+        if (marginBalance < requiredMargin) throw new BotOperationException("enterLongPosition", "Insufficient margin");
         marginBalance -= requiredMargin;
         positions.put(symbol + ":LONG", tradeAmount);
         entryPrices.put(symbol + ":LONG", price);
@@ -58,7 +59,7 @@ public class PaperFuturesExchangeService implements FuturesExchangeService {
     public void enterShortPosition(String symbol, double tradeAmount) {
         double price = getCurrentPrice(symbol);
         double requiredMargin = tradeAmount * price / leverage;
-        if (marginBalance < requiredMargin) throw new RuntimeException("Insufficient margin");
+        if (marginBalance < requiredMargin) throw new BotOperationException("enterShortPosition", "Insufficient margin");
         marginBalance -= requiredMargin;
         positions.put(symbol + ":SHORT", tradeAmount);
         entryPrices.put(symbol + ":SHORT", price);

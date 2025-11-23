@@ -11,6 +11,7 @@ import jakarta.validation.Validator;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import tradingbot.agent.TradingAgent;
+import tradingbot.bot.events.MarketDataEvent;
 import tradingbot.bot.model.MarketData;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
@@ -20,10 +21,12 @@ import tradingbot.bot.strategy.exit.PositionExitCondition;
 import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 import tradingbot.config.TradingConfig;
 
-public class FuturesTradingBot implements TradingAgent<MarketData> {
+public class FuturesTradingBot implements TradingAgent {
     private final Logger logger = Logger.getLogger(FuturesTradingBot.class.getName());
     private static final int CHECK_INTERVAL_SECONDS = 900; // 15 minutes
 
+    private final String id;
+    private final String name;
     private FuturesExchangeService exchangeService;
     private IndicatorCalculator indicatorCalculator;
     private TrailingStopTracker trailingStopTracker;
@@ -52,6 +55,8 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
     public int getCurrentLeverage() { return currentLeverage; }
 
     public FuturesTradingBot(BotParams params) {
+        this.id = params.id != null ? params.id : java.util.UUID.randomUUID().toString();
+        this.name = params.name != null ? params.name : "FuturesBot-" + this.id.substring(0, 8);
         this.exchangeService = params.exchangeService;
         this.indicatorCalculator = params.indicatorCalculator;
         this.trailingStopTracker = params.trailingStopTracker;
@@ -70,7 +75,20 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
         logInitialization();
     }
 
+    @Override
+    public String getId() {
+        return id;
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
+
+
     public static class BotParams {
+        private final String id;
+        private final String name;
         private final FuturesExchangeService exchangeService;
         private final IndicatorCalculator indicatorCalculator;
         private final TrailingStopTracker trailingStopTracker;
@@ -81,6 +99,8 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
         private final boolean skipLeverageInit;
 
         private BotParams(Builder builder) {
+            this.id = builder.id;
+            this.name = builder.name;
             this.exchangeService = builder.exchangeService;
             this.indicatorCalculator = builder.indicatorCalculator;
             this.trailingStopTracker = builder.trailingStopTracker;
@@ -90,6 +110,9 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
             this.direction = builder.direction;
             this.skipLeverageInit = builder.skipLeverageInit;
         }
+
+        public String getId() { return id; }
+        public String getName() { return name; }
 
         public FuturesExchangeService getExchangeService() {
             return exchangeService;
@@ -127,6 +150,9 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
             // Shared validator instance for better performance
             private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
             
+            private String id;
+            private String name;
+
             @NotNull(message = "Exchange service is required")
             private FuturesExchangeService exchangeService;
             
@@ -149,6 +175,16 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
             private TradeDirection direction;
             
             private boolean skipLeverageInit = false; // Default value
+
+            public Builder id(String id) {
+                this.id = id;
+                return this;
+            }
+
+            public Builder name(String name) {
+                this.name = name;
+                return this;
+            }
 
             /**
              * Sets the futures exchange service for executing trades.
@@ -292,6 +328,16 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
     }
 
     @Override
+    public void onEvent(Object event) {
+        if (event instanceof MarketDataEvent) {
+            // Treat MarketDataEvent as a trigger to fetch fresh analyzed data
+            MarketData marketData = fetchMarketData();
+            if (marketData != null) {
+                processMarketData(marketData);
+            }
+        }
+    }
+
     public void processMarketData(MarketData marketData) {
         // Invalidate or update cachedMarketData to avoid stale data
         cachedMarketData = marketData;
@@ -302,6 +348,7 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
     }
 
     @Override
+    @Deprecated
     public void executeTrade() {
         MarketData marketData = fetchMarketData();
         if (marketData != null && !isInPosition() && isEntrySignalValid(marketData)) {
@@ -354,7 +401,7 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
         running = true;
         while (running) {
             try {
-                processTradingCycle();
+                executeTradingStep();
                 Thread.sleep(CHECK_INTERVAL_SECONDS * 1000);
             } catch (InterruptedException e) {
                 logger.severe("Trading loop interrupted");
@@ -367,7 +414,10 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
         }
     }
 
-    private void processTradingCycle() {
+    public void executeTradingStep() {
+        // Invalidate cache at the start of each step to ensure fresh data for backtesting
+        cachedMarketData = null;
+        
         double currentPrice = exchangeService.getCurrentPrice(config.getSymbol());
         trailingStopTracker.updateTrailingStop(currentPrice);
 
@@ -411,7 +461,19 @@ public class FuturesTradingBot implements TradingAgent<MarketData> {
             logger.warning("Insufficient data for indicators");
             return null;
         }
-        cachedMarketData = new MarketData(dailyIndicators, weeklyIndicators);
+        
+        double currentPrice = exchangeService.getCurrentPrice(config.getSymbol());
+        
+        cachedMarketData = new MarketData(
+            dailyIndicators, 
+            weeklyIndicators, 
+            currentPrice, 
+            0.0, 
+            0.0, 
+            "UNKNOWN", 
+            "UNKNOWN", 
+            0.0
+        );
         return cachedMarketData;
     }
 

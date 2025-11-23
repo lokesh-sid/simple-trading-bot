@@ -1,24 +1,20 @@
 package tradingbot.bot.controller;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
+import tradingbot.AbstractHttpTest;
 import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.application.AgentService;
+import tradingbot.agent.manager.AgentManager;
+import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.controller.config.TradingBotControllerValidationTestConfig;
 import tradingbot.bot.messaging.EventPublisher;
-import tradingbot.bot.service.BotCacheService;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.config.InstanceConfig;
@@ -32,16 +28,13 @@ import tradingbot.config.InstanceConfig;
     webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @AutoConfigureMockMvc(addFilters = false)
-public abstract class AbstractControllerValidationTest {
-
-    @Autowired
-    protected MockMvc mockMvc;
-
-    @Autowired
-    protected ObjectMapper objectMapper;
+public abstract class AbstractControllerValidationTest extends AbstractHttpTest {
 
     @MockitoBean
-    protected BotCacheService botCacheService;
+    protected AgentManager agentManager;
+
+    @MockitoBean
+    protected AgentRepository agentRepository;
 
     @MockitoBean
     protected FuturesTradingBot tradingBot;
@@ -68,9 +61,7 @@ public abstract class AbstractControllerValidationTest {
      * Performs a POST request and expects validation failure with field errors.
      */
     protected ResultActions performValidationTest(String url, Object requestBody, String expectedField, String expectedMessage) throws Exception {
-        return mockMvc.perform(post(url)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(requestBody)))
+        return performPost(url, requestBody)
                .andExpect(status().isBadRequest())
                .andExpect(jsonPath("$.title").value("Validation Failed"))
                .andExpect(jsonPath("$.fieldErrors." + expectedField + "[0]").value(expectedMessage));
@@ -80,9 +71,7 @@ public abstract class AbstractControllerValidationTest {
      * Performs a request and expects it to pass validation (not return 400 with validation errors).
      */
     protected ResultActions performValidRequestTest(String url, Object requestBody) throws Exception {
-        return mockMvc.perform(post(url)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(requestBody)))
+        return performPost(url, requestBody)
                .andExpect(result -> {
                    int status = result.getResponse().getStatus();
                    if (status == 400) {

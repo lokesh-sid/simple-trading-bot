@@ -1,100 +1,198 @@
 
 package tradingbot;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-import static tradingbot.util.FuturesTradingBotTestUtils.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MvcResult;
 
-import tradingbot.bot.FuturesTradingBot;
-import tradingbot.bot.FuturesTradingBot.BotParams;
+import com.fasterxml.jackson.databind.JsonNode;
+
 import tradingbot.bot.TradeDirection;
-import tradingbot.bot.service.PaperFuturesExchangeService;
+import tradingbot.bot.controller.dto.request.BotStartRequest;
+import tradingbot.bot.messaging.EventPublisher;
+import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
-import tradingbot.bot.strategy.calculator.IndicatorCalculator;
-import tradingbot.bot.strategy.calculator.IndicatorValues;
-import tradingbot.bot.strategy.exit.PositionExitCondition;
-import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 
+/**
+ * Proper Integration Test for Futures Trading Bot
+ *
+ * Tests the complete bot lifecycle through REST API endpoints:
+ * - Create bot → Start bot → Check status → Stop bot → Delete bot
+ *
+ * Uses real Spring context, H2 database, and minimal mocking.
+ * Focuses on integration between controller, service, and persistence layers.
+ */
+@DisplayName("Futures Trading Bot Integration Tests")
+class FuturesTradingBotIntegrationTest extends AbstractIntegrationTest {
 
-class FuturesTradingBotIntegrationTest {
-    private PaperFuturesExchangeService paperExchange;
-    private IndicatorCalculator indicatorCalculator;
-    private TrailingStopTracker trailingStopTracker;
-    private SentimentAnalyzer sentimentAnalyzer;
-    private PositionExitCondition rsiExit;
-    private PositionExitCondition macdExit;
+    private static final String API_V1_BOTS = "/api/v1/bots";
 
-    // Initialize in a setup method
+    // Mock all external dependencies for integration testing
+    @MockitoBean
+    private FuturesExchangeService exchangeService; // Mock to avoid real API calls
+
+    @MockitoBean
+    private SentimentAnalyzer sentimentAnalyzer; // Mock to avoid real API calls
+
+    @MockitoBean
+    private EventPublisher eventPublisher; // Mock to avoid Kafka dependency
+
     @BeforeEach
     void setUp() {
-        paperExchange = mock(PaperFuturesExchangeService.class);
-        indicatorCalculator = mock(IndicatorCalculator.class);
-        trailingStopTracker = mock(TrailingStopTracker.class);
-        sentimentAnalyzer = mock(SentimentAnalyzer.class);
-        rsiExit = mock(PositionExitCondition.class);
-        macdExit = mock(PositionExitCondition.class);
+        // Clear any existing test data - mocked so no-op
     }
 
     @Test
-    @DisplayName("Integration Test: Long and Short Paper Trading")
-    void integrationTest_LongAndShortPaperTrading() {
+    @DisplayName("Complete Bot Lifecycle: Create → Start → Status → Stop → Delete")
+    void completeBotLifecycleIntegrationTest() throws Exception {
+        // Phase 1: Create a new bot
+        MvcResult createResult = performPost(API_V1_BOTS, null)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.botId").exists())
+                .andExpect(jsonPath("$.message").value("Trading bot created successfully"))
+                .andReturn();
 
-        var liquidationRiskExit = mock(PositionExitCondition.class);
-        List<PositionExitCondition> exitConditions = Arrays.asList(rsiExit, macdExit, liquidationRiskExit);
-        FuturesTradingBot.BotParams longPaperParams = getPaperExchangeParams(exitConditions, TradeDirection.LONG);
-        FuturesTradingBot.BotParams shortPaperParams = getBotParams(paperExchange, indicatorCalculator, trailingStopTracker, sentimentAnalyzer, exitConditions, TradeDirection.SHORT);
+        // Extract bot ID from response
+        JsonNode createResponse = objectMapper.readTree(createResult.getResponse().getContentAsString());
+        String botId = createResponse.get("botId").asText();
 
-        FuturesTradingBot longPaperBot = new FuturesTradingBot(longPaperParams);
-        FuturesTradingBot shortPaperBot = new FuturesTradingBot(shortPaperParams);
+        // Phase 2: Start the bot in paper trading mode
+        BotStartRequest startRequest = new BotStartRequest();
+        startRequest.setDirection(TradeDirection.LONG);
+        startRequest.setPaper(true);
 
-        // Simulate technical conditions for long
-        when(indicatorCalculator.computeIndicators("1d", SYMBOL)).thenReturn(new IndicatorValues());
-        when(indicatorCalculator.computeIndicators("1w", SYMBOL)).thenReturn(new IndicatorValues());
-        when(paperExchange.getCurrentPrice(SYMBOL)).thenReturn(50000.0);
-        when(paperExchange.getMarginBalance()).thenReturn(10000.0);
+        performPost(API_V1_BOTS + "/" + botId + "/start", startRequest)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("started in LONG mode (paper)")))
+                .andExpect(jsonPath("$.botStatus.running").value(true))
+                .andExpect(jsonPath("$.mode").value("paper"))
+                .andExpect(jsonPath("$.direction").value("LONG"));
 
-        invokePrivateMethod(longPaperBot, "enterPosition");
-        assertEquals("long", getFieldValue(longPaperBot, "positionStatus"));
+        // Phase 3: Check bot status
+        performGet(API_V1_BOTS + "/" + botId + "/status")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.running").value(true))
+                .andExpect(jsonPath("$.symbol").exists())
+                .andExpect(jsonPath("$.leverage").exists())
+                .andExpect(jsonPath("$.statusMessage").exists());
 
-        // Simulate technical conditions for short
-        invokePrivateMethod(shortPaperBot, "enterPosition");
-        assertEquals("short", getFieldValue(shortPaperBot, "positionStatus"));
+        // Phase 4: Stop the bot
+        performPut(API_V1_BOTS + "/" + botId + "/stop", null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("stopped successfully")))
+                .andExpect(jsonPath("$.wasRunning").value(true));
 
-        // Exit positions
-        invokePrivateMethod(longPaperBot, "exitPosition");
-        assertNull(getFieldValue(longPaperBot, "positionStatus"));
-        invokePrivateMethod(shortPaperBot, "exitPosition");
-        assertNull(getFieldValue(shortPaperBot, "positionStatus"));
+        // Phase 5: Delete the bot
+        performDelete(API_V1_BOTS + "/" + botId)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Bot " + botId + " deleted successfully"));
     }
 
-    private BotParams getPaperExchangeParams(List<PositionExitCondition> exitConditions, TradeDirection direction) {
-        return getBotParams(paperExchange, indicatorCalculator, trailingStopTracker, sentimentAnalyzer, exitConditions, direction);
+    @Test
+    @DisplayName("Bot Management: Multiple Bots Creation and Listing")
+    void multipleBotsManagementTest() throws Exception {
+        // Create multiple bots
+        MvcResult result1 = performPost(API_V1_BOTS, null).andExpect(status().isCreated()).andReturn();
+        String botId1 = objectMapper.readTree(result1.getResponse().getContentAsString()).get("botId").asText();
+
+        MvcResult result2 = performPost(API_V1_BOTS, null).andExpect(status().isCreated()).andReturn();
+        String botId2 = objectMapper.readTree(result2.getResponse().getContentAsString()).get("botId").asText();
+
+        MvcResult result3 = performPost(API_V1_BOTS, null).andExpect(status().isCreated()).andReturn();
+        String botId3 = objectMapper.readTree(result3.getResponse().getContentAsString()).get("botId").asText();
+
+        // List all bots
+        performGet(API_V1_BOTS)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.botIds").isArray())
+                .andExpect(jsonPath("$.activeInMemory").value(3))
+                .andExpect(jsonPath("$.pagination.totalElements").value(3));
+
+        // Start one bot
+        BotStartRequest startRequest = new BotStartRequest();
+        startRequest.setDirection(TradeDirection.SHORT);
+        startRequest.setPaper(true);
+
+        performPost(API_V1_BOTS + "/" + botId1 + "/start", startRequest)
+                .andExpect(status().isOk());
+
+        // Filter by running status
+        performGet(API_V1_BOTS + "?status=RUNNING")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.botIds").isArray())
+                .andExpect(jsonPath("$.pagination.totalElements").value(1));
+
+        // Filter by direction
+        performGet(API_V1_BOTS + "?direction=SHORT")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.botIds").isArray())
+                .andExpect(jsonPath("$.pagination.totalElements").value(1));
+
+        // Clean up
+        performDelete(API_V1_BOTS + "/" + botId1).andExpect(status().isOk());
+        performDelete(API_V1_BOTS + "/" + botId2).andExpect(status().isOk());
+        performDelete(API_V1_BOTS + "/" + botId3).andExpect(status().isOk());
     }
 
-    private void invokePrivateMethod(FuturesTradingBot bot, String methodName) {
-        try {
-            var method = FuturesTradingBot.class.getDeclaredMethod(methodName);
-            method.setAccessible(true);
-            method.invoke(bot);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to invoke private method: " + methodName, e);
-        }
+    @Test
+    @DisplayName("Error Handling: Bot Not Found Scenarios")
+    void botNotFoundErrorHandlingTest() throws Exception {
+        String nonExistentBotId = UUID.randomUUID().toString();
+
+        // Try to start non-existent bot
+        BotStartRequest startRequest = new BotStartRequest();
+        startRequest.setDirection(TradeDirection.LONG);
+        startRequest.setPaper(true);
+
+        mockMvc.perform(post("/api/v1/bots/{botId}/start", nonExistentBotId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(startRequest)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Bot Not Found"))
+                .andExpect(jsonPath("$.detail").value("Trading bot not found with ID: " + nonExistentBotId));
+
+        // Try to get status of non-existent bot
+        mockMvc.perform(get("/api/v1/bots/{botId}/status", nonExistentBotId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Bot Not Found"));
     }
 
-    private Object getFieldValue(FuturesTradingBot bot, String fieldName) {
-        try {
-            var field = FuturesTradingBot.class.getDeclaredField(fieldName);
-            field.setAccessible(true);
-            return field.get(bot);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to get field value: " + fieldName, e);
-        }
+    @Test
+    @DisplayName("Configuration Management: Leverage and Sentiment Updates")
+    void configurationManagementTest() throws Exception {
+        // Create bot
+        MvcResult createResult = performPost(API_V1_BOTS, null).andExpect(status().isCreated()).andReturn();
+        String botId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("botId").asText();
+
+        // Start bot first
+        BotStartRequest startRequest = new BotStartRequest();
+        startRequest.setDirection(TradeDirection.LONG);
+        startRequest.setPaper(true);
+
+        performPost(API_V1_BOTS + "/" + botId + "/start", startRequest)
+                .andExpect(status().isOk());
+
+        // Update leverage
+        performPost(API_V1_BOTS + "/" + botId + "/leverage", "{\"leverage\": 5}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Leverage updated to 5.0x")))
+                .andExpect(jsonPath("$.newLeverage").value(5));
+
+        // Enable sentiment analysis
+        performPost(API_V1_BOTS + "/" + botId + "/sentiment", "{\"enable\": true}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Sentiment analysis enabled")))
+                .andExpect(jsonPath("$.sentimentEnabled").value(true));
+
+        // Clean up
+        performDelete(API_V1_BOTS + "/" + botId).andExpect(status().isOk());
     }
 }

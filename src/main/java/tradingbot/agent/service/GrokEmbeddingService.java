@@ -14,6 +14,8 @@ import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import tradingbot.bot.controller.exception.BotOperationException;
+
 /**
  * GrokEmbeddingService - Grok-based implementation of EmbeddingService
  * 
@@ -71,7 +73,7 @@ public class GrokEmbeddingService implements EmbeddingService {
             
         } catch (Exception e) {
             logger.error("Failed to generate Grok embedding", e);
-            throw new RuntimeException("Failed to generate embedding: " + e.getMessage(), e);
+            throw new BotOperationException("generate_embedding", "Failed to generate embedding: " + e.getMessage(), e);
         }
     }
     

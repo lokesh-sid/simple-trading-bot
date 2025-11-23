@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.github.resilience4j.retry.annotation.Retry;
+import tradingbot.bot.controller.exception.BotOperationException;
 
 /**
  * Rate-limited wrapper for BinanceFuturesService using Resilience4j
@@ -133,7 +134,7 @@ public class RateLimitedBinanceFuturesService implements FuturesExchangeService 
      */
     public List<BinanceFuturesService.Candle> fallbackFetchOhlcv(String symbol, String timeframe, int limit, Exception ex) {
         logger.error("Circuit breaker fallback: Failed to fetch OHLCV data for {} - {}", symbol, ex.getMessage());
-        throw new RuntimeException("Binance API is currently unavailable. Please try again later.", ex);
+        throw new BotOperationException("fetch_ohlcv", ex.getMessage(), ex);
     }
 
     /**
@@ -141,7 +142,7 @@ public class RateLimitedBinanceFuturesService implements FuturesExchangeService 
      */
     public double fallbackGetCurrentPrice(String symbol, Exception ex) {
         logger.error("Circuit breaker fallback: Failed to fetch current price for {} - {}", symbol, ex.getMessage());
-        throw new RuntimeException("Binance API is currently unavailable. Please try again later.", ex);
+        throw new BotOperationException("fetch_price", ex.getMessage(), ex);
     }
 
     /**
@@ -149,7 +150,7 @@ public class RateLimitedBinanceFuturesService implements FuturesExchangeService 
      */
     public double fallbackGetMarginBalance(Exception ex) {
         logger.error("Circuit breaker fallback: Failed to fetch margin balance - {}", ex.getMessage());
-        throw new RuntimeException("Binance API is currently unavailable. Please try again later.", ex);
+        throw new BotOperationException("fetch_balance", ex.getMessage(), ex);
     }
 
     /**
@@ -157,7 +158,7 @@ public class RateLimitedBinanceFuturesService implements FuturesExchangeService 
      */
     public void fallbackSetLeverage(String symbol, int leverage, Exception ex) {
         logger.error("Circuit breaker fallback: Failed to set leverage for {} - {}", symbol, ex.getMessage());
-        throw new RuntimeException("Unable to set leverage. Binance API is currently unavailable.", ex);
+        throw new BotOperationException("set_leverage", ex.getMessage(), ex);
     }
 
     /**
@@ -165,7 +166,7 @@ public class RateLimitedBinanceFuturesService implements FuturesExchangeService 
      */
     public void fallbackEnterLongPosition(String symbol, double tradeAmount, Exception ex) {
         logger.error("Circuit breaker fallback: Failed to enter long position for {} - {}", symbol, ex.getMessage());
-        throw new RuntimeException("Unable to enter long position. Binance API is currently unavailable.", ex);
+        throw new BotOperationException("enter_long_position", ex.getMessage(), ex);
     }
 
     /**
@@ -173,7 +174,7 @@ public class RateLimitedBinanceFuturesService implements FuturesExchangeService 
      */
     public void fallbackEnterShortPosition(String symbol, double tradeAmount, Exception ex) {
         logger.error("Circuit breaker fallback: Failed to enter short position for {} - {}", symbol, ex.getMessage());
-        throw new RuntimeException("Unable to enter short position. Binance API is currently unavailable.", ex);
+        throw new BotOperationException("enter_short_position", ex.getMessage(), ex);
     }
 
     /**
@@ -181,7 +182,7 @@ public class RateLimitedBinanceFuturesService implements FuturesExchangeService 
      */
     public void fallbackExitLongPosition(String symbol, double tradeAmount, Exception ex) {
         logger.error("Circuit breaker fallback: Failed to exit long position for {} - {}", symbol, ex.getMessage());
-        throw new RuntimeException("Unable to exit long position. Binance API is currently unavailable.", ex);
+        throw new BotOperationException("exit_long_position", ex.getMessage(), ex);
     }
 
     /**
@@ -189,6 +190,6 @@ public class RateLimitedBinanceFuturesService implements FuturesExchangeService 
      */
     public void fallbackExitShortPosition(String symbol, double tradeAmount, Exception ex) {
         logger.error("Circuit breaker fallback: Failed to exit short position for {} - {}", symbol, ex.getMessage());
-        throw new RuntimeException("Unable to exit short position. Binance API is currently unavailable.", ex);
+        throw new BotOperationException("exit_short_position", ex.getMessage(), ex);
     }
 }

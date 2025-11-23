@@ -15,14 +15,14 @@ import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.annotation.EnableKafka;
-import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.client.RestTemplate;
 
+import net.devh.boot.grpc.server.autoconfigure.GrpcServerSecurityAutoConfiguration;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.FuturesTradingBot.BotParams;
-import tradingbot.bot.events.BotStatusEvent;
 import tradingbot.bot.TradeDirection;
+import tradingbot.bot.events.BotStatusEvent;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.messaging.EventTopic;
 import tradingbot.bot.service.FuturesExchangeService;
@@ -43,10 +43,10 @@ import tradingbot.config.InstanceConfig;
 import tradingbot.config.TradingConfig;
 
 @SpringBootApplication(exclude = {
-    net.devh.boot.grpc.server.autoconfigure.GrpcServerSecurityAutoConfiguration.class
+    GrpcServerSecurityAutoConfiguration.class
 })
 @EnableKafka  // Enable Kafka support
-@EnableAsync  // Enable async processing for CompletableFuture
+// @EnableAsync  // Moved to AsyncConfig
 @EnableScheduling
 @EnableCaching
 

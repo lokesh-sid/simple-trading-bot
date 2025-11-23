@@ -11,6 +11,8 @@ Thumbs.db
 build/
 target/
 out/
+bin/
+api-tests/
 
 # class files
 *.class
@@ -43,3 +45,4 @@ bin/presentation/simple_trading_architecture.pptx
 bin/presentation/Simple-Trading-Bot-Presentation.html
 
 
+gateway/nohup.out

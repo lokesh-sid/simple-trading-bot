@@ -19,19 +19,19 @@ public class TradingConfig implements Serializable {
     private static final double DEFAULT_BB_STD = 2.0;
     private static final int DEFAULT_INTERVAL = 900;
 
-    private final String symbol;
-    private final double tradeAmount;
-    private final int leverage;
-    private final double trailingStopPercent;
-    private final int lookbackPeriodRsi;
-    private final double rsiOversoldThreshold;
-    private final double rsiOverboughtThreshold;
-    private final int macdFastPeriod;
-    private final int macdSlowPeriod;
-    private final int macdSignalPeriod;
-    private final int bbPeriod;
-    private final double bbStandardDeviation;
-    private final int interval;
+    private String symbol;
+    private double tradeAmount;
+    private int leverage;
+    private double trailingStopPercent;
+    private int lookbackPeriodRsi;
+    private double rsiOversoldThreshold;
+    private double rsiOverboughtThreshold;
+    private int macdFastPeriod;
+    private int macdSlowPeriod;
+    private int macdSignalPeriod;
+    private int bbPeriod;
+    private double bbStandardDeviation;
+    private int interval;
 
     public TradingConfig() {
         this(
@@ -76,16 +76,41 @@ public class TradingConfig implements Serializable {
     }
 
     public String getSymbol() { return symbol; }
+    public void setSymbol(String symbol) { this.symbol = symbol; }
+    
     public double getTradeAmount() { return tradeAmount; }
+    public void setTradeAmount(double tradeAmount) { this.tradeAmount = tradeAmount; }
+    
     public int getLeverage() { return leverage; }
+    public void setLeverage(int leverage) { this.leverage = leverage; }
+    
     public double getTrailingStopPercent() { return trailingStopPercent; }
+    public void setTrailingStopPercent(double trailingStopPercent) { this.trailingStopPercent = trailingStopPercent; }
+    
     public int getLookbackPeriodRsi() { return lookbackPeriodRsi; }
+    public void setLookbackPeriodRsi(int lookbackPeriodRsi) { this.lookbackPeriodRsi = lookbackPeriodRsi; }
+    
     public double getRsiOversoldThreshold() { return rsiOversoldThreshold; }
+    public void setRsiOversoldThreshold(double rsiOversoldThreshold) { this.rsiOversoldThreshold = rsiOversoldThreshold; }
+    
     public double getRsiOverboughtThreshold() { return rsiOverboughtThreshold; }
+    public void setRsiOverboughtThreshold(double rsiOverboughtThreshold) { this.rsiOverboughtThreshold = rsiOverboughtThreshold; }
+    
     public int getMacdFastPeriod() { return macdFastPeriod; }
+    public void setMacdFastPeriod(int macdFastPeriod) { this.macdFastPeriod = macdFastPeriod; }
+    
     public int getMacdSlowPeriod() { return macdSlowPeriod; }
+    public void setMacdSlowPeriod(int macdSlowPeriod) { this.macdSlowPeriod = macdSlowPeriod; }
+    
     public int getMacdSignalPeriod() { return macdSignalPeriod; }
+    public void setMacdSignalPeriod(int macdSignalPeriod) { this.macdSignalPeriod = macdSignalPeriod; }
+    
     public int getBbPeriod() { return bbPeriod; }
+    public void setBbPeriod(int bbPeriod) { this.bbPeriod = bbPeriod; }
+    
     public double getBbStandardDeviation() { return bbStandardDeviation; }
+    public void setBbStandardDeviation(double bbStandardDeviation) { this.bbStandardDeviation = bbStandardDeviation; }
+    
     public int getInterval() { return interval; }
+    public void setInterval(int interval) { this.interval = interval; }
 }
