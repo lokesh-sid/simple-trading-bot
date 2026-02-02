@@ -1,0 +1,46 @@
+// Example: LangChain4j abstracts prompt engineering, output parsing, and tool invocation
+
+// 1. Define your tools as Java methods
+
+import org.springframework.beans.factory.annotation.Autowired;
+
+import dev.langchain4j.agent.tool.Tool;
+import dev.langchain4j.service.SystemMessage;
+
+public class TradingTools {
+    @Tool("Place a market order")
+    public String placeOrder(String symbol, double qty) {
+        // ... actual order logic ...
+        return "Order placed for " + symbol + ", qty: " + qty;
+    }
+
+    @Tool("Get the latest price for a symbol")
+    public double getPrice(String symbol) {
+        // ... fetch price logic ...
+        return 45000.0;
+    }
+}
+
+// 2. Define your agent interface
+@AiService(tools = TradingTools.class)
+public interface TradingAgentService {
+    @SystemMessage("You are a trading agent. Use tools to act. Always explain your reasoning.")
+    String decide(String marketSituation);
+}
+
+// 3. Use the agent in your orchestrator or service
+@Autowired
+TradingAgentService tradingAgentService;
+
+public void agentLoop() {
+    String marketSituation = "BTCUSDT price is 45000.0, uptrend.";
+    String result = tradingAgentService.decide(marketSituation);
+    // result contains the agent's reasoning and actions, tools are invoked automatically
+}
+
+// LangChain4j handles:
+// - Building the prompt for the LLM
+// - Parsing the LLM's structured output
+// - Invoking the correct Java method when the LLM calls a tool
+// - Managing chat/memory context
+// - Returning the final result to your code

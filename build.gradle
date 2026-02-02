@@ -31,6 +31,7 @@ ext {
     grpcSpringBootVersion = '3.1.0.RELEASE'
     protobufVersion = '3.25.1'
     mapstructVersion = '1.5.5.Final'
+    langchain4jVersion = '0.36.2'
 }
 
 dependencies {
@@ -101,6 +102,10 @@ dependencies {
     implementation "net.devh:grpc-client-spring-boot-starter:${grpcSpringBootVersion}"
     implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
     compileOnly "org.apache.tomcat:annotations-api:6.0.53" // For javax.annotation.Generated
+    
+    // LangChain4j dependencies for agentic AI
+    implementation "dev.langchain4j:langchain4j:${langchain4jVersion}"
+    implementation "dev.langchain4j:langchain4j-open-ai:${langchain4jVersion}"
     
     // Test dependencies
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

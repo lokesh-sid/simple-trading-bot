@@ -1,0 +1,374 @@
+package tradingbot.agent.application.strategy;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import tradingbot.agent.domain.model.Agent;
+import tradingbot.agent.domain.model.AgentGoal;
+import tradingbot.agent.service.RAGService;
+import tradingbot.agent.service.TradingAgentService;
+
+/**
+ * Unit tests for LangChain4jStrategy
+ * 
+ * Tests the agentic strategy that uses LangChain4j framework:
+ * - Autonomous tool invocation
+ * - RAG context preparation
+ * - Response parsing
+ * - Experience storage
+ */
+@ExtendWith(MockitoExtension.class)
+class LangChain4jStrategyTest {
+    
+    @Mock
+    private TradingAgentService tradingAgentService;
+    
+    @Mock
+    private RAGService ragService;
+    
+    @InjectMocks
+    private LangChain4jStrategy strategy;
+    
+    private Agent testAgent;
+    
+    @BeforeEach
+    void setUp() {
+        AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Maximize profits");
+        testAgent = Agent.create("Agentic Agent", goal, "BTCUSDT", 10000.0);
+        
+        // Set RAG enabled by default
+        ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+    }
+    
+    @Test
+    void testGetStrategyName() {
+        assertEquals("LangChain4j Agentic", strategy.getStrategyName());
+    }
+    
+    @Test
+    void testExecuteIteration_CallsTradingAgentService() {
+        // Given
+        String mockResponse = "After analyzing the market, I recommend BUY. Confidence: 85%";
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn(mockResponse);
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        verify(tradingAgentService).analyzeAndDecide(
+            eq("BTCUSDT"),
+            eq(testAgent.getGoal().toString()),
+            eq(10000.0),
+            anyInt(),
+            anyString()
+        );
+    }
+    
+    @Test
+    void testExecuteIteration_ParsesAgentResponse() {
+        // Given
+        String mockResponse = "I analyzed the market using tools. Decision: BUY. Confidence: 92%";
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn(mockResponse);
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        assertNotNull(testAgent.getLastReasoning());
+        assertTrue(testAgent.getLastReasoning().getAnalysis().contains("analyzed"));
+    }
+    
+    @Test
+    void testExecuteIteration_ExtractsConfidenceFromResponse() {
+        // Given
+        String mockResponse = "Market analysis complete. Recommendation: BUY. Confidence: 78%";
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn(mockResponse);
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        assertEquals(78, testAgent.getLastReasoning().getConfidence());
+    }
+    
+    @Test
+    void testExecuteIteration_DefaultConfidenceWhenNotSpecified() {
+        // Given
+        String mockResponse = "Market looks good. I recommend buying Bitcoin.";
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn(mockResponse);
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        assertEquals(70, testAgent.getLastReasoning().getConfidence());
+    }
+    
+    @Test
+    void testExecuteIteration_BuyRecommendation() {
+        // Given
+        String mockResponse = "After using getCurrentPrice() and calculateRSI(), I recommend BUY. Confidence: 85%";
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn(mockResponse);
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        assertTrue(testAgent.getLastReasoning().getRecommendation().contains("BUY"));
+    }
+    
+    @Test
+    void testExecuteIteration_SellRecommendation() {
+        // Given
+        String mockResponse = "Market is overbought. Decision: SELL. Confidence: 80%";
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn(mockResponse);
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        assertTrue(testAgent.getLastReasoning().getRecommendation().contains("SELL"));
+    }
+    
+    @Test
+    void testExecuteIteration_HoldRecommendation() {
+        // Given
+        String mockResponse = "Market conditions unclear. Recommendation: HOLD. Confidence: 50%";
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn(mockResponse);
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        assertEquals("HOLD", testAgent.getLastReasoning().getRecommendation());
+    }
+    
+    @Test
+    void testExecuteIteration_WithRAGContext() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+        
+        ArgumentCaptor<String> ragContextCaptor = ArgumentCaptor.forClass(String.class);
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), ragContextCaptor.capture()))
+            .thenReturn("Decision: BUY");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        String capturedContext = ragContextCaptor.getValue();
+        assertNotNull(capturedContext);
+        verify(tradingAgentService).analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString());
+    }
+    
+    @Test
+    void testExecuteIteration_WithoutRAGContext() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", false);
+        
+        ArgumentCaptor<String> ragContextCaptor = ArgumentCaptor.forClass(String.class);
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), ragContextCaptor.capture()))
+            .thenReturn("Decision: BUY");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        String capturedContext = ragContextCaptor.getValue();
+        assertEquals("", capturedContext);
+    }
+    
+    @Test
+    void testExecuteIteration_UpdatesAgentState() {
+        // Given
+        String mockResponse = "Analysis complete. Decision: BUY. Confidence: 88%";
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn(mockResponse);
+        
+        int initialIterationCount = testAgent.getState().getIterationCount();
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        assertNotNull(testAgent.getLastReasoning());
+        assertTrue(testAgent.getState().getIterationCount() > initialIterationCount);
+    }
+    
+    @Test
+    void testExecuteIteration_PassesCorrectSymbol() {
+        // Given
+        AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "ETH trading");
+        Agent ethAgent = Agent.create("ETH Agent", goal, "ETHUSDT", 5000.0);
+        
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Decision: BUY");
+        
+        // When
+        strategy.executeIteration(ethAgent);
+        
+        // Then
+        verify(tradingAgentService).analyzeAndDecide(
+            eq("ETHUSDT"),
+            anyString(),
+            eq(5000.0),
+            anyInt(),
+            anyString()
+        );
+    }
+    
+    @Test
+    void testExecuteIteration_PassesCorrectGoal() {
+        // Given
+        AgentGoal hedgeGoal = new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Risk mitigation");
+        Agent hedgeAgent = Agent.create("Hedge Agent", hedgeGoal, "BTCUSDT", 10000.0);
+        
+        ArgumentCaptor<String> goalCaptor = ArgumentCaptor.forClass(String.class);
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), goalCaptor.capture(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Decision: HOLD");
+        
+        // When
+        strategy.executeIteration(hedgeAgent);
+        
+        // Then
+        String capturedGoal = goalCaptor.getValue();
+        assertTrue(capturedGoal.contains("HEDGE_RISK"));
+    }
+    
+    @Test
+    void testExecuteIteration_PassesCorrectCapital() {
+        // Given
+        double capital = 25000.0;
+        AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Big account");
+        Agent bigAgent = Agent.create("Big Agent", goal, "BTCUSDT", capital);
+        
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Decision: BUY");
+        
+        // When
+        strategy.executeIteration(bigAgent);
+        
+        // Then
+        verify(tradingAgentService).analyzeAndDecide(
+            anyString(),
+            anyString(),
+            eq(capital),
+            anyInt(),
+            anyString()
+        );
+    }
+    
+    @Test
+    void testExecuteIteration_HandlesMultipleIterations() {
+        // Given
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Iteration 1: BUY")
+            .thenReturn("Iteration 2: HOLD")
+            .thenReturn("Iteration 3: SELL");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        int iteration1Count = testAgent.getState().getIterationCount();
+        
+        strategy.executeIteration(testAgent);
+        int iteration2Count = testAgent.getState().getIterationCount();
+        
+        strategy.executeIteration(testAgent);
+        int iteration3Count = testAgent.getState().getIterationCount();
+        
+        // Then
+        assertTrue(iteration2Count > iteration1Count);
+        assertTrue(iteration3Count > iteration2Count);
+        verify(tradingAgentService, times(3)).analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString());
+    }
+    
+    @Test
+    void testExecuteIteration_ParsesConfidenceWithColon() {
+        // Given
+        String mockResponse = "Analysis: BUY recommended. Confidence: 95%";
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn(mockResponse);
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        assertEquals(95, testAgent.getLastReasoning().getConfidence());
+    }
+    
+    @Test
+    void testExecuteIteration_ParsesConfidenceWithSpace() {
+        // Given
+        String mockResponse = "Analysis: BUY recommended. Confidence 82%";
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn(mockResponse);
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        assertEquals(82, testAgent.getLastReasoning().getConfidence());
+    }
+    
+    @Test
+    void testExecuteIteration_HandlesLongResponse() {
+        // Given
+        String longResponse = """
+            I've analyzed the market using multiple tools:
+            1. getCurrentPrice() returned $45,000
+            2. calculateRSI(14) returned 65 (neutral)
+            3. get24HourVolume() shows strong activity
+            
+            Based on this analysis, I recommend BUY with stop-loss at $44,000
+            and take-profit at $47,000.
+            
+            Confidence: 87%
+            """;
+        
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn(longResponse);
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        assertEquals(87, testAgent.getLastReasoning().getConfidence());
+        assertTrue(testAgent.getLastReasoning().getRecommendation().contains("BUY"));
+    }
+}
