@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import tradingbot.agent.application.strategy.AgentStrategy;
 import tradingbot.agent.application.strategy.LangChain4jStrategy;
@@ -64,6 +65,7 @@ public class AgentOrchestrator {
      * Main agent loop - runs every 30 seconds
      */
     @Scheduled(fixedDelay = 30000, initialDelay = 10000)
+    @Transactional
     public void executeAgentLoop() {
         logger.debug("Starting agent orchestration cycle");
         

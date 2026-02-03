@@ -26,6 +26,7 @@ import tradingbot.bot.events.BotStatusEvent;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.messaging.EventTopic;
 import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.bot.service.PaperFuturesExchangeService;
 import tradingbot.bot.service.RateLimitedBinanceFuturesService;
 import tradingbot.bot.service.RateLimitedBybitFuturesService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
@@ -87,6 +88,10 @@ public class SimpleTradingBotApplication {
             case "binance" -> {
                 logger.info("Using Binance Futures exchange");
                 yield new RateLimitedBinanceFuturesService(binanceApiKey, binanceApiSecret);
+            }
+            case "paper" -> {
+                logger.info("Using Paper trading exchange");
+                yield new PaperFuturesExchangeService();
             }
             case "bybit" -> {
                 logger.info("Using Bybit Futures exchange (domain: {})", bybitDomain);

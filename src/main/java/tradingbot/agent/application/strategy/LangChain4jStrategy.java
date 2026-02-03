@@ -59,11 +59,14 @@ public class LangChain4jStrategy implements AgentStrategy {
         
         logger.info("Agent {} decision: {}", agent.getId(), agentResponse);
         
-        // 3. Parse and store the reasoning
+        // 3. Update agent state
+        agent.getState().incrementIteration();
+
+        // 4. Parse and store the reasoning
         Reasoning reasoning = parseAgentResponse(agentResponse);
         agent.reason(reasoning);
         
-        // 4. Store this experience in RAG for future learning
+        // 5. Store this experience in RAG for future learning
         if (ragEnabled) {
             storeExperience(agent, reasoning);
         }
@@ -111,8 +114,9 @@ public class LangChain4jStrategy implements AgentStrategy {
      */
     private Reasoning parseAgentResponse(String agentResponse) {
         int confidence = 70;
+        // Case-insensitive check and split
         if (agentResponse.toLowerCase().contains("confidence")) {
-            String[] parts = agentResponse.split("confidence[:\\s]+");
+            String[] parts = agentResponse.split("(?i)confidence[:\\s]+");
             if (parts.length > 1) {
                 String confStr = parts[1].replaceAll("\\D", "");
                 if (!confStr.isEmpty()) {
@@ -121,11 +125,18 @@ public class LangChain4jStrategy implements AgentStrategy {
             }
         }
         
+        String recommendation = "HOLD";
+        if (agentResponse.contains("BUY")) {
+            recommendation = "BUY";
+        } else if (agentResponse.contains("SELL")) {
+            recommendation = "SELL";
+        }
+
         return new Reasoning(
             "Market analysis completed",
             agentResponse,
             "Agent used tools to analyze market and make decision",
-            agentResponse.contains("BUY") || agentResponse.contains("SELL") ? "Execute trade" : "HOLD",
+            recommendation,
             confidence,
             Instant.now()
         );

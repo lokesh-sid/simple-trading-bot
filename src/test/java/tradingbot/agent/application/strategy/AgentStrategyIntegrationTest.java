@@ -31,7 +31,8 @@ import tradingbot.agent.service.TradingAgentService;
 @SpringBootTest(properties = {
     "agent.orchestrator.enabled=false",  // Disable scheduled execution
     "rag.order.dry-run=true",
-    "rag.enabled=false"
+    "rag.enabled=false",
+    "spring.main.allow-bean-definition-overriding=true"
 })
 @ActiveProfiles("test")
 class AgentStrategyIntegrationTest {

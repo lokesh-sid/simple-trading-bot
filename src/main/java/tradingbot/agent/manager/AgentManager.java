@@ -13,8 +13,8 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import tradingbot.agent.TradingAgent;
 import tradingbot.agent.factory.AgentFactory;
-import tradingbot.agent.persistence.AgentEntity;
 import tradingbot.agent.persistence.AgentRepository;
+import tradingbot.agent.persistence.LegacyAgentEntity;
 
 @Service
 public class AgentManager {
@@ -32,13 +32,13 @@ public class AgentManager {
     @PostConstruct
     public void loadAgents() {
         log.info("Loading agents from database...");
-        List<AgentEntity> entities = agentRepository.findAll();
-        for (AgentEntity entity : entities) {
+        List<LegacyAgentEntity> entities = agentRepository.findAll();
+        for (LegacyAgentEntity entity : entities) {
             try {
                 TradingAgent agent = agentFactory.createAgent(entity);
                 agents.put(agent.getId(), agent);
                 
-                if (entity.getStatus() == AgentEntity.AgentStatus.RUNNING) {
+                if (entity.getStatus() == LegacyAgentEntity.AgentStatus.RUNNING) {
                     log.info("Starting agent: {}", agent.getName());
                     agent.start();
                 }
@@ -60,7 +60,7 @@ public class AgentManager {
         if (agent != null) {
             if (!agent.isRunning()) {
                 agent.start();
-                updateAgentStatus(id, AgentEntity.AgentStatus.RUNNING);
+                updateAgentStatus(id, LegacyAgentEntity.AgentStatus.RUNNING);
                 log.info("Agent {} started", id);
             }
         } else {
@@ -73,7 +73,7 @@ public class AgentManager {
         if (agent != null) {
             if (agent.isRunning()) {
                 agent.stop();
-                updateAgentStatus(id, AgentEntity.AgentStatus.STOPPED);
+                updateAgentStatus(id, LegacyAgentEntity.AgentStatus.STOPPED);
                 log.info("Agent {} stopped", id);
             }
         } else {
@@ -107,7 +107,7 @@ public class AgentManager {
         return new ArrayList<>(agents.values());
     }
     
-    private void updateAgentStatus(String id, AgentEntity.AgentStatus status) {
+    private void updateAgentStatus(String id, LegacyAgentEntity.AgentStatus status) {
         agentRepository.findById(id).ifPresent(entity -> {
             entity.setStatus(status);
             entity.setUpdatedAt(java.time.Instant.now());
@@ -115,7 +115,7 @@ public class AgentManager {
         });
     }
 
-    public TradingAgent createAgent(AgentEntity entity) {
+    public TradingAgent createAgent(LegacyAgentEntity entity) {
         agentRepository.save(entity);
         TradingAgent agent = agentFactory.createAgent(entity);
         agents.put(agent.getId(), agent);

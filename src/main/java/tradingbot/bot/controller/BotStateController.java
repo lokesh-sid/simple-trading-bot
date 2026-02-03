@@ -22,7 +22,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import tradingbot.agent.TradingAgent;
 import tradingbot.agent.manager.AgentManager;
-import tradingbot.agent.persistence.AgentEntity;
+import tradingbot.agent.persistence.LegacyAgentEntity;
 import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.controller.dto.request.BotStateUpdateRequest;
@@ -187,7 +187,7 @@ public class BotStateController {
         
         // Update entity
         agentRepository.findById(botId).ifPresent(entity -> {
-            entity.setStatus(AgentEntity.AgentStatus.STOPPED);
+            entity.setStatus(LegacyAgentEntity.AgentStatus.STOPPED);
             entity.setUpdatedAt(Instant.now());
             agentRepository.save(entity);
         });
@@ -209,10 +209,10 @@ public class BotStateController {
         
         // Update entity
         agentRepository.findById(botId).ifPresent(entity -> {
-            // Maybe add PAUSED status to AgentEntity?
+            // Maybe add PAUSED status to LegacyAgentEntity?
             // For now use STOPPED but log reason?
             // Or just STOPPED.
-            entity.setStatus(AgentEntity.AgentStatus.STOPPED);
+            entity.setStatus(LegacyAgentEntity.AgentStatus.STOPPED);
             entity.setUpdatedAt(Instant.now());
             agentRepository.save(entity);
         });

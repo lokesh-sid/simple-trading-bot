@@ -33,8 +33,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import tradingbot.agent.TradingAgent;
 import tradingbot.agent.manager.AgentManager;
-import tradingbot.agent.persistence.AgentEntity;
 import tradingbot.agent.persistence.AgentRepository;
+import tradingbot.agent.persistence.LegacyAgentEntity;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.controller.dto.request.BotStartRequest;
 import tradingbot.bot.controller.dto.request.LeverageUpdateRequest;
@@ -106,12 +106,12 @@ public class TradingBotController {
         
         TradingConfig config = new TradingConfig(); // Default config
         
-        AgentEntity entity = new AgentEntity();
+        LegacyAgentEntity entity = new LegacyAgentEntity();
         entity.setId(botId);
         entity.setName("Bot-" + botId.substring(0, 8));
         entity.setType("FUTURES");
         entity.setSymbol(config.getSymbol());
-        entity.setStatus(AgentEntity.AgentStatus.CREATED);
+        entity.setStatus(LegacyAgentEntity.AgentStatus.CREATED);
         entity.setDirection("LONG");
         entity.setSentimentEnabled(false);
         entity.setCreatedAt(java.time.Instant.now());
@@ -150,7 +150,7 @@ public class TradingBotController {
             @PathVariable @ValidBotId String botId,
             @Valid @RequestBody BotStartRequest request) {
         
-        AgentEntity entity = agentRepository.findById(botId)
+        LegacyAgentEntity entity = agentRepository.findById(botId)
             .orElseThrow(() -> new BotNotFoundException(botId));
         
         // Check if bot is already running
@@ -223,7 +223,7 @@ public class TradingBotController {
         
         // Update entity status
         agentRepository.findById(botId).ifPresent(entity -> {
-            entity.setStatus(AgentEntity.AgentStatus.STOPPED);
+            entity.setStatus(LegacyAgentEntity.AgentStatus.STOPPED);
             entity.setUpdatedAt(java.time.Instant.now());
             agentRepository.save(entity);
         });
@@ -288,7 +288,7 @@ public class TradingBotController {
             @PathVariable @ValidBotId String botId,
             @Valid @RequestBody TradingConfig config) {
         
-        AgentEntity entity = agentRepository.findById(botId)
+        LegacyAgentEntity entity = agentRepository.findById(botId)
             .orElseThrow(() -> new BotNotFoundException(botId));
             
         try {
@@ -439,10 +439,10 @@ public class TradingBotController {
         }
 
         // Get all entities
-        List<AgentEntity> allAgents = agentRepository.findAll();
+        List<LegacyAgentEntity> allAgents = agentRepository.findAll();
         
         // Filter
-        List<AgentEntity> filteredAgents = allAgents.stream()
+        List<LegacyAgentEntity> filteredAgents = allAgents.stream()
             .filter(agent -> matchesFilters(agent, status, paper, direction, search))
             .collect(Collectors.toList());
 
@@ -487,7 +487,7 @@ public class TradingBotController {
     /**
      * Check if bot state matches filter criteria
      */
-    private boolean matchesFilters(AgentEntity agent, String status, Boolean paper, String direction, String search) {
+    private boolean matchesFilters(LegacyAgentEntity agent, String status, Boolean paper, String direction, String search) {
         // Filter by status
         if (status != null && !status.isEmpty()) {
             if (!agent.getStatus().name().equalsIgnoreCase(status)) {
@@ -528,7 +528,7 @@ public class TradingBotController {
     /**
      * Sort bots based on sort field and order
      */
-    private void sortAgents(List<AgentEntity> agents, String sortBy, String sortOrder) {
+    private void sortAgents(List<LegacyAgentEntity> agents, String sortBy, String sortOrder) {
         boolean ascending = "ASC".equalsIgnoreCase(sortOrder);
 
         agents.sort((a1, a2) -> {

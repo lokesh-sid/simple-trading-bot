@@ -11,7 +11,7 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "trading_agents")
-public class AgentEntity {
+public class LegacyAgentEntity {
 
     @Id
     @Column(length = 36)
@@ -54,9 +54,9 @@ public class AgentEntity {
     }
 
     // Constructors
-    public AgentEntity() {}
+    public LegacyAgentEntity() {}
 
-    public AgentEntity(String id, String name, String type, String symbol, AgentStatus status, String configurationJson) {
+    public LegacyAgentEntity(String id, String name, String type, String symbol, AgentStatus status, String configurationJson) {
         this.id = id;
         this.name = name;
         this.type = type;

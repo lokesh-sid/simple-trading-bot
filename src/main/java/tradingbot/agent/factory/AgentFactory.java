@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import tradingbot.agent.TradingAgent;
-import tradingbot.agent.persistence.AgentEntity;
+import tradingbot.agent.persistence.LegacyAgentEntity;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.FuturesTradingBot.BotParams;
 import tradingbot.bot.TradeDirection;
@@ -60,7 +60,7 @@ public class AgentFactory {
         this.objectMapper = objectMapper;
     }
 
-    public TradingAgent createAgent(AgentEntity entity) {
+    public TradingAgent createAgent(LegacyAgentEntity entity) {
         try {
             TradingConfig config = objectMapper.readValue(entity.getConfigurationJson(), TradingConfig.class);
             
@@ -81,7 +81,7 @@ public class AgentFactory {
         }
     }
 
-    private FuturesTradingBot createFuturesTradingBot(AgentEntity entity, TradingConfig config) {
+    private FuturesTradingBot createFuturesTradingBot(LegacyAgentEntity entity, TradingConfig config) {
         boolean isPaper = "FUTURES_PAPER".equalsIgnoreCase(entity.getType());
         FuturesExchangeService exchangeService = isPaper ? new PaperFuturesExchangeService() : this.realExchangeService;
 
