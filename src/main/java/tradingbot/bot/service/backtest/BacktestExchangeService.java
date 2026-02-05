@@ -6,6 +6,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +47,12 @@ public class BacktestExchangeService implements FuturesExchangeService {
         this.currentIndex = currentIndex;
         this.currentCandle = history.get(currentIndex);
         this.currentTime = currentCandle.getCloseTime(); 
+        
+        // Phase 2: Environment Check
         checkLiquidations();
+        
+        // Phase 3: Order Execution
+        processPendingOrders();
     }
 
     private void checkLiquidations() {
@@ -86,12 +92,16 @@ public class BacktestExchangeService implements FuturesExchangeService {
     public void processPendingOrders() {
         while (!pendingOrders.isEmpty()) {
             PendingOrder order = pendingOrders.peek();
-            if (currentTime >= order.executionTime) {
-                pendingOrders.poll();
-                executeOrder(order);
-            } else {
-                break;
+            
+            // Check 1: Latency simulation (Time must have passed)
+            if (currentTime < order.executionTime) {
+                break; 
             }
+            
+            // Check 2: Price Reachability (Simple simulation)
+            // For now, we simply execute assuming market orders or valid fills
+            pendingOrders.poll();
+            executeOrder(order);
         }
     }
 
@@ -108,12 +118,18 @@ public class BacktestExchangeService implements FuturesExchangeService {
     }
 
     private double calculateExecutionPrice(PendingOrder order) {
-        double price = currentCandle.getClose().doubleValue();
-        // 1. Apply Slippage
+        // Use Open price as the base for execution (Simulating 'Next Candle Open' execution)
+        double price = currentCandle.getOpen().doubleValue();
+        
+        // 1. Generate Realistic Slippage (random between 0.05% and 0.1%)
+        // This simulates price movement in the seconds/milliseconds after open
+        double randomSlippage = ThreadLocalRandom.current().nextDouble(0.0005, 0.001);
+
+        // 2. Apply Slippage against the trade direction (Buy High, Sell Low)
         if (order.type == OrderType.BUY) {
-            return price * (1 + slippagePercent);
+            return price * (1 + randomSlippage);
         } else {
-            return price * (1 - slippagePercent);
+            return price * (1 - randomSlippage);
         }
     }
 
