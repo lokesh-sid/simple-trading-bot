@@ -10,7 +10,9 @@ import org.springframework.stereotype.Component;
 
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.Reasoning;
+import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.domain.model.TradeMemory;
+import tradingbot.agent.domain.model.TradeOutcome;
 import tradingbot.agent.service.RAGService;
 import tradingbot.agent.service.TradingAgentService;
 
@@ -22,6 +24,7 @@ import tradingbot.agent.service.TradingAgentService;
  * - Analyzes conditions using reasoning
  * - Places orders through tool invocation
  * - Maintains context across calls
+ * - Learns from historical trades via RAG
  */
 @Component
 public class LangChain4jStrategy implements AgentStrategy {
@@ -87,8 +90,15 @@ public class LangChain4jStrategy implements AgentStrategy {
             return "";
         }
         
-        // TODO: Implement retrieveSimilarTrades method in RAGService
-        List<TradeMemory> similarTrades = List.of();
+        // Construct query context from agent state
+        String queryContext = String.format("%s %s goal:%s", 
+            agent.getTradingSymbol(),
+            agent.getGoal().getType(),
+            agent.getGoal().getDescription()
+        );
+        
+        // Retrieve similar trades from RAG service
+        List<TradeMemory> similarTrades = ragService.retrieveSimilarTrades(queryContext, 3);
         
         if (similarTrades.isEmpty()) {
             return "No historical trading data available yet.";
@@ -99,12 +109,20 @@ public class LangChain4jStrategy implements AgentStrategy {
         
         for (int i = 0; i < similarTrades.size(); i++) {
             TradeMemory memory = similarTrades.get(i);
-            context.append(String.format("%d. %s - %s\n", 
+            context.append(String.format("%d. %s - %s%n", 
                 i + 1, memory.getSymbol(), memory.getOutcome()));
-            context.append(String.format("   Direction: %s\n", memory.getDirection()));
-            context.append(String.format("   Entry: $%.2f\n", memory.getEntryPrice()));
-            context.append(String.format("   Result: %s\n\n", memory.getOutcome()));
+            
+            // Safe null handling
+            String direction = memory.getDirection() != null ? memory.getDirection().name() : "UNKNOWN";
+            context.append(String.format("   Direction: %s%n", direction));
+            context.append(String.format("   Entry: $%.2f, Exit: $%.2f%n", 
+                memory.getEntryPrice(), memory.getExitPrice()));
+            context.append(String.format("   Profit: %.2f%%%n", memory.getProfitPercent()));
+            context.append(String.format("   Lesson: %s%n%n", memory.getLessonLearned()));
         }
+        
+        logger.debug("Retrieved {} similar historical trades for agent {}", 
+            similarTrades.size(), agent.getId());
         
         return context.toString();
     }
@@ -144,14 +162,55 @@ public class LangChain4jStrategy implements AgentStrategy {
     
     /**
      * Store this trading experience in RAG for future learning
+     * Note: This stores the DECISION intent. The actual trade outcome
+     * will be updated later when the position closes.
      */
     private void storeExperience(Agent agent, Reasoning reasoning) {
         try {
-            // TODO: Store trade memory properly once executed
-            logger.debug("Stored trade memory for future RAG retrieval");
+            // Build scenario description for semantic embedding
+            String scenarioDescription = String.format(
+                "%s %s decision with %d%% confidence. Risk: %s",
+                agent.getTradingSymbol(),
+                reasoning.getRecommendation(),
+                reasoning.getConfidence(),
+                reasoning.getRiskAssessment()
+            );
+            
+            // Map recommendation to trade direction
+            TradeDirection direction = mapRecommendationToDirection(reasoning.getRecommendation());
+            
+            // Store trade memory (entry/exit prices and outcome will be updated later)
+            ragService.storeTradeMemory(
+                agent.getId().toString(),
+                agent.getTradingSymbol(),
+                scenarioDescription,
+                direction,
+                0.0, // entryPrice - will be updated when order fills
+                null, // exitPrice - will be updated when position closes
+                TradeOutcome.PENDING, // outcome - will be updated on trade completion
+                null, // profitPercent - calculated on exit
+                reasoning.getAnalysis() // Store reasoning as initial lesson
+            );
+            
+            logger.debug("Stored trade decision memory for agent {} - {} with confidence {}%", 
+                agent.getId(), 
+                reasoning.getRecommendation(),
+                reasoning.getConfidence());
         } catch (Exception e) {
-            logger.warn("Failed to store trade memory: {}", e.getMessage());
+            logger.warn("Failed to store trade memory for agent {}: {}", 
+                agent.getId(), e.getMessage());
         }
+    }
+    
+    /**
+     * Map recommendation string to trade direction
+     */
+    private TradeDirection mapRecommendationToDirection(String recommendation) {
+        return switch (recommendation.toUpperCase()) {
+            case "BUY" -> TradeDirection.LONG;
+            case "SELL" -> TradeDirection.SHORT;
+            default -> null; // HOLD means no direction
+        };
     }
     
     /**

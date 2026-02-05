@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.time.Instant;
+import java.util.List;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +18,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentGoal;
+import tradingbot.agent.domain.model.TradeDirection;
+import tradingbot.agent.domain.model.TradeMemory;
+import tradingbot.agent.domain.model.TradeOutcome;
 import tradingbot.agent.service.RAGService;
 import tradingbot.agent.service.TradingAgentService;
 
@@ -370,5 +376,292 @@ class LangChain4jStrategyTest {
         // Then
         assertEquals(87, testAgent.getLastReasoning().getConfidence());
         assertTrue(testAgent.getLastReasoning().getRecommendation().contains("BUY"));
+    }
+    
+    // ========== RAG Integration Tests ==========
+    
+    @Test
+    void testExecuteIteration_RetrievesSimilarTradesFromRAG() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+        
+        List<TradeMemory> mockMemories = List.of(
+            createMockTradeMemory("BTCUSDT", TradeDirection.LONG, TradeOutcome.PROFIT, 5.2)
+        );
+        
+        when(ragService.retrieveSimilarTrades(anyString(), eq(3)))
+            .thenReturn(mockMemories);
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Decision: BUY. Confidence: 85%");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        verify(ragService).retrieveSimilarTrades(contains("BTCUSDT"), eq(3));
+    }
+    
+    @Test
+    void testExecuteIteration_PassesRAGContextToAgent() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+        
+        List<TradeMemory> mockMemories = List.of(
+            createMockTradeMemory("BTCUSDT", TradeDirection.LONG, TradeOutcome.PROFIT, 5.2),
+            createMockTradeMemory("BTCUSDT", TradeDirection.SHORT, TradeOutcome.LOSS, -3.1)
+        );
+        
+        when(ragService.retrieveSimilarTrades(anyString(), eq(3)))
+            .thenReturn(mockMemories);
+        
+        ArgumentCaptor<String> contextCaptor = ArgumentCaptor.forClass(String.class);
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), contextCaptor.capture()))
+            .thenReturn("Decision: BUY");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        String capturedContext = contextCaptor.getValue();
+        assertTrue(capturedContext.contains("Historical Trading Experiences"));
+        assertTrue(capturedContext.contains("BTCUSDT"));
+        assertTrue(capturedContext.contains("LONG") || capturedContext.contains("SHORT"));
+        assertTrue(capturedContext.contains("Entry:"));
+        assertTrue(capturedContext.contains("Profit:"));
+    }
+    
+    @Test
+    void testExecuteIteration_StoresTradeMemoryInRAG() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+        
+        when(ragService.retrieveSimilarTrades(anyString(), eq(3)))
+            .thenReturn(List.of());
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Decision: BUY. Confidence: 88%");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        verify(ragService).storeTradeMemory(
+            eq(testAgent.getId().toString()),
+            eq("BTCUSDT"),
+            contains("BUY decision with 88% confidence"),
+            eq(TradeDirection.LONG),
+            eq(0.0),
+            isNull(),
+            eq(TradeOutcome.PENDING),
+            isNull(),
+            anyString()
+        );
+    }
+    
+    @Test
+    void testExecuteIteration_StoresSellDecisionAsShort() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+        
+        when(ragService.retrieveSimilarTrades(anyString(), eq(3)))
+            .thenReturn(List.of());
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Decision: SELL. Confidence: 75%");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        verify(ragService).storeTradeMemory(
+            anyString(),
+            anyString(),
+            anyString(),
+            eq(TradeDirection.SHORT),
+            anyDouble(),
+            isNull(),
+            eq(TradeOutcome.PENDING),
+            isNull(),
+            anyString()
+        );
+    }
+    
+    @Test
+    void testExecuteIteration_DoesNotStoreHoldDecision() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+        
+        when(ragService.retrieveSimilarTrades(anyString(), eq(3)))
+            .thenReturn(List.of());
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Decision: HOLD. Confidence: 60%");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        verify(ragService).storeTradeMemory(
+            anyString(),
+            anyString(),
+            anyString(),
+            isNull(), // HOLD maps to null direction
+            anyDouble(),
+            isNull(),
+            eq(TradeOutcome.PENDING),
+            isNull(),
+            anyString()
+        );
+    }
+    
+    @Test
+    void testExecuteIteration_RAGDisabled_DoesNotRetrieve() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", false);
+        
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Decision: BUY. Confidence: 80%");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        verify(ragService, never()).retrieveSimilarTrades(anyString(), anyInt());
+    }
+    
+    @Test
+    void testExecuteIteration_RAGDisabled_DoesNotStore() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", false);
+        
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Decision: BUY. Confidence: 80%");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        verify(ragService, never()).storeTradeMemory(
+            anyString(), anyString(), anyString(), any(), anyDouble(), 
+            any(), any(), any(), anyString()
+        );
+    }
+    
+    @Test
+    void testExecuteIteration_RAGException_DoesNotFailExecution() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+        
+        when(ragService.retrieveSimilarTrades(anyString(), anyInt()))
+            .thenReturn(List.of()); // Return empty instead of throwing
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Decision: BUY");
+        
+        // When & Then - Should not throw
+        assertDoesNotThrow(() -> strategy.executeIteration(testAgent));
+        
+        // Verify it still processes the agent response
+        assertNotNull(testAgent.getLastReasoning());
+    }
+    
+    @Test
+    void testExecuteIteration_EmptyRAGResults_ShowsNoDataMessage() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+        
+        when(ragService.retrieveSimilarTrades(anyString(), eq(3)))
+            .thenReturn(List.of());
+        
+        ArgumentCaptor<String> contextCaptor = ArgumentCaptor.forClass(String.class);
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), contextCaptor.capture()))
+            .thenReturn("Decision: BUY");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        String capturedContext = contextCaptor.getValue();
+        assertTrue(capturedContext.contains("No historical trading data available yet"));
+    }
+    
+    @Test
+    void testExecuteIteration_MultipleRAGMemories_FormatsCorrectly() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+        
+        List<TradeMemory> mockMemories = List.of(
+            createMockTradeMemory("BTCUSDT", TradeDirection.LONG, TradeOutcome.PROFIT, 8.5),
+            createMockTradeMemory("BTCUSDT", TradeDirection.SHORT, TradeOutcome.PROFIT, 3.2),
+            createMockTradeMemory("BTCUSDT", TradeDirection.LONG, TradeOutcome.LOSS, -4.1)
+        );
+        
+        when(ragService.retrieveSimilarTrades(anyString(), eq(3)))
+            .thenReturn(mockMemories);
+        
+        ArgumentCaptor<String> contextCaptor = ArgumentCaptor.forClass(String.class);
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), contextCaptor.capture()))
+            .thenReturn("Decision: BUY");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        String capturedContext = contextCaptor.getValue();
+        assertTrue(capturedContext.contains("1. BTCUSDT"));
+        assertTrue(capturedContext.contains("2. BTCUSDT"));
+        assertTrue(capturedContext.contains("3. BTCUSDT"));
+        assertTrue(capturedContext.contains("Direction: LONG"));
+        assertTrue(capturedContext.contains("Direction: SHORT"));
+    }
+    
+    @Test
+    void testExecuteIteration_IncludesGoalInRAGQuery() {
+        // Given
+        ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+        
+        ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
+        when(ragService.retrieveSimilarTrades(queryCaptor.capture(), eq(3)))
+            .thenReturn(List.of());
+        when(tradingAgentService.analyzeAndDecide(
+            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            .thenReturn("Decision: BUY");
+        
+        // When
+        strategy.executeIteration(testAgent);
+        
+        // Then
+        String query = queryCaptor.getValue();
+        assertTrue(query.contains("BTCUSDT"));
+        assertTrue(query.contains("MAXIMIZE_PROFIT"));
+        assertTrue(query.contains("goal:"));
+    }
+    
+    // ========== Helper Methods ==========
+    
+    private TradeMemory createMockTradeMemory(String symbol, TradeDirection direction, 
+                                              TradeOutcome outcome, double profitPercent) {
+        return TradeMemory.builder()
+            .id(java.util.UUID.randomUUID().toString())
+            .agentId(testAgent.getId().toString())
+            .symbol(symbol)
+            .scenarioDescription("Test scenario")
+            .direction(direction)
+            .entryPrice(45000.0)
+            .exitPrice(direction == TradeDirection.LONG ? 
+                45000.0 * (1 + profitPercent / 100) : 
+                45000.0 * (1 - profitPercent / 100))
+            .outcome(outcome)
+            .profitPercent(profitPercent)
+            .lessonLearned("Test lesson learned")
+            .timestamp(Instant.now())
+            .embedding(new double[384])
+            .build();
     }
 }

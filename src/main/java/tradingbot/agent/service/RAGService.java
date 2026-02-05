@@ -162,6 +162,37 @@ public class RAGService {
     }
     
     /**
+     * Retrieve similar historical trades based on query context
+     * 
+     * @param queryContext Search context (symbol + goal + market conditions)
+     * @param limit Maximum number of similar trades to return
+     * @return List of similar trade memories ordered by relevance
+     */
+    public List<TradeMemory> retrieveSimilarTrades(String queryContext, int limit) {
+        if (!isHealthy()) {
+            logger.warn("RAG system not healthy, returning empty list");
+            return List.of();
+        }
+        
+        try {
+            // Generate embedding for query context
+            double[] queryEmbedding = embeddingService.embed(queryContext);
+            
+            // Retrieve similar memories from vector store
+            return memoryStore.findSimilar(
+                queryEmbedding, 
+                null, // symbol filter (null = all symbols)
+                limit, 
+                similarityThreshold,
+                maxAgeDays
+            );
+        } catch (Exception e) {
+            logger.error("Error retrieving similar trades: {}", e.getMessage());
+            return List.of();
+        }
+    }
+    
+    /**
      * Store a completed trade as a memory for future retrieval
      * 
      * @param agentId The agent who made the trade
