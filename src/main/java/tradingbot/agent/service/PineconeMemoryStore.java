@@ -48,9 +48,9 @@ public class PineconeMemoryStore implements MemoryStoreService {
     private final String baseUrl;
     
     public PineconeMemoryStore(
-            @Value("${rag.vector-db.api-key}") String apiKey,
-            @Value("${rag.vector-db.environment}") String environment,
-            @Value("${rag.vector-db.index-name}") String indexName,
+            @Value("${rag.vector-db.api-key:dummy}") String apiKey,
+            @Value("${rag.vector-db.environment:dummy}") String environment,
+            @Value("${rag.vector-db.index-name:dummy}") String indexName,
             @Value("${rag.vector-db.namespace:default}") String namespace,
             RestTemplate restTemplate) {
         this.apiKey = apiKey;

@@ -6,6 +6,7 @@ import org.mockito.Mockito;
 import org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
+import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -15,6 +16,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.TestPropertySource;
 
@@ -33,6 +35,8 @@ import tradingbot.bot.strategy.calculator.IndicatorCalculator;
 import tradingbot.bot.strategy.calculator.IndicatorValues;
 import tradingbot.bot.strategy.exit.PositionExitCondition;
 import tradingbot.bot.strategy.tracker.TrailingStopTracker;
+import tradingbot.agent.infrastructure.llm.LLMProvider;
+import tradingbot.security.repository.UserRepository;
 
 /**
  * Test configuration for Futures Trading Bot Integration Tests.
@@ -54,6 +58,7 @@ import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 @EnableAutoConfiguration(exclude = {
     KafkaAutoConfiguration.class,
     RedisAutoConfiguration.class,
+    RedisRepositoriesAutoConfiguration.class,
     SecurityAutoConfiguration.class,
     ManagementWebSecurityAutoConfiguration.class
 })
@@ -71,8 +76,17 @@ import tradingbot.bot.strategy.tracker.TrailingStopTracker;
     }
 )
 @Import({InstanceConfig.class, AgentManager.class, AgentFactory.class})
-@EnableJpaRepositories(basePackages = "tradingbot.agent.persistence")
-@EntityScan(basePackages = "tradingbot.agent.persistence")
+@EnableJpaRepositories(basePackages = {
+    "tradingbot.agent.persistence",
+    "tradingbot.agent.infrastructure.repository",
+    "tradingbot.bot.persistence.repository"
+})
+@EntityScan(basePackages = {
+    "tradingbot.agent.persistence",
+    "tradingbot.agent.infrastructure.repository",
+    "tradingbot.agent.infrastructure.persistence",
+    "tradingbot.bot.persistence.entity"
+})
 public class FuturesTradingBotIntegrationTestConfig {
 
     @Bean
@@ -121,6 +135,21 @@ public class FuturesTradingBotIntegrationTestConfig {
         Mockito.when(mockBot.getConfig()).thenReturn(tradingConfig());
         
         return mockBot;
+    }
+
+    @Bean
+    public RedisConnectionFactory redisConnectionFactory() {
+        return Mockito.mock(RedisConnectionFactory.class);
+    }
+
+    @Bean
+    public LLMProvider llmProvider() {
+        return Mockito.mock(LLMProvider.class);
+    }
+
+    @Bean
+    public UserRepository userRepository() {
+        return Mockito.mock(UserRepository.class);
     }
 
     @Bean

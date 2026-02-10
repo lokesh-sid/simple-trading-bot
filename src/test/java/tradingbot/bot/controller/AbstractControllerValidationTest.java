@@ -10,6 +10,13 @@ import org.springframework.test.web.servlet.ResultActions;
 import tradingbot.AbstractHttpTest;
 import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.application.AgentService;
+import tradingbot.agent.infrastructure.repository.JpaAgentRepository;
+import tradingbot.agent.infrastructure.repository.OrderRepository;
+import tradingbot.agent.infrastructure.repository.PositionRepository;
+import tradingbot.bot.persistence.repository.TradingEventRepository;
+import tradingbot.security.repository.UserRepository;
+import tradingbot.agent.infrastructure.llm.LLMProvider;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import tradingbot.agent.manager.AgentManager;
 import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.bot.FuturesTradingBot;
@@ -35,6 +42,27 @@ public abstract class AbstractControllerValidationTest extends AbstractHttpTest 
 
     @MockitoBean
     protected AgentRepository agentRepository;
+
+    @MockitoBean
+    protected JpaAgentRepository jpaAgentRepository;
+
+    @MockitoBean
+    protected OrderRepository orderRepository;
+
+    @MockitoBean
+    protected PositionRepository positionRepository;
+
+    @MockitoBean
+    protected RedisConnectionFactory redisConnectionFactory;
+
+    @MockitoBean
+    protected LLMProvider llmProvider;
+
+    @MockitoBean
+    protected TradingEventRepository tradingEventRepository;
+
+    @MockitoBean
+    protected UserRepository userRepository;
 
     @MockitoBean
     protected FuturesTradingBot tradingBot;

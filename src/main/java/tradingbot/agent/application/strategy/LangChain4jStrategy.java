@@ -37,6 +37,9 @@ public class LangChain4jStrategy implements AgentStrategy {
     @Value("${rag.enabled:true}")
     private boolean ragEnabled;
     
+    @Value("${rag.strategy.context-limit:3}")
+    private int ragContextLimit;
+    
     public LangChain4jStrategy(
             TradingAgentService tradingAgentService,
             RAGService ragService) {
@@ -98,7 +101,13 @@ public class LangChain4jStrategy implements AgentStrategy {
         );
         
         // Retrieve similar trades from RAG service
-        List<TradeMemory> similarTrades = ragService.retrieveSimilarTrades(queryContext, 3);
+        List<TradeMemory> similarTrades;
+        try {
+            similarTrades = ragService.retrieveSimilarTrades(queryContext, ragContextLimit);
+        } catch (Exception e) {
+            logger.warn("Failed to retrieve RAG context for agent {}: {}", agent.getId(), e.getMessage());
+            return "Historical trading data unavailable due to service error.";
+        }
         
         if (similarTrades.isEmpty()) {
             return "No historical trading data available yet.";
@@ -189,7 +198,8 @@ public class LangChain4jStrategy implements AgentStrategy {
                 null, // exitPrice - will be updated when position closes
                 TradeOutcome.PENDING, // outcome - will be updated on trade completion
                 null, // profitPercent - calculated on exit
-                reasoning.getAnalysis() // Store reasoning as initial lesson
+                reasoning.getAnalysis(), // Store reasoning as initial lesson
+                null // networkFee - not known yet
             );
             
             logger.debug("Stored trade decision memory for agent {} - {} with confidence {}%", 

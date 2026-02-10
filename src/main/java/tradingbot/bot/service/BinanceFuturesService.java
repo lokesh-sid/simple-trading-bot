@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.NetworkInterface;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -107,6 +108,30 @@ public class BinanceFuturesService implements FuturesExchangeService {
             throw new BotOperationException("fetch_balance", "Failed to fetch margin balance", e);
         }
     }
+    
+    @Override
+    public Ticker24hrStats get24HourStats(String symbol) {
+        try {
+            LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+            parameters.put("symbol", symbol);
+            String result = futuresClient.market().ticker24H(parameters);
+            ObjectNode ticker = (ObjectNode) objectMapper.readTree(result);
+            
+            return Ticker24hrStats.builder()
+                .symbol(symbol)
+                .volume(ticker.get("volume").asDouble())
+                .quoteVolume(ticker.get("quoteVolume").asDouble())
+                .priceChange(ticker.get("priceChange").asDouble())
+                .priceChangePercent(ticker.get("priceChangePercent").asDouble())
+                .highPrice(ticker.get("highPrice").asDouble())
+                .lowPrice(ticker.get("lowPrice").asDouble())
+                .openPrice(ticker.get("openPrice").asDouble())
+                .lastPrice(ticker.get("lastPrice").asDouble())
+                .build();
+        } catch (Exception e) {
+            throw new BotOperationException("fetch_24h_stats", "Failed to fetch 24h stats for " + symbol, e);
+        }
+    }
 
     @Override
     public void setLeverage(String symbol, int leverage) {
@@ -121,7 +146,7 @@ public class BinanceFuturesService implements FuturesExchangeService {
     }
 
     @Override
-    public void enterLongPosition(String symbol, double tradeAmount) {
+    public OrderResult enterLongPosition(String symbol, double tradeAmount) {
         try {
             // 1. Get current price & determine precision
             double currentPrice = getCurrentPrice(symbol);
@@ -149,28 +174,34 @@ public class BinanceFuturesService implements FuturesExchangeService {
             // Validate that IOC order was actually filled
             ObjectNode jsonResponse = (ObjectNode) objectMapper.readTree(response);
             validateOrderFill(jsonResponse);
+            
+            // Extract order details
+            String orderId = jsonResponse.get("orderId").asText();
+            String status = jsonResponse.get("status").asText();
+            double executedQty = jsonResponse.has("executedQty") ? jsonResponse.get("executedQty").asDouble() : tradeAmount;
+            double avgPrice = jsonResponse.has("avgPrice") ? jsonResponse.get("avgPrice").asDouble() : currentPrice;
+            
+            return OrderResult.builder()
+                .exchangeOrderId(orderId)
+                .clientOrderId(clientOrderId)
+                .symbol(symbol)
+                .side("BUY")
+                .status(mapStatus(status))
+                .orderedQuantity(tradeAmount)
+                .filledQuantity(executedQty)
+                .avgFillPrice(avgPrice)
+                .commission(0.0) // Would need separate API call
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
 
-            // 3. Place Immediate Stop Loss (2% below entry)
-            BigDecimal stopPrice = entryPrice.multiply(BigDecimal.valueOf(0.98));
-            
-            LinkedHashMap<String, Object> stopParams = new LinkedHashMap<>();
-            stopParams.put("symbol", symbol);
-            stopParams.put("side", "SELL");
-            stopParams.put("positionSide", "LONG");
-            stopParams.put("type", "STOP_MARKET");
-            stopParams.put("stopPrice", stopPrice.setScale(precision, RoundingMode.HALF_UP).toString());
-            stopParams.put("closePosition", "true"); // Acts as OCO for the position
-            stopParams.put("workingType", "MARK_PRICE");
-            
-            futuresClient.account().newOrder(stopParams);
-            
         } catch (Exception e) {
             throw new BotOperationException("enter_long_position", "Failed to enter long position for " + symbol, e);
         }
     }
 
     @Override
-    public void enterShortPosition(String symbol, double tradeAmount) {
+    public OrderResult enterShortPosition(String symbol, double tradeAmount) {
         try {
              // 1. Get current price & determine precision
             double currentPrice = getCurrentPrice(symbol);
@@ -199,19 +230,25 @@ public class BinanceFuturesService implements FuturesExchangeService {
             ObjectNode jsonResponse = (ObjectNode) objectMapper.readTree(response);
             validateOrderFill(jsonResponse);
             
-            // 3. Place Immediate Stop Loss (2% above entry)
-            BigDecimal stopPrice = entryPrice.multiply(BigDecimal.valueOf(1.02));
+            // Extract order details
+            String orderId = jsonResponse.get("orderId").asText();
+            String status = jsonResponse.get("status").asText();
+            double executedQty = jsonResponse.has("executedQty") ? jsonResponse.get("executedQty").asDouble() : tradeAmount;
+            double avgPrice = jsonResponse.has("avgPrice") ? jsonResponse.get("avgPrice").asDouble() : currentPrice;
             
-            LinkedHashMap<String, Object> stopParams = new LinkedHashMap<>();
-            stopParams.put("symbol", symbol);
-            stopParams.put("side", "BUY");
-            stopParams.put("positionSide", "SHORT");
-            stopParams.put("type", "STOP_MARKET");
-            stopParams.put("stopPrice", stopPrice.setScale(precision, RoundingMode.HALF_UP).toString());
-            stopParams.put("closePosition", "true");
-            stopParams.put("workingType", "MARK_PRICE");
-            
-            futuresClient.account().newOrder(stopParams);
+            return OrderResult.builder()
+                .exchangeOrderId(orderId)
+                .clientOrderId(clientOrderId)
+                .symbol(symbol)
+                .side("SELL")
+                .status(mapStatus(status))
+                .orderedQuantity(tradeAmount)
+                .filledQuantity(executedQty)
+                .avgFillPrice(avgPrice)
+                .commission(0.0) // Would need separate API call
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
             
         } catch (Exception e) {
             throw new BotOperationException("enter_short_position", "Failed to enter short position for " + symbol, e);
@@ -226,33 +263,181 @@ public class BinanceFuturesService implements FuturesExchangeService {
     }
 
     @Override
-    public void exitLongPosition(String symbol, double tradeAmount) {
+    public OrderResult exitLongPosition(String symbol, double tradeAmount) {
         try {
+            String clientOrderId = generateClientOrderId("EXIT-LONG");
+            double currentPrice = getCurrentPrice(symbol);
+            
             LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
             parameters.put("symbol", symbol);
             parameters.put("side", "SELL");
             parameters.put("positionSide", "LONG");
             parameters.put("type", "MARKET");
             parameters.put("quantity", tradeAmount);
-            futuresClient.account().newOrder(parameters);
+            parameters.put("newClientOrderId", clientOrderId);
+            
+            String response = futuresClient.account().newOrder(parameters);
+            ObjectNode jsonResponse = (ObjectNode) objectMapper.readTree(response);
+            
+            String orderId = jsonResponse.get("orderId").asText();
+            String status = jsonResponse.get("status").asText();
+            double executedQty = jsonResponse.has("executedQty") ? jsonResponse.get("executedQty").asDouble() : tradeAmount;
+            double avgPrice = jsonResponse.has("avgPrice") ? jsonResponse.get("avgPrice").asDouble() : currentPrice;
+            
+            return OrderResult.builder()
+                .exchangeOrderId(orderId)
+                .clientOrderId(clientOrderId)
+                .symbol(symbol)
+                .side("SELL")
+                .status(mapStatus(status))
+                .orderedQuantity(tradeAmount)
+                .filledQuantity(executedQty)
+                .avgFillPrice(avgPrice)
+                .commission(0.0)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+                
         } catch (Exception e) {
             throw new BotOperationException("exit_long_position", "Failed to exit long position for " + symbol, e);
         }
     }
 
     @Override
-    public void exitShortPosition(String symbol, double tradeAmount) {
+    public OrderResult exitShortPosition(String symbol, double tradeAmount) {
         try {
+            String clientOrderId = generateClientOrderId("EXIT-SHORT");
+            double currentPrice = getCurrentPrice(symbol);
+            
             LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
             parameters.put("symbol", symbol);
             parameters.put("side", "BUY");
             parameters.put("positionSide", "SHORT");
             parameters.put("type", "MARKET");
             parameters.put("quantity", tradeAmount);
-            futuresClient.account().newOrder(parameters);
+            parameters.put("newClientOrderId", clientOrderId);
+            
+            String response = futuresClient.account().newOrder(parameters);
+            ObjectNode jsonResponse = (ObjectNode) objectMapper.readTree(response);
+            
+            String orderId = jsonResponse.get("orderId").asText();
+            String status = jsonResponse.get("status").asText();
+            double executedQty = jsonResponse.has("executedQty") ? jsonResponse.get("executedQty").asDouble() : tradeAmount;
+            double avgPrice = jsonResponse.has("avgPrice") ? jsonResponse.get("avgPrice").asDouble() : currentPrice;
+            
+            return OrderResult.builder()
+                .exchangeOrderId(orderId)
+                .clientOrderId(clientOrderId)
+                .symbol(symbol)
+                .side("BUY")
+                .status(mapStatus(status))
+                .orderedQuantity(tradeAmount)
+                .filledQuantity(executedQty)
+                .avgFillPrice(avgPrice)
+                .commission(0.0)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+                
         } catch (Exception e) {
             throw new BotOperationException("exit_short_position", "Failed to exit short position for " + symbol, e);
         }
+    }
+    
+    @Override
+    public OrderResult placeStopLossOrder(String symbol, String side, double quantity, double stopPrice) {
+        try {
+            String clientOrderId = generateClientOrderId("SL");
+            double currentPrice = getCurrentPrice(symbol);
+            int precision = getPricePrecision(stopPrice);
+            
+            LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+            parameters.put("symbol", symbol);
+            parameters.put("side", side);
+            parameters.put("positionSide", side.equals("BUY") ? "SHORT" : "LONG");
+            parameters.put("type", "STOP_MARKET");
+            parameters.put("stopPrice", BigDecimal.valueOf(stopPrice).setScale(precision, RoundingMode.HALF_UP).toString());
+            parameters.put("quantity", String.valueOf(quantity));
+            parameters.put("closePosition", "true");
+            parameters.put("workingType", "MARK_PRICE");
+            parameters.put("newClientOrderId", clientOrderId);
+            
+            String response = futuresClient.account().newOrder(parameters);
+            ObjectNode jsonResponse = (ObjectNode) objectMapper.readTree(response);
+            
+            String orderId = jsonResponse.get("orderId").asText();
+            
+            return OrderResult.builder()
+                .exchangeOrderId(orderId)
+                .clientOrderId(clientOrderId)
+                .symbol(symbol)
+                .side(side)
+                .status(OrderResult.OrderStatus.NEW)
+                .orderedQuantity(quantity)
+                .filledQuantity(0.0)
+                .avgFillPrice(0.0)
+                .commission(0.0)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+                
+        } catch (Exception e) {
+            throw new BotOperationException("place_stop_loss", "Failed to place stop loss order for " + symbol, e);
+        }
+    }
+    
+    @Override
+    public OrderResult placeTakeProfitOrder(String symbol, String side, double quantity, double takeProfitPrice) {
+        try {
+            String clientOrderId = generateClientOrderId("TP");
+            double currentPrice = getCurrentPrice(symbol);
+            int precision = getPricePrecision(takeProfitPrice);
+            
+            LinkedHashMap<String, Object> parameters = new LinkedHashMap<>();
+            parameters.put("symbol", symbol);
+            parameters.put("side", side);
+            parameters.put("positionSide", side.equals("BUY") ? "SHORT" : "LONG");
+            parameters.put("type", "TAKE_PROFIT_MARKET");
+            parameters.put("stopPrice", BigDecimal.valueOf(takeProfitPrice).setScale(precision, RoundingMode.HALF_UP).toString());
+            parameters.put("quantity", String.valueOf(quantity));
+            parameters.put("closePosition", "true");
+            parameters.put("workingType", "MARK_PRICE");
+            parameters.put("newClientOrderId", clientOrderId);
+            
+            String response = futuresClient.account().newOrder(parameters);
+            ObjectNode jsonResponse = (ObjectNode) objectMapper.readTree(response);
+            
+            String orderId = jsonResponse.get("orderId").asText();
+            
+            return OrderResult.builder()
+                .exchangeOrderId(orderId)
+                .clientOrderId(clientOrderId)
+                .symbol(symbol)
+                .side(side)
+                .status(OrderResult.OrderStatus.NEW)
+                .orderedQuantity(quantity)
+                .filledQuantity(0.0)
+                .avgFillPrice(0.0)
+                .commission(0.0)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+                
+        } catch (Exception e) {
+            throw new BotOperationException("place_take_profit", "Failed to place take profit order for " + symbol, e);
+        }
+    }
+    
+    private OrderResult.OrderStatus mapStatus(String binanceStatus) {
+        return switch (binanceStatus) {
+            case "NEW" -> OrderResult.OrderStatus.NEW;
+            case "PARTIALLY_FILLED" -> OrderResult.OrderStatus.PARTIALLY_FILLED;
+            case "FILLED" -> OrderResult.OrderStatus.FILLED;
+            case "CANCELED" -> OrderResult.OrderStatus.CANCELED;
+            case "REJECTED" -> OrderResult.OrderStatus.REJECTED;
+            case "EXPIRED" -> OrderResult.OrderStatus.EXPIRED;
+            default -> OrderResult.OrderStatus.NEW;
+        };
     }
 
     // --- Snowflake Implementation ---

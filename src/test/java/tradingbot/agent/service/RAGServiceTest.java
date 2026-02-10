@@ -227,7 +227,8 @@ class RAGServiceTest {
             exitPrice,
             TradeOutcome.PROFIT,
             2.2,
-            "Good entry timing"
+            "Good entry timing",
+            0.5 // networkFee
         );
         
         // Then
@@ -242,6 +243,7 @@ class RAGServiceTest {
         assertEquals(exitPrice, captured.getExitPrice());
         assertEquals(TradeOutcome.PROFIT, captured.getOutcome());
         assertEquals(2.2, captured.getProfitPercent());
+        assertEquals(0.5, captured.getNetworkFee());
     }
     
     @Test
@@ -260,7 +262,8 @@ class RAGServiceTest {
             46000.0,
             TradeOutcome.PROFIT,
             1.5,
-            "lesson"
+            "lesson",
+            0.0
         ));
     }
     
@@ -282,7 +285,8 @@ class RAGServiceTest {
             46000.0,
             TradeOutcome.PROFIT,
             4.5,
-            "Caught the trend"
+            "Caught the trend",
+            0.0
         );
         
         // Then
@@ -310,7 +314,8 @@ class RAGServiceTest {
             3100.0,
             TradeOutcome.LOSS,
             -3.3,
-            "Entered too early"
+            "Entered too early",
+            0.0
         );
         
         // Then
@@ -339,7 +344,8 @@ class RAGServiceTest {
             47000.0,
             TradeOutcome.PROFIT,
             4.4,
-            "Good support level"
+            "Good support level",
+            0.0
         );
         
         // Then
@@ -364,8 +370,9 @@ class RAGServiceTest {
             46000.0,
             44000.0,
             TradeOutcome.PROFIT,
-            4.3,
-            "Resistance held"
+            4.35,
+            "Resisted at key level",
+            0.0
         );
         
         // Then

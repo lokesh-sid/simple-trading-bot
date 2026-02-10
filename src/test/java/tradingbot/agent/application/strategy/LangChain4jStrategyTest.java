@@ -457,7 +457,8 @@ class LangChain4jStrategyTest {
             isNull(),
             eq(TradeOutcome.PENDING),
             isNull(),
-            anyString()
+            anyString(),
+            isNull()
         );
     }
     
@@ -485,7 +486,8 @@ class LangChain4jStrategyTest {
             isNull(),
             eq(TradeOutcome.PENDING),
             isNull(),
-            anyString()
+            anyString(),
+            isNull()
         );
     }
     
@@ -513,7 +515,8 @@ class LangChain4jStrategyTest {
             isNull(),
             eq(TradeOutcome.PENDING),
             isNull(),
-            anyString()
+            anyString(),
+            isNull()
         );
     }
     
@@ -548,7 +551,7 @@ class LangChain4jStrategyTest {
         // Then
         verify(ragService, never()).storeTradeMemory(
             anyString(), anyString(), anyString(), any(), anyDouble(), 
-            any(), any(), any(), anyString()
+            any(), any(), any(), anyString(), any()
         );
     }
     

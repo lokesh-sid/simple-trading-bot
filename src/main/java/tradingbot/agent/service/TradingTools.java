@@ -68,8 +68,10 @@ public class TradingTools {
     public double get24HourVolume(String symbol) {
         try {
             logger.info("Tool called: get24HourVolume for {}", symbol);
-            // TODO: Implement actual volume fetching from exchange
-            return 1000000.0; // Placeholder
+            tradingbot.bot.service.Ticker24hrStats stats = exchangeService.get24HourStats(symbol);
+            double volume = stats.getVolume();
+            logger.info("24h volume for {}: {}", symbol, volume);
+            return volume;
         } catch (Exception e) {
             logger.error("Error fetching volume for {}: {}", symbol, e.getMessage());
             return 0.0;
@@ -83,8 +85,10 @@ public class TradingTools {
     public double get24HourPriceChange(String symbol) {
         try {
             logger.info("Tool called: get24HourPriceChange for {}", symbol);
-            // TODO: Implement actual price change calculation
-            return 2.5; // Placeholder
+            tradingbot.bot.service.Ticker24hrStats stats = exchangeService.get24HourStats(symbol);
+            double priceChangePercent = stats.getPriceChangePercent();
+            logger.info("24h price change for {}: {}%", symbol, priceChangePercent);
+            return priceChangePercent;
         } catch (Exception e) {
             logger.error("Error fetching price change for {}: {}", symbol, e.getMessage());
             return 0.0;
@@ -98,8 +102,45 @@ public class TradingTools {
     public double calculateRSI(String symbol, int period) {
         try {
             logger.info("Tool called: calculateRSI for {} with period {}", symbol, period);
-            // TODO: Implement actual RSI calculation using TA4j
-            return 55.0; // Placeholder
+            
+            // Fetch historical candles - need at least period + 1 candles
+            int requiredCandles = period + 50; // Extra candles for warmup
+            var candles = exchangeService.fetchOhlcv(symbol, "15m", requiredCandles);
+            
+            if (candles.isEmpty()) {
+                logger.warn("No candles available for RSI calculation");
+                return 50.0; // Neutral
+            }
+            
+            // Convert to TA4j BarSeries
+            org.ta4j.core.BaseBarSeriesBuilder seriesBuilder = new org.ta4j.core.BaseBarSeriesBuilder();
+            seriesBuilder.withName(symbol);
+            org.ta4j.core.BarSeries series = seriesBuilder.build();
+            
+            for (var candle : candles) {
+                series.addBar(
+                    java.time.ZonedDateTime.ofInstant(
+                        java.time.Instant.ofEpochMilli(candle.getOpenTime()),
+                        java.time.ZoneId.systemDefault()
+                    ),
+                    candle.getOpen(),
+                    candle.getHigh(),
+                    candle.getLow(),
+                    candle.getClose(),
+                    candle.getVolume()
+                );
+            }
+            
+            // Calculate RSI using TA4j
+            org.ta4j.core.indicators.RSIIndicator rsi = new org.ta4j.core.indicators.RSIIndicator(
+                new org.ta4j.core.indicators.helpers.ClosePriceIndicator(series),
+                period
+            );
+            
+            double rsiValue = rsi.getValue(series.getEndIndex()).doubleValue();
+            logger.info("RSI for {}: {}", symbol, rsiValue);
+            return rsiValue;
+            
         } catch (Exception e) {
             logger.error("Error calculating RSI for {}: {}", symbol, e.getMessage());
             return 50.0; // Neutral
@@ -113,8 +154,61 @@ public class TradingTools {
     public String getMarketTrend(String symbol) {
         try {
             logger.info("Tool called: getMarketTrend for {}", symbol);
-            // TODO: Implement actual trend analysis
-            return "UPTREND"; // Placeholder
+            
+            // Fetch historical candles for trend analysis
+            var candles = exchangeService.fetchOhlcv(symbol, "1h", 200);
+            
+            if (candles.isEmpty() || candles.size() < 50) {
+                logger.warn("Insufficient candles for trend analysis");
+                return "UNKNOWN";
+            }
+            
+            // Convert to TA4j BarSeries
+            org.ta4j.core.BaseBarSeriesBuilder seriesBuilder = new org.ta4j.core.BaseBarSeriesBuilder();
+            seriesBuilder.withName(symbol);
+            org.ta4j.core.BarSeries series = seriesBuilder.build();
+            
+            for (var candle : candles) {
+                series.addBar(
+                    java.time.ZonedDateTime.ofInstant(
+                        java.time.Instant.ofEpochMilli(candle.getOpenTime()),
+                        java.time.ZoneId.systemDefault()
+                    ),
+                    candle.getOpen(),
+                    candle.getHigh(),
+                    candle.getLow(),
+                    candle.getClose(),
+                    candle.getVolume()
+                );
+            }
+            
+            // Calculate EMAs for trend analysis
+            org.ta4j.core.indicators.helpers.ClosePriceIndicator closePrice = 
+                new org.ta4j.core.indicators.helpers.ClosePriceIndicator(series);
+            org.ta4j.core.indicators.EMAIndicator ema20 = 
+                new org.ta4j.core.indicators.EMAIndicator(closePrice, 20);
+            org.ta4j.core.indicators.EMAIndicator ema50 = 
+                new org.ta4j.core.indicators.EMAIndicator(closePrice, 50);
+            
+            double ema20Value = ema20.getValue(series.getEndIndex()).doubleValue();
+            double ema50Value = ema50.getValue(series.getEndIndex()).doubleValue();
+            
+            // Determine trend based on EMA crossover
+            String trend;
+            double difference = Math.abs(ema20Value - ema50Value) / ema50Value * 100;
+            
+            if (ema20Value > ema50Value * 1.01) { // 1% threshold for clear uptrend
+                trend = "UPTREND";
+            } else if (ema20Value < ema50Value * 0.99) { // 1% threshold for clear downtrend
+                trend = "DOWNTREND";
+            } else {
+                trend = "SIDEWAYS";
+            }
+            
+            logger.info("Market trend for {}: {} (EMA20: {}, EMA50: {}, diff: {}%)", 
+                symbol, trend, ema20Value, ema50Value, difference);
+            return trend;
+            
         } catch (Exception e) {
             logger.error("Error analyzing trend for {}: {}", symbol, e.getMessage());
             return "UNKNOWN";
@@ -202,8 +296,9 @@ public class TradingTools {
     public double getAvailableBalance() {
         try {
             logger.info("Tool called: getAvailableBalance");
-            // TODO: Implement actual balance fetching
-            return 10000.0; // Placeholder
+            double balance = exchangeService.getMarginBalance();
+            logger.info("Available balance: {} USDT", balance);
+            return balance;
         } catch (Exception e) {
             logger.error("Error fetching balance: {}", e.getMessage());
             return 0.0;
@@ -244,7 +339,21 @@ public class TradingTools {
     @Tool("Check if current time is optimal for trading based on market hours and liquidity")
     public boolean isGoodTimeToTrade() {
         logger.info("Tool called: isGoodTimeToTrade");
-        // TODO: Implement actual liquidity/market hours check
-        return true; // Placeholder - crypto trades 24/7
+        try {
+            // Check if volume is sufficient (use BTCUSDT as market reference)
+            tradingbot.bot.service.Ticker24hrStats stats = exchangeService.get24HourStats("BTCUSDT");
+            double volume = stats.getVolume();
+            
+            // Consider it good time to trade if 24h volume > 10,000 BTC (indicating active market)
+            boolean isGoodTime = volume > 10000.0;
+            
+            logger.info("Good time to trade: {} (BTCUSDT 24h volume: {})", isGoodTime, volume);
+            return isGoodTime;
+            
+        } catch (Exception e) {
+            logger.warn("Could not check trading conditions: {}", e.getMessage());
+            // Default to true for crypto (24/7 markets)
+            return true;
+        }
     }
 }

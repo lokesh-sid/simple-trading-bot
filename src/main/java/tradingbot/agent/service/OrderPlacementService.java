@@ -60,6 +60,7 @@ public class OrderPlacementService {
     private final EventPublisher eventPublisher;
     private final OrderRepository orderRepository;
     private final FuturesExchangeService exchangeService;
+    private final PositionMonitoringService positionMonitoringService;
     
     @Value("${rag.order.confidence-threshold:60}")
     private int confidenceThreshold;
@@ -79,10 +80,12 @@ public class OrderPlacementService {
     public OrderPlacementService(
             EventPublisher eventPublisher,
             OrderRepository orderRepository,
-            FuturesExchangeService exchangeService) {
+            FuturesExchangeService exchangeService,
+            PositionMonitoringService positionMonitoringService) {
         this.eventPublisher = eventPublisher;
         this.orderRepository = orderRepository;
         this.exchangeService = exchangeService;
+        this.positionMonitoringService = positionMonitoringService;
     }
     
     /**
@@ -284,8 +287,8 @@ public class OrderPlacementService {
     }
     
         /**
-     * Execute order on Binance Futures
-     * Integrates with Binance API to place real orders
+     * Execute order on Exchange Futures (Bybit/Binance)
+     * Integrates with exchange API to place real orders
      */
     private void executeOrder(Order order) {
         logger.info("LIVE - Placing order: {} {} @ ${} (qty: {}, leverage: {})",
@@ -304,35 +307,101 @@ public class OrderPlacementService {
                 logger.info("Set leverage to {}x for {}", leverage, order.getSymbol());
             }
             
-            // Execute the order based on direction
+            // Execute the main order based on direction
+            tradingbot.bot.service.OrderResult orderResult;
             if (order.getDirection() == TradeDirection.LONG) {
-                exchangeService.enterLongPosition(order.getSymbol(), order.getQuantity());
-                logger.info("Entered LONG position: {} units of {}", 
-                    order.getQuantity(), order.getSymbol());
+                orderResult = exchangeService.enterLongPosition(order.getSymbol(), order.getQuantity());
+                logger.info("Entered LONG position: {} units of {} - Exchange Order ID: {}", 
+                    order.getQuantity(), order.getSymbol(), orderResult.getExchangeOrderId());
             } else if (order.getDirection() == TradeDirection.SHORT) {
-                exchangeService.enterShortPosition(order.getSymbol(), order.getQuantity());
-                logger.info("Entered SHORT position: {} units of {}", 
-                    order.getQuantity(), order.getSymbol());
+                orderResult = exchangeService.enterShortPosition(order.getSymbol(), order.getQuantity());
+                logger.info("Entered SHORT position: {} units of {} - Exchange Order ID: {}", 
+                    order.getQuantity(), order.getSymbol(), orderResult.getExchangeOrderId());
+            } else {
+                logger.error("Unknown trade direction: {}", order.getDirection());
+                order.markFailed("Unknown trade direction: " + order.getDirection());
+                return;
             }
             
-            // Mark order as executed
-            // Binance doesn't return order ID in the simple API, so we generate one
-            String orderId = "BINANCE-" + UUID.randomUUID().toString();
-            order.markExecuted(orderId, Instant.now());
+            // Mark order as executed with real exchange order ID
+            order.markExecuted(orderResult.getExchangeOrderId(), Instant.now());
+            logger.info("Order executed successfully: {} - Exchange Order ID: {}", 
+                order.getId(), orderResult.getExchangeOrderId());
             
-            logger.info("Order executed successfully: {}", order.getId());
+            // Create position record for tracking
+            tradingbot.agent.domain.model.Position position = positionMonitoringService.createPosition(
+                order.getAgentId(),
+                order.getSymbol(),
+                order.getDirection(),
+                orderResult.getAvgFillPrice(), // Use actual fill price
+                orderResult.getFilledQuantity(), // Use actual filled quantity
+                order.getStopLoss(),
+                order.getTakeProfit(),
+                orderResult.getExchangeOrderId()
+            );
+            logger.info("Created position record: {}", position.getId());
             
-            // TODO: Implement stop-loss and take-profit as separate orders
+            // Implement stop-loss and take-profit as separate orders
             if (order.getStopLoss() != null || order.getTakeProfit() != null) {
-                logger.warn("Stop-loss and take-profit orders not yet implemented. " +
-                    "Manual monitoring required for SL: {}, TP: {}",
-                    order.getStopLoss(), order.getTakeProfit());
+                placeStopLossAndTakeProfit(order, orderResult);
             }
             
         } catch (Exception e) {
-            logger.error("Failed to execute order on Binance", e);
+            logger.error("Failed to execute order on exchange", e);
             order.markFailed(e.getMessage());
-            throw new BotOperationException("execute_order", "Binance order execution failed: " + e.getMessage(), e);
+            throw new BotOperationException("execute_order", "Exchange order execution failed: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Place stop-loss and take-profit orders after main order fills
+     * These are separate reduce-only orders that close the position
+     */
+    private void placeStopLossAndTakeProfit(Order order, tradingbot.bot.service.OrderResult mainOrderResult) {
+        try {
+            String symbol = order.getSymbol();
+            double quantity = order.getQuantity();
+            
+            // Determine the opposite side for closing the position
+            String closingSide = (order.getDirection() == TradeDirection.LONG) ? "Sell" : "Buy";
+            
+            // Place stop-loss order if specified
+            if (order.getStopLoss() != null) {
+                try {
+                    tradingbot.bot.service.OrderResult slResult = exchangeService.placeStopLossOrder(
+                        symbol, 
+                        closingSide, 
+                        quantity, 
+                        order.getStopLoss()
+                    );
+                    logger.info("Placed stop-loss order for {} at ${} - Order ID: {}", 
+                        symbol, order.getStopLoss(), slResult.getExchangeOrderId());
+                } catch (Exception e) {
+                    logger.error("Failed to place stop-loss order: {}", e.getMessage());
+                    // Don't fail the main order if stop-loss placement fails
+                }
+            }
+            
+            // Place take-profit order if specified
+            if (order.getTakeProfit() != null) {
+                try {
+                    tradingbot.bot.service.OrderResult tpResult = exchangeService.placeTakeProfitOrder(
+                        symbol, 
+                        closingSide, 
+                        quantity, 
+                        order.getTakeProfit()
+                    );
+                    logger.info("Placed take-profit order for {} at ${} - Order ID: {}", 
+                        symbol, order.getTakeProfit(), tpResult.getExchangeOrderId());
+                } catch (Exception e) {
+                    logger.error("Failed to place take-profit order: {}", e.getMessage());
+                    // Don't fail the main order if take-profit placement fails
+                }
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error in placeStopLossAndTakeProfit: {}", e.getMessage());
+            // Don't throw - main order already executed successfully
         }
     }
     

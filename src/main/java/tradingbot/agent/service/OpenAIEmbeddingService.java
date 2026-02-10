@@ -35,7 +35,7 @@ public class OpenAIEmbeddingService implements EmbeddingService {
     private final RestTemplate restTemplate;
     
     public OpenAIEmbeddingService(
-            @Value("${openai.api.key}") String apiKey,
+            @Value("${openai.api.key:dummy}") String apiKey,
             RestTemplate restTemplate) {
         this.apiKey = apiKey;
         this.restTemplate = restTemplate;

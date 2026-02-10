@@ -216,37 +216,104 @@ public class BybitFuturesService implements FuturesExchangeService {
     }
     
     @Override
-    public void enterLongPosition(String symbol, double tradeAmount) {
-        placeOrder(symbol, "Buy", tradeAmount, false);
-    }
-    
-    @Override
-    public void enterShortPosition(String symbol, double tradeAmount) {
-        placeOrder(symbol, "Sell", tradeAmount, false);
-    }
-    
-    @Override
-    public void exitLongPosition(String symbol, double tradeAmount) {
-        placeOrder(symbol, "Sell", tradeAmount, true);
-    }
-    
-    @Override
-    public void exitShortPosition(String symbol, double tradeAmount) {
-        placeOrder(symbol, "Buy", tradeAmount, true);
-    }
-    
-    private void placeOrder(String symbol, String side, double quantity, boolean reduceOnly) {
+    public Ticker24hrStats get24HourStats(String symbol) {
         try {
-            logger.info("Placing {} order: {} units of {} (reduceOnly: {})", 
-                side, quantity, symbol, reduceOnly);
+            logger.debug("Fetching 24h stats for {}", symbol);
+            
+            String url = String.format("%s/v5/market/tickers?category=linear&symbol=%s",
+                baseUrl, symbol);
+            
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            
+            if (root.has("result") && root.get("result").has("list") && 
+                root.get("result").get("list").size() > 0) {
+                JsonNode ticker = root.get("result").get("list").get(0);
+                
+                return Ticker24hrStats.builder()
+                    .symbol(symbol)
+                    .volume(ticker.get("volume24h").asDouble())
+                    .quoteVolume(ticker.get("turnover24h").asDouble())
+                    .priceChange(0.0) // Bybit doesn't provide absolute change directly
+                    .priceChangePercent(ticker.get("price24hPcnt").asDouble() * 100)
+                    .highPrice(ticker.get("highPrice24h").asDouble())
+                    .lowPrice(ticker.get("lowPrice24h").asDouble())
+                    .openPrice(ticker.get("prevPrice24h").asDouble())
+                    .lastPrice(ticker.get("lastPrice").asDouble())
+                    .build();
+            }
+            
+            throw new BotOperationException("fetch_24h_stats", "No 24h stats data for " + symbol);
+            
+        } catch (Exception e) {
+            logger.error("Failed to fetch 24h stats for {}", symbol, e);
+            throw new BotOperationException("fetch_24h_stats", "Failed to fetch 24h stats for " + symbol, e);
+        }
+    }
+    
+    @Override
+    public OrderResult enterLongPosition(String symbol, double tradeAmount) {
+        return placeOrder(symbol, "Buy", tradeAmount, false, null);
+    }
+    
+    @Override
+    public OrderResult enterShortPosition(String symbol, double tradeAmount) {
+        return placeOrder(symbol, "Sell", tradeAmount, false, null);
+    }
+    
+    @Override
+    public OrderResult exitLongPosition(String symbol, double tradeAmount) {
+        return placeOrder(symbol, "Sell", tradeAmount, true, null);
+    }
+    
+    @Override
+    public OrderResult exitShortPosition(String symbol, double tradeAmount) {
+        return placeOrder(symbol, "Buy", tradeAmount, true, null);
+    }
+    
+    @Override
+    public OrderResult placeStopLossOrder(String symbol, String side, double quantity, double stopPrice) {
+        return placeOrder(symbol, side, quantity, true, stopPrice);
+    }
+    
+    @Override
+    public OrderResult placeTakeProfitOrder(String symbol, String side, double quantity, double takeProfitPrice) {
+        return placeOrder(symbol, side, quantity, true, takeProfitPrice);
+    }
+    
+    private OrderResult placeOrder(String symbol, String side, double quantity, boolean reduceOnly, Double triggerPrice) {
+        try {
+            logger.info("Placing {} order: {} units of {} (reduceOnly: {}, triggerPrice: {})", 
+                side, quantity, symbol, reduceOnly, triggerPrice);
             
             String timestamp = String.valueOf(System.currentTimeMillis());
-            String body = String.format(
-                "{\"category\":\"linear\",\"symbol\":\"%s\",\"side\":\"%s\",\"orderType\":\"Market\",\"qty\":\"%s\",\"positionIdx\":0%s}",
-                symbol, side, String.valueOf(quantity), reduceOnly ? ",\"reduceOnly\":true" : ""
-            );
-            String signature = generateSignature(timestamp, body);
             
+            // Build order request
+            StringBuilder bodyBuilder = new StringBuilder();
+            bodyBuilder.append("{");
+            bodyBuilder.append(String.format("\"category\":\"linear\",\"symbol\":\"%s\",", symbol));
+            bodyBuilder.append(String.format("\"side\":\"%s\",", side));
+            
+            // Determine order type based on trigger price
+            if (triggerPrice != null) {
+                bodyBuilder.append("\"orderType\":\"Market\",");
+                bodyBuilder.append(String.format("\"triggerPrice\":\"%s\",", triggerPrice));
+                bodyBuilder.append("\"triggerBy\":\"LastPrice\",");
+            } else {
+                bodyBuilder.append("\"orderType\":\"Market\",");
+            }
+            
+            bodyBuilder.append(String.format("\"qty\":\"%s\",", String.valueOf(quantity)));
+            bodyBuilder.append("\"positionIdx\":0");
+            
+            if (reduceOnly) {
+                bodyBuilder.append(",\"reduceOnly\":true");
+            }
+            
+            bodyBuilder.append("}");
+            String body = bodyBuilder.toString();
+            
+            String signature = generateSignature(timestamp, body);
             String url = baseUrl + "/v5/order/create";
             
             HttpHeaders headers = new HttpHeaders();
@@ -261,8 +328,25 @@ public class BybitFuturesService implements FuturesExchangeService {
             
             JsonNode root = objectMapper.readTree(response.getBody());
             if (root.get("retCode").asInt() == 0) {
-                String orderId = root.get("result").get("orderId").asText();
+                JsonNode result = root.get("result");
+                String orderId = result.get("orderId").asText();
                 logger.info("Order placed successfully. ID: {}", orderId);
+                
+                // Get current price for avgFillPrice (market orders fill immediately)
+                double currentPrice = getCurrentPrice(symbol);
+                
+                return OrderResult.builder()
+                    .exchangeOrderId(orderId)
+                    .symbol(symbol)
+                    .side(side)
+                    .status(OrderResult.OrderStatus.FILLED) // Market orders fill immediately
+                    .orderedQuantity(quantity)
+                    .filledQuantity(quantity) // Assume full fill for market orders
+                    .avgFillPrice(currentPrice)
+                    .commission(0.0) // Would need separate API call to get fee
+                    .createdAt(java.time.Instant.now())
+                    .updatedAt(java.time.Instant.now())
+                    .build();
             } else {
                 logger.error("Order failed: {}", response.getBody());
                 throw new BotOperationException("place_order", "Order failed: " + root.get("retMsg").asText());

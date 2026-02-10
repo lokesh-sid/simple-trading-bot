@@ -33,7 +33,7 @@ public class JwtService {
     
     private static final Logger logger = LoggerFactory.getLogger(JwtService.class);
     
-    @Value("${jwt.secret}")
+    @Value("${jwt.secret:dummy}")
     private String jwtSecret;
     
     @Value("${jwt.access-token-expiration:3600000}") // 1 hour default

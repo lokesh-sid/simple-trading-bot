@@ -26,9 +26,10 @@ import tradingbot.bot.events.BotStatusEvent;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.messaging.EventTopic;
 import tradingbot.bot.service.FuturesExchangeService;
-import tradingbot.bot.service.PaperFuturesExchangeService;
 import tradingbot.bot.service.RateLimitedBinanceFuturesService;
+import tradingbot.bot.service.PaperFuturesExchangeService;
 import tradingbot.bot.service.RateLimitedBybitFuturesService;
+import tradingbot.bot.service.DydxFuturesService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.bot.strategy.calculator.IndicatorCalculator;
 import tradingbot.bot.strategy.exit.LiquidationRiskExit;
@@ -76,11 +77,15 @@ public class SimpleTradingBotApplication {
     @Bean
     FuturesExchangeService exchangeService(
             @Value("${trading.exchange.provider:binance}") String provider,
-            @Value("${trading.binance.api.key}") String binanceApiKey,
-            @Value("${trading.binance.api.secret}") String binanceApiSecret,
+            @Value("${trading.binance.api.key:dummy}") String binanceApiKey,
+            @Value("${trading.binance.api.secret:dummy}") String binanceApiSecret,
             @Value("${trading.bybit.api.key:}") String bybitApiKey,
             @Value("${trading.bybit.api.secret:}") String bybitApiSecret,
-            @Value("${trading.bybit.domain:MAINNET_DOMAIN}") String bybitDomain) {
+            @Value("${trading.bybit.domain:MAINNET_DOMAIN}") String bybitDomain,
+            @Value("${trading.dydx.network:testnet}") String dydxNetwork,
+            @Value("${trading.dydx.mainnet.url:https://indexer.dydx.trade/v4}") String dydxMainnetUrl,
+            @Value("${trading.dydx.testnet.url:https://dydx-testnet.bwarelabs.com/v4}") String dydxTestnetUrl,
+            @Value("${trading.dydx.eth.private.key:}") String dydxPrivateKey) {
         
         logger.info("Initializing exchange service: {}", provider);
         
@@ -100,8 +105,12 @@ public class SimpleTradingBotApplication {
                     : "https://api.bybit.com";
                 yield new RateLimitedBybitFuturesService(bybitApiKey, bybitApiSecret, baseUrl);
             }
+            case "dydx" -> {
+                logger.info("Using dYdX Futures exchange v4 ({})", dydxNetwork);
+                yield new DydxFuturesService(dydxNetwork, dydxMainnetUrl, dydxTestnetUrl, dydxPrivateKey);
+            }
             default -> throw new IllegalArgumentException(
-                "Unsupported exchange: " + provider + ". Supported: binance, bybit"
+                "Unsupported exchange: " + provider + ". Supported: binance, bybit, dydx, paper"
             );
         };
     }

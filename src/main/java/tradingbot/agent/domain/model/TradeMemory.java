@@ -212,12 +212,12 @@ public class TradeMemory {
             this.lessonLearned = lessonLearned;
             return this;
         }
-networkFee(Double networkFee) {
+
+        public Builder networkFee(Double networkFee) {
             this.networkFee = networkFee;
             return this;
         }
 
-        public Builder 
         public Builder timestamp(Instant timestamp) {
             this.timestamp = timestamp;
             return this;

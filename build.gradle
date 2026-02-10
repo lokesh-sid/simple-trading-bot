@@ -50,6 +50,9 @@ dependencies {
     // OAuth2/OpenID Connect (optional - for social login)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
+    // Web3j for dYdX Authentication
+    implementation 'org.web3j:core:4.10.3'
     
     // Database
     runtimeOnly 'org.postgresql:postgresql'

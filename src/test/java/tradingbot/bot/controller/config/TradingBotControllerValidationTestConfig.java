@@ -10,6 +10,9 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 
+import net.devh.boot.grpc.server.autoconfigure.GrpcServerAutoConfiguration;
+import net.devh.boot.grpc.server.autoconfigure.GrpcServerFactoryAutoConfiguration;
+
 import tradingbot.agent.api.AgentController;
 import tradingbot.bot.controller.TradingBotController;
 import tradingbot.bot.controller.exception.GlobalExceptionHandler;
@@ -20,7 +23,9 @@ import tradingbot.bot.controller.exception.GlobalExceptionHandler;
     RedisAutoConfiguration.class,
     RedisRepositoriesAutoConfiguration.class,
     HibernateJpaAutoConfiguration.class,
-    DataSourceAutoConfiguration.class
+    DataSourceAutoConfiguration.class,
+    GrpcServerAutoConfiguration.class,
+    GrpcServerFactoryAutoConfiguration.class
 })
 @ComponentScan(
     basePackages = {"tradingbot.bot.controller", "tradingbot.agent.api"},

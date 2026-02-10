@@ -28,7 +28,7 @@ import tradingbot.agent.service.TradingTools;
 @Configuration
 public class LangChain4jConfig {
     
-    @Value("${llm.api-key}")
+    @Value("${llm.api-key:dummy}")
     private String apiKey;
     
     @Value("${llm.base-url:https://api.openai.com/v1}")
