@@ -67,6 +67,15 @@ public class RateLimitedBybitFuturesService implements FuturesExchangeService {
     }
     
     @Override
+    @RateLimiter(name = "bybit-market", fallbackMethod = "get24HourStatsFallback")
+    @CircuitBreaker(name = "bybit-api")
+    @Retry(name = "bybit-market")
+    public Ticker24hrStats get24HourStats(String symbol) {
+        logger.debug("Rate-limited 24h stats fetch for {}", symbol);
+        return delegate.get24HourStats(symbol);
+    }
+    
+    @Override
     @RateLimiter(name = "bybit-account", fallbackMethod = "setLeverageFallback")
     @CircuitBreaker(name = "bybit-api")
     @Retry(name = "bybit-account")
@@ -79,36 +88,54 @@ public class RateLimitedBybitFuturesService implements FuturesExchangeService {
     @RateLimiter(name = "bybit-trading", fallbackMethod = "enterLongPositionFallback")
     @CircuitBreaker(name = "bybit-api")
     @Retry(name = "bybit-trading")
-    public void enterLongPosition(String symbol, double tradeAmount) {
+    public OrderResult enterLongPosition(String symbol, double tradeAmount) {
         logger.info("Rate-limited LONG entry: {} units of {}", tradeAmount, symbol);
-        delegate.enterLongPosition(symbol, tradeAmount);
+        return delegate.enterLongPosition(symbol, tradeAmount);
     }
     
     @Override
     @RateLimiter(name = "bybit-trading", fallbackMethod = "enterShortPositionFallback")
     @CircuitBreaker(name = "bybit-api")
     @Retry(name = "bybit-trading")
-    public void enterShortPosition(String symbol, double tradeAmount) {
+    public OrderResult enterShortPosition(String symbol, double tradeAmount) {
         logger.info("Rate-limited SHORT entry: {} units of {}", tradeAmount, symbol);
-        delegate.enterShortPosition(symbol, tradeAmount);
+        return delegate.enterShortPosition(symbol, tradeAmount);
     }
     
     @Override
     @RateLimiter(name = "bybit-trading", fallbackMethod = "exitLongPositionFallback")
     @CircuitBreaker(name = "bybit-api")
     @Retry(name = "bybit-trading")
-    public void exitLongPosition(String symbol, double tradeAmount) {
+    public OrderResult exitLongPosition(String symbol, double tradeAmount) {
         logger.info("Rate-limited LONG exit: {} units of {}", tradeAmount, symbol);
-        delegate.exitLongPosition(symbol, tradeAmount);
+        return delegate.exitLongPosition(symbol, tradeAmount);
     }
     
     @Override
     @RateLimiter(name = "bybit-trading", fallbackMethod = "exitShortPositionFallback")
     @CircuitBreaker(name = "bybit-api")
     @Retry(name = "bybit-trading")
-    public void exitShortPosition(String symbol, double tradeAmount) {
+    public OrderResult exitShortPosition(String symbol, double tradeAmount) {
         logger.info("Rate-limited SHORT exit: {} units of {}", tradeAmount, symbol);
-        delegate.exitShortPosition(symbol, tradeAmount);
+        return delegate.exitShortPosition(symbol, tradeAmount);
+    }
+    
+    @Override
+    @RateLimiter(name = "bybit-trading", fallbackMethod = "placeStopLossOrderFallback")
+    @CircuitBreaker(name = "bybit-api")
+    @Retry(name = "bybit-trading")
+    public OrderResult placeStopLossOrder(String symbol, String side, double quantity, double stopPrice) {
+        logger.info("Rate-limited stop-loss order: {} {} {} @ {}", side, quantity, symbol, stopPrice);
+        return delegate.placeStopLossOrder(symbol, side, quantity, stopPrice);
+    }
+    
+    @Override
+    @RateLimiter(name = "bybit-trading", fallbackMethod = "placeTakeProfitOrderFallback")
+    @CircuitBreaker(name = "bybit-api")
+    @Retry(name = "bybit-trading")
+    public OrderResult placeTakeProfitOrder(String symbol, String side, double quantity, double takeProfitPrice) {
+        logger.info("Rate-limited take-profit order: {} {} {} @ {}", side, quantity, symbol, takeProfitPrice);
+        return delegate.placeTakeProfitOrder(symbol, side, quantity, takeProfitPrice);
     }
     
     // ==================== Fallback Methods ====================
@@ -132,32 +159,50 @@ public class RateLimitedBybitFuturesService implements FuturesExchangeService {
     }
     
     @SuppressWarnings("unused")
+    private Ticker24hrStats get24HourStatsFallback(String symbol, Throwable t) {
+        logger.error("Fallback triggered for get24HourStats: {}", t.getMessage());
+        throw new BotOperationException("fetch_24h_stats", t.getMessage(), t);
+    }
+    
+    @SuppressWarnings("unused")
     private void setLeverageFallback(String symbol, int leverage, Throwable t) {
         logger.error("Fallback triggered for setLeverage: {}", t.getMessage());
         throw new BotOperationException("set_leverage", t.getMessage(), t);
     }
     
     @SuppressWarnings("unused")
-    private void enterLongPositionFallback(String symbol, double tradeAmount, Throwable t) {
+    private OrderResult enterLongPositionFallback(String symbol, double tradeAmount, Throwable t) {
         logger.error("Fallback triggered for enterLongPosition: {}", t.getMessage());
         throw new BotOperationException("enter_long_position", t.getMessage(), t);
     }
     
     @SuppressWarnings("unused")
-    private void enterShortPositionFallback(String symbol, double tradeAmount, Throwable t) {
+    private OrderResult enterShortPositionFallback(String symbol, double tradeAmount, Throwable t) {
         logger.error("Fallback triggered for enterShortPosition: {}", t.getMessage());
         throw new BotOperationException("enter_short_position", t.getMessage(), t);
     }
     
     @SuppressWarnings("unused")
-    private void exitLongPositionFallback(String symbol, double tradeAmount, Throwable t) {
+    private OrderResult exitLongPositionFallback(String symbol, double tradeAmount, Throwable t) {
         logger.error("Fallback triggered for exitLongPosition: {}", t.getMessage());
         throw new BotOperationException("exit_long_position", t.getMessage(), t);
     }
     
     @SuppressWarnings("unused")
-    private void exitShortPositionFallback(String symbol, double tradeAmount, Throwable t) {
+    private OrderResult exitShortPositionFallback(String symbol, double tradeAmount, Throwable t) {
         logger.error("Fallback triggered for exitShortPosition: {}", t.getMessage());
         throw new BotOperationException("exit_short_position", t.getMessage(), t);
+    }
+    
+    @SuppressWarnings("unused")
+    private OrderResult placeStopLossOrderFallback(String symbol, String side, double quantity, double stopPrice, Throwable t) {
+        logger.error("Fallback triggered for placeStopLossOrder: {}", t.getMessage());
+        throw new BotOperationException("place_stop_loss", t.getMessage(), t);
+    }
+    
+    @SuppressWarnings("unused")
+    private OrderResult placeTakeProfitOrderFallback(String symbol, String side, double quantity, double takeProfitPrice, Throwable t) {
+        logger.error("Fallback triggered for placeTakeProfitOrder: {}", t.getMessage());
+        throw new BotOperationException("place_take_profit", t.getMessage(), t);
     }
 }

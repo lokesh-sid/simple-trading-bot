@@ -54,6 +54,7 @@ class LangChain4jStrategyTest {
         
         // Set RAG enabled by default
         ReflectionTestUtils.setField(strategy, "ragEnabled", true);
+        ReflectionTestUtils.setField(strategy, "ragContextLimit", 3);
     }
     
     @Test
@@ -557,7 +558,7 @@ class LangChain4jStrategyTest {
         ReflectionTestUtils.setField(strategy, "ragEnabled", true);
         
         when(ragService.retrieveSimilarTrades(anyString(), anyInt()))
-            .thenReturn(List.of()); // Return empty instead of throwing
+            .thenThrow(new RuntimeException("Vector DB Connection Failed"));
         when(tradingAgentService.analyzeAndDecide(
             anyString(), anyString(), anyDouble(), anyInt(), anyString()))
             .thenReturn("Decision: BUY");

@@ -1,5 +1,6 @@
 package tradingbot.bot.service.backtest;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -7,12 +8,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import tradingbot.bot.service.BinanceFuturesService.Candle;
 import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.bot.service.OrderResult;
+import tradingbot.bot.service.Ticker24hrStats;
 
 public class BacktestExchangeService implements FuturesExchangeService {
     private static final Logger logger = LoggerFactory.getLogger(BacktestExchangeService.class);
@@ -28,17 +32,17 @@ public class BacktestExchangeService implements FuturesExchangeService {
     private int currentIndex;
     
     private final long latencyMs;
-    private final double slippagePercent;
     private final double takerFeeRate;
     
     private Queue<PendingOrder> pendingOrders = new LinkedList<>();
+    
+    private final AtomicLong orderIdGenerator = new AtomicLong(1);
 
     private static final String LONG_SUFFIX = ":LONG";
     private static final String SHORT_SUFFIX = ":SHORT";
 
     public BacktestExchangeService(long latencyMs, double slippagePercent, double takerFeeRate) {
         this.latencyMs = latencyMs;
-        this.slippagePercent = slippagePercent;
         this.takerFeeRate = takerFeeRate;
     }
 
@@ -179,6 +183,33 @@ public class BacktestExchangeService implements FuturesExchangeService {
     public double getMarginBalance() {
         return marginBalance;
     }
+    
+    @Override
+    public Ticker24hrStats get24HourStats(String symbol) {
+        // Calculate 24h stats from historical data (last 24 candles for 1h timeframe)
+        int lookback = Math.min(24, currentIndex + 1);
+        List<Candle> recentCandles = history.subList(Math.max(0, currentIndex - lookback + 1), currentIndex + 1);
+        
+        double high = recentCandles.stream().mapToDouble(c -> c.getHigh().doubleValue()).max().orElse(0.0);
+        double low = recentCandles.stream().mapToDouble(c -> c.getLow().doubleValue()).min().orElse(0.0);
+        double volume = recentCandles.stream().mapToDouble(c -> c.getVolume().doubleValue()).sum();
+        double open = recentCandles.get(0).getOpen().doubleValue();
+        double last = currentCandle.getClose().doubleValue();
+        double priceChange = last - open;
+        double priceChangePercent = (priceChange / open) * 100;
+        
+        return Ticker24hrStats.builder()
+            .symbol(symbol)
+            .volume(volume)
+            .quoteVolume(volume * last)
+            .priceChange(priceChange)
+            .priceChangePercent(priceChangePercent)
+            .highPrice(high)
+            .lowPrice(low)
+            .openPrice(open)
+            .lastPrice(last)
+            .build();
+    }
 
     @Override
     public void setLeverage(String symbol, int leverage) {
@@ -191,23 +222,125 @@ public class BacktestExchangeService implements FuturesExchangeService {
     }
 
     @Override
-    public void enterLongPosition(String symbol, double tradeAmount) {
-        pendingOrders.add(new PendingOrder(symbol, normalizeQuantity(tradeAmount), OrderType.BUY, true, currentTime + latencyMs));
+    public OrderResult enterLongPosition(String symbol, double tradeAmount) {
+        double quantity = normalizeQuantity(tradeAmount);
+        pendingOrders.add(new PendingOrder(symbol, quantity, OrderType.BUY, true, currentTime + latencyMs));
+        
+        String orderId = "BT-" + orderIdGenerator.getAndIncrement();
+        return OrderResult.builder()
+            .exchangeOrderId(orderId)
+            .clientOrderId(orderId)
+            .symbol(symbol)
+            .side("BUY")
+            .status(OrderResult.OrderStatus.NEW)
+            .orderedQuantity(quantity)
+            .filledQuantity(0.0)
+            .avgFillPrice(0.0)
+            .commission(0.0)
+            .createdAt(Instant.now())
+            .updatedAt(Instant.now())
+            .build();
     }
 
     @Override
-    public void exitLongPosition(String symbol, double tradeAmount) {
-        pendingOrders.add(new PendingOrder(symbol, normalizeQuantity(tradeAmount), OrderType.SELL, false, currentTime + latencyMs));
+    public OrderResult exitLongPosition(String symbol, double tradeAmount) {
+        double quantity = normalizeQuantity(tradeAmount);
+        pendingOrders.add(new PendingOrder(symbol, quantity, OrderType.SELL, false, currentTime + latencyMs));
+        
+        String orderId = "BT-" + orderIdGenerator.getAndIncrement();
+        return OrderResult.builder()
+            .exchangeOrderId(orderId)
+            .clientOrderId(orderId)
+            .symbol(symbol)
+            .side("SELL")
+            .status(OrderResult.OrderStatus.NEW)
+            .orderedQuantity(quantity)
+            .filledQuantity(0.0)
+            .avgFillPrice(0.0)
+            .commission(0.0)
+            .createdAt(Instant.now())
+            .updatedAt(Instant.now())
+            .build();
     }
 
     @Override
-    public void enterShortPosition(String symbol, double tradeAmount) {
-        pendingOrders.add(new PendingOrder(symbol, normalizeQuantity(tradeAmount), OrderType.SELL, true, currentTime + latencyMs));
+    public OrderResult enterShortPosition(String symbol, double tradeAmount) {
+        double quantity = normalizeQuantity(tradeAmount);
+        pendingOrders.add(new PendingOrder(symbol, quantity, OrderType.SELL, true, currentTime + latencyMs));
+        
+        String orderId = "BT-" + orderIdGenerator.getAndIncrement();
+        return OrderResult.builder()
+            .exchangeOrderId(orderId)
+            .clientOrderId(orderId)
+            .symbol(symbol)
+            .side("SELL")
+            .status(OrderResult.OrderStatus.NEW)
+            .orderedQuantity(quantity)
+            .filledQuantity(0.0)
+            .avgFillPrice(0.0)
+            .commission(0.0)
+            .createdAt(Instant.now())
+            .updatedAt(Instant.now())
+            .build();
     }
 
     @Override
-    public void exitShortPosition(String symbol, double tradeAmount) {
-        pendingOrders.add(new PendingOrder(symbol, normalizeQuantity(tradeAmount), OrderType.BUY, false, currentTime + latencyMs));
+    public OrderResult exitShortPosition(String symbol, double tradeAmount) {
+        double quantity = normalizeQuantity(tradeAmount);
+        pendingOrders.add(new PendingOrder(symbol, quantity, OrderType.BUY, false, currentTime + latencyMs));
+        
+        String orderId = "BT-" + orderIdGenerator.getAndIncrement();
+        return OrderResult.builder()
+            .exchangeOrderId(orderId)
+            .clientOrderId(orderId)
+            .symbol(symbol)
+            .side("BUY")
+            .status(OrderResult.OrderStatus.NEW)
+            .orderedQuantity(quantity)
+            .filledQuantity(0.0)
+            .avgFillPrice(0.0)
+            .commission(0.0)
+            .createdAt(Instant.now())
+            .updatedAt(Instant.now())
+            .build();
+    }
+    
+    @Override
+    public OrderResult placeStopLossOrder(String symbol, String side, double quantity, double stopPrice) {
+        // For backtest, we'll simulate stop-loss by simply returning a pending order
+        String orderId = "BT-SL-" + orderIdGenerator.getAndIncrement();
+        return OrderResult.builder()
+            .exchangeOrderId(orderId)
+            .clientOrderId(orderId)
+            .symbol(symbol)
+            .side(side)
+            .status(OrderResult.OrderStatus.NEW)
+            .orderedQuantity(normalizeQuantity(quantity))
+            .filledQuantity(0.0)
+            .avgFillPrice(0.0)
+            .commission(0.0)
+            .createdAt(Instant.now())
+            .updatedAt(Instant.now())
+            .build();
+    }
+    
+    @Override
+    public OrderResult placeTakeProfitOrder(String symbol, String side, double quantity, double takeProfitPrice) {
+        // For backtest, we'll simulate take-profit by simply returning a pending order
+        String orderId = "BT-TP-" + orderIdGenerator.getAndIncrement();
+        return OrderResult.builder()
+            .exchangeOrderId(orderId)
+            .clientOrderId(orderId)
+            .symbol(symbol)
+            .side(side)
+            .status(OrderResult.OrderStatus.NEW)
+            .orderedQuantity(normalizeQuantity(quantity))
+            .filledQuantity(0.0)
+            .avgFillPrice(0.0)
+            .commission(0.0)
+            .createdAt(Instant.now())
+            .updatedAt(Instant.now())
+            .build();
     }
     
     private static class PendingOrder {

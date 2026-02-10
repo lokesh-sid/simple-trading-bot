@@ -132,10 +132,6 @@ public class RAGService {
             List<TradeMemory> memories) {
         
         // Build augmented perception with memory context
-        String basePerceptionText = contextBuilder.buildScenarioDescription(
-            baseContext.getPerception()
-        );
-        
         String augmentedText = contextBuilder.buildAugmentedContext(
             baseContext,
             memories
@@ -204,6 +200,7 @@ public class RAGService {
      * @param outcome Trade outcome
      * @param profitPercent Profit/loss percentage
      * @param lessonLearned What was learned from this trade
+     * @param networkFee Fees paid (Gas + Protocol). Important for DEX calculation.
      */
     public void storeTradeMemory(
             String agentId,
@@ -214,11 +211,18 @@ public class RAGService {
             Double exitPrice,
             TradeOutcome outcome,
             Double profitPercent,
-            String lessonLearned) {
+            String lessonLearned,
+            Double networkFee) {
         
         try {
             logger.info("Storing trade memory for agent {} on {}", agentId, symbol);
             
+            // Adjust logic to include fees in the memory or lesson if significant
+            String enhancedLesson = lessonLearned;
+            if (networkFee != null && networkFee > 0) {
+                 enhancedLesson += String.format(" [Fees: %.4f]", networkFee);
+            }
+
             // Generate embedding for the scenario
             double[] embedding = embeddingService.embed(scenarioDescription);
             
@@ -233,7 +237,8 @@ public class RAGService {
                 .exitPrice(exitPrice)
                 .outcome(outcome)
                 .profitPercent(profitPercent)
-                .lessonLearned(lessonLearned)
+                .lessonLearned(enhancedLesson)
+                .networkFee(networkFee)
                 .timestamp(Instant.now())
                 .embedding(embedding)
                 .build();

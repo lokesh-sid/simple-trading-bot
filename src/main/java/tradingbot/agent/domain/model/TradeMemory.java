@@ -26,6 +26,7 @@ public class TradeMemory {
     private final TradeOutcome outcome;
     private final Double profitPercent;  // Nullable - may still be open
     private final String lessonLearned;
+    private final Double networkFee;
     private final Instant timestamp;
     private final double[] embedding;  // Vector representation for semantic search
 
@@ -43,6 +44,7 @@ public class TradeMemory {
         this.outcome = builder.outcome;
         this.profitPercent = builder.profitPercent;
         this.lessonLearned = builder.lessonLearned;
+        this.networkFee = builder.networkFee;
         this.timestamp = builder.timestamp;
         this.embedding = builder.embedding;
         this.similarityScore = builder.similarityScore;
@@ -63,6 +65,7 @@ public class TradeMemory {
     public TradeOutcome getOutcome() { return outcome; }
     public Double getProfitPercent() { return profitPercent; }
     public String getLessonLearned() { return lessonLearned; }
+    public Double getNetworkFee() { return networkFee; }
     public Instant getTimestamp() { return timestamp; }
     public double[] getEmbedding() { return embedding; }
     public Double getSimilarityScore() { return similarityScore; }
@@ -155,6 +158,7 @@ public class TradeMemory {
         private TradeOutcome outcome = TradeOutcome.PENDING;
         private Double profitPercent;
         private String lessonLearned;
+        private Double networkFee;
         private Instant timestamp = Instant.now();
         private double[] embedding;
         private Double similarityScore;
@@ -208,7 +212,12 @@ public class TradeMemory {
             this.lessonLearned = lessonLearned;
             return this;
         }
+networkFee(Double networkFee) {
+            this.networkFee = networkFee;
+            return this;
+        }
 
+        public Builder 
         public Builder timestamp(Instant timestamp) {
             this.timestamp = timestamp;
             return this;
