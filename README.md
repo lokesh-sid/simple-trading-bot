@@ -1,7 +1,105 @@
 
-# Simple-trading-bot
+# Agentic AI Trading Bot
 
-A Spring Boot-based automated trading bot for long and short positions in cryptocurrency futures markets (e.g., BTC/USDT on Binance Futures) with configurable leverage, trailing stop-loss, optional sentiment analysis from X posts, and support for paper trading. Uses Redis caching to optimize performance. Built for extensibility and testability.
+A Spring Boot-based automated trading bot that combines **Agentic AI (LLMs)** with traditional quantitative strategies for cryptocurrency futures markets.
+
+## 🚀 Key Features
+
+### 🧠 Agentic AI Core
+- **Autonomous Agents**: Uses **Grok (X.AI)** or OpenAI for market reasoning and decision making.
+- **RAG Architecture**: Retrieves market context and historical patterns using **Pinecone** vector database.
+- **Sentiment Analysis**: Analyzes market sentiment (currently simulated/placeholder).
+- **Natural Language Orders**: Parses trading instructions directly from LLM reasoning (e.g., "Buy 0.5 BTC with 5x leverage").
+
+### 📉 Trading Capabilities
+- **Multi-Exchange Support**:
+  - **Bybit Futures** (✅ **Recommended for Testing**): Full V5 API support, Real Execution, Testnet Ready.
+  - **Binance Futures**: Mainnet support (Production only).
+  - **dYdX v4**: Market data enabled, Trade execution is mocked/simulated (Safe for testing navigation).
+  - **Paper Trading**: Fully simulated local execution for strategy development.
+- **Advanced Exit Strategies**:
+  - Trailing Stop-Loss
+  - Liquidation Risk Guard
+  - MACD Reversal Exit
+  - RSI Overbought/Oversold Exit
+
+### 🛠 Technical Architecture
+- **Tech Stack**: Java 21, Spring Boot 3.2
+- **Event-Driven**: Apache Kafka for asynchronous event processing.
+- **Data & Caching**: PostgreSQL for persistence, Redis for high-performance caching.
+- **Resilience**: Circuit Breakers & Rate Limiters (Resilience4j) for all exchange interactions.
+
+---
+
+## 🚦 Project Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| **Bybit Integration** | 🟢 **Ready** | Fully functional. Supports Mainnet & Testnet V5 API. |
+| **Binance Integration** | 🟡 **Mainnet Only** | Functional logic, but hardcoded to Mainnet URLs. |
+| **dYdX Integration** | 🟠 **Partial** | Reads market data/balance. Trade execution is **Mocked** (no gas signing). |
+| **AI / RAG Agents** | 🟢 **Beta** | RAG pipeline and Grok integration implemented. |
+| **Sentiment Analysis** | 🔴 **Mocked** | Placeholder logic. Needs real API credentials. |
+
+---
+
+## ⚡ Quick Start (Testnet)
+
+The project is pre-configured for **Bybit Testnet**.
+
+### 1. Prerequisites
+- Java 21 LTS
+- Docker & Docker Compose (for Kafka, Redis, Postgres)
+- A Bybit Testnet Account (Ensure "One-Way Mode" is enabled)
+
+### 2. Configuration
+Edit `src/main/resources/application.properties`:
+
+```properties
+# Select Bybit as the provider
+trading.exchange.provider=bybit
+
+# Enable Testnet
+trading.bybit.domain=TESTNET_DOMAIN
+
+# Credentials
+trading.bybit.api.key=YOUR_TESTNET_KEY
+trading.bybit.api.secret=YOUR_TESTNET_SECRET
+```
+
+### 3. Run Dependencies
+```bash
+docker-compose up -d
+```
+
+### 4. Start the Bot
+```bash
+./gradlew bootRun
+```
+
+---
+
+## 🧪 Testing
+
+### API Tests
+The `api-tests/` directory contains HTTP scripts for direct testing.
+
+- **Gateway Tests**: `api-tests/gateway-api-tests.http`
+- **Agent Tests**: `api-tests/agent-api-tests.http`
+
+### Unit & Integration Tests
+```bash
+./gradlew test
+```
+
+---
+
+## 📚 Documentation
+
+For detailed implementation guides:
+- [Agentic AI Implementation](AGENTIC_AI_IMPLEMENTATION_SUMMARY.md) - Deep dive into the LLM/RAG system.
+- [Binance Integration](BINANCE_API_INTEGRATION.md)
+- [Architecture Diagram](AGENTIC_AI_IMPLEMENTATION_SUMMARY.md#architecture)
 
 ## 🏗️ Architecture Overview
 
@@ -130,7 +228,6 @@ graph TB
 - **Asynchronous processing** with Kafka event streaming
 - **Type-safe events** using `EventWrapper<T extends TradingEvent>`
 - **Event sourcing** capabilities for audit trails
-- **CQRS-ready** architecture for complex queries
 
 #### 🛡️ **Resilience Patterns**
 - **Circuit Breaker**: Resilience4j for external API failures
@@ -138,100 +235,42 @@ graph TB
 - **Retry Logic**: Exponential backoff for transient failures
 - **Fallback Strategies**: Paper trading as circuit breaker fallback
 
-#### 📊 **Observability**
-- **Spring Actuator**: Health checks, metrics, and monitoring
-- **Custom Metrics**: Trading performance and system health
-- **Structured Logging**: Event correlation and debugging
-- **Event Tracing**: Complete audit trail with `EventWrapper` metadata
+## 🛠 Deployment
 
-## Features
+### Docker Support
+The application is fully containerized.
 
-- Agent-based architecture: Each trading bot is an agent, managed by an AgentManager for multi-bot deployments.
-- Executes long and short positions using technical indicators (RSI, MACD, Bollinger Bands) on daily ("1d") and weekly ("1w") timeframes.
-- Paper trading mode: Simulate trades and margin using in-memory logic for safe testing and strategy development.
-- Extensible indicator architecture: Easily add new technical indicators via configuration or code.
-- Improved testability: All dependencies are injected for easy mocking and unit testing.
-- Configurable leverage (default 3x), adjustable via REST API.
-- Trailing stop-loss (1%) to maximize profits during uptrends.
-- Optional sentiment analysis from X posts for entry decisions.
-- RESTful APIs for starting, stopping, configuring, and monitoring the bot.
-- Redis caching with hybrid TTL and event-based invalidation for performance.
-- Support for Binance Futures, configurable via system property.
-- Built with SOLID and Clean Code principles for maintainability.
-- AWS-ready: Dockerfile and ECS task definition provided for cloud deployment.
-
-### Prerequisites
-
-* Java 17  
-* Gradle 8.5+ (or use included wrapper)  
-* Binance Futures account with API key/secret (trading permissions only)    
-* X API access for sentiment analysis (optional)    
-* Redis server (e.g., localhost:6379)   
-* Docker and Docker Compose for containerization
-
-
-### Agent Architecture
-
-The bot is now refactored as an agent implementing the `TradingAgent` interface. Multiple agents can be managed and deployed using the `AgentManager` class. This enables scalable, multi-symbol, or multi-exchange deployments.
-
-### Setup
-
-1. Clone the repository:
-    ```bash
-    git clone <repository-url>
-    cd simple-trading-bot
-    ```
-
-
-2. Configure application.properties with Redis settings and X API credentials (if using sentiment analysis).
-3. Update API keys in TradingBotApplication.java (replace placeholders like "YOUR_BINANCE_API_KEY").
-4. Set exchange (Binance by default):
-    ```bash
-    java -Dexchange=binance -jar simple-trading-bot-1.0-SNAPSHOT.jar
-    ```
-    
-5. Build and run:
-    ```bash
-    ./gradlew build
-    ./gradlew bootRun
-    ```
-
-   Or if you prefer the full Gradle installation:
-    ```bash
-    gradle build
-    gradle bootRun
-    ```
-
-
-#### AWS & Docker Setup
-
-Build the Docker image:    
+1. **Build Image**:
    ```bash
    docker build -t simple-trading-bot .
    ```
 
+2. **Run with Dependencies**:
+   ```bash
+   docker-compose up -d
+   ```
 
-Run with Docker (standalone, without Redis):
-  ```bash
-    docker run -p 8080:8080 --name simple-trading-bot simple-trading-bot
-  ``` 
+### AWS Deployment
+- **ECS**: Use `aws-ecs-task-definition.json` for Fargate deployment.
+- **Logging**: Configured for CloudWatch compatibility.
+- **Config**: Use AWS Parameter Store or Secrets Manager for API keys.
 
+## 📝 Configuration Reference
 
+| Property | Default | Description |
+|----------|---------|-------------|
+| `trading.exchange.provider` | `binance` | Exchange to use (`bybit`, `binance`, `dydx`, `paper`) |
+| `trading.bybit.domain` | `MAINNET_DOMAIN` | Set to `TESTNET_DOMAIN` for testing |
+| `rag.enabled` | `true` | Enable Agentic AI features |
+| `rag.embedding.provider` | `openai` | Embedding provider (`openai`, `grok`, `local`) |
 
-Note: This requires a separate Redis instance. Use -e SPRING_DATA_REDIS_HOST=host.docker.internal if Redis is on host.
+## 🤝 Contributing
 
-##### AWS ECS Deployment
-
-1. Build and push your Docker image to AWS ECR.
-2. Use the provided `aws-ecs-task-definition.json` to deploy on ECS Fargate.
-3. Configure environment variables for secrets and config in ECS.
-4. Logging is compatible with AWS CloudWatch.
-
-
-Run with Docker Compose (includes Redis):
-  ```bash
-    docker-compose up --build
-  ```
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 
 This starts the tradingbot and Redis services.      

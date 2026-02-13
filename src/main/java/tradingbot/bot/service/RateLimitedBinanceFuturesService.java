@@ -9,6 +9,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.github.resilience4j.retry.annotation.Retry;
 import tradingbot.bot.controller.exception.BotOperationException;
+import tradingbot.bot.messaging.EventPublisher;
 
 /**
  * Rate-limited wrapper for BinanceFuturesService using Resilience4j
@@ -26,11 +27,15 @@ public class RateLimitedBinanceFuturesService implements FuturesExchangeService 
     
     private final BinanceFuturesService binanceService;
     
-    public RateLimitedBinanceFuturesService(String apiKey, String apiSecret) {
-        this.binanceService = new BinanceFuturesService(apiKey, apiSecret);
+    public RateLimitedBinanceFuturesService(String apiKey, String apiSecret, EventPublisher eventPublisher) {
+        this.binanceService = new BinanceFuturesService(apiKey, apiSecret, eventPublisher);
         logger.info("Rate-limited Binance Futures service initialized");
     }
-
+    
+    public RateLimitedBinanceFuturesService(String apiKey, String apiSecret) {
+        this(apiKey, apiSecret, null);
+    }
+    
     /**
      * Fetch OHLCV data with market data rate limiting
      */

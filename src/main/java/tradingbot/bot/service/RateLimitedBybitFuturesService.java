@@ -9,6 +9,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import io.github.resilience4j.retry.annotation.Retry;
 import tradingbot.bot.controller.exception.BotOperationException;
+import tradingbot.bot.messaging.EventPublisher;
 
 /**
  * Rate-limited wrapper for BybitFuturesService using Resilience4j
@@ -29,13 +30,13 @@ public class RateLimitedBybitFuturesService implements FuturesExchangeService {
     
     private final BybitFuturesService delegate;
     
-    public RateLimitedBybitFuturesService(String apiKey, String apiSecret) {
-        this.delegate = new BybitFuturesService(apiKey, apiSecret);
+    public RateLimitedBybitFuturesService(String apiKey, String apiSecret, EventPublisher eventPublisher) {
+        this.delegate = new BybitFuturesService(apiKey, apiSecret, eventPublisher);
         logger.info("Rate-limited Bybit Futures Service initialized");
     }
     
-    public RateLimitedBybitFuturesService(String apiKey, String apiSecret, String baseDomain) {
-        this.delegate = new BybitFuturesService(apiKey, apiSecret, baseDomain);
+    public RateLimitedBybitFuturesService(String apiKey, String apiSecret, String baseDomain, EventPublisher eventPublisher) {
+        this.delegate = new BybitFuturesService(apiKey, apiSecret, baseDomain, eventPublisher);
         logger.info("Rate-limited Bybit Futures Service initialized (domain: {})", baseDomain);
     }
     

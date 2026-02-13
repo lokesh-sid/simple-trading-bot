@@ -38,7 +38,7 @@ public class ExchangeServiceConfig {
      */
     @Bean
     @Primary
-    FuturesExchangeService futuresExchangeService() {
+    FuturesExchangeService futuresExchangeService(tradingbot.bot.messaging.EventPublisher eventPublisher) {
         if ("paper".equalsIgnoreCase(provider)) {
             return new tradingbot.bot.service.PaperFuturesExchangeService();
         }
@@ -46,8 +46,8 @@ public class ExchangeServiceConfig {
              String baseUrl = "TESTNET_DOMAIN".equals(bybitDomain) 
                     ? "https://api-testnet.bybit.com"
                     : "https://api.bybit.com";
-            return new tradingbot.bot.service.RateLimitedBybitFuturesService(bybitApiKey, bybitApiSecret, baseUrl);
+            return new tradingbot.bot.service.RateLimitedBybitFuturesService(bybitApiKey, bybitApiSecret, baseUrl, eventPublisher);
         }
-        return new RateLimitedBinanceFuturesService(binanceApiKey, binanceApiSecret);
+        return new RateLimitedBinanceFuturesService(binanceApiKey, binanceApiSecret, eventPublisher);
     }
 }

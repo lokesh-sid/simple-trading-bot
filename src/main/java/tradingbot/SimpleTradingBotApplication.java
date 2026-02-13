@@ -25,11 +25,11 @@ import tradingbot.bot.TradeDirection;
 import tradingbot.bot.events.BotStatusEvent;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.messaging.EventTopic;
-import tradingbot.bot.service.FuturesExchangeService;
-import tradingbot.bot.service.RateLimitedBinanceFuturesService;
-import tradingbot.bot.service.PaperFuturesExchangeService;
-import tradingbot.bot.service.RateLimitedBybitFuturesService;
 import tradingbot.bot.service.DydxFuturesService;
+import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.bot.service.PaperFuturesExchangeService;
+import tradingbot.bot.service.RateLimitedBinanceFuturesService;
+import tradingbot.bot.service.RateLimitedBybitFuturesService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.bot.strategy.calculator.IndicatorCalculator;
 import tradingbot.bot.strategy.exit.LiquidationRiskExit;
@@ -85,14 +85,15 @@ public class SimpleTradingBotApplication {
             @Value("${trading.dydx.network:testnet}") String dydxNetwork,
             @Value("${trading.dydx.mainnet.url:https://indexer.dydx.trade/v4}") String dydxMainnetUrl,
             @Value("${trading.dydx.testnet.url:https://dydx-testnet.bwarelabs.com/v4}") String dydxTestnetUrl,
-            @Value("${trading.dydx.eth.private.key:}") String dydxPrivateKey) {
+            @Value("${trading.dydx.eth.private.key:}") String dydxPrivateKey,
+            EventPublisher eventPublisher) {
         
         logger.info("Initializing exchange service: {}", provider);
         
         return switch(provider.toLowerCase()) {
             case "binance" -> {
                 logger.info("Using Binance Futures exchange");
-                yield new RateLimitedBinanceFuturesService(binanceApiKey, binanceApiSecret);
+                yield new RateLimitedBinanceFuturesService(binanceApiKey, binanceApiSecret, eventPublisher);
             }
             case "paper" -> {
                 logger.info("Using Paper trading exchange");
@@ -103,11 +104,11 @@ public class SimpleTradingBotApplication {
                 String baseUrl = "TESTNET_DOMAIN".equals(bybitDomain) 
                     ? "https://api-testnet.bybit.com"
                     : "https://api.bybit.com";
-                yield new RateLimitedBybitFuturesService(bybitApiKey, bybitApiSecret, baseUrl);
+                yield new RateLimitedBybitFuturesService(bybitApiKey, bybitApiSecret, baseUrl, eventPublisher);
             }
             case "dydx" -> {
                 logger.info("Using dYdX Futures exchange v4 ({})", dydxNetwork);
-                yield new DydxFuturesService(dydxNetwork, dydxMainnetUrl, dydxTestnetUrl, dydxPrivateKey);
+                yield new DydxFuturesService(dydxNetwork, dydxMainnetUrl, dydxTestnetUrl, dydxPrivateKey, eventPublisher);
             }
             default -> throw new IllegalArgumentException(
                 "Unsupported exchange: " + provider + ". Supported: binance, bybit, dydx, paper"

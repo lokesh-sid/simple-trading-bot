@@ -16,17 +16,45 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import tradingbot.bot.controller.exception.BotOperationException;
+import tradingbot.bot.events.TradeExecutionEvent;
+import tradingbot.bot.messaging.EventPublisher;
 
 public class BinanceFuturesService implements FuturesExchangeService {
     private UMFuturesClientImpl futuresClient;
     private ObjectMapper objectMapper;
+    private final EventPublisher eventPublisher;
     
     // Snowflake Generator Instance for guaranteed global uniqueness
     private static final SnowflakeIdGenerator idGenerator = new SnowflakeIdGenerator(getMachineId());
 
-    public BinanceFuturesService(String apiKey, String apiSecret) {
+    public BinanceFuturesService(String apiKey, String apiSecret, EventPublisher eventPublisher) {
         this.futuresClient = new UMFuturesClientImpl(apiKey, apiSecret);
         this.objectMapper = new ObjectMapper();
+        this.eventPublisher = eventPublisher;
+    }
+
+    public BinanceFuturesService(String apiKey, String apiSecret) {
+        this(apiKey, apiSecret, null);
+    }
+    
+    private void publishTradeExecution(OrderResult result, String side, double quantity, double price) {
+        try {
+            if (this.eventPublisher != null) {
+                TradeExecutionEvent event = new TradeExecutionEvent();
+                event.setBotId("binance-bot"); // Default for now
+                event.setOrderId(result.getExchangeOrderId());
+                event.setSymbol(result.getSymbol());
+                event.setSide(side);
+                event.setQuantity(quantity);
+                event.setPrice(price);
+                event.setStatus(result.getStatus().toString());
+                
+                this.eventPublisher.publishTradeExecution(event);
+            }
+        } catch (Exception e) {
+            // Log but don't fail the trade
+            // logger.error("Failed to publish trade event", e); 
+        }
     }
     
     /**
@@ -181,7 +209,7 @@ public class BinanceFuturesService implements FuturesExchangeService {
             double executedQty = jsonResponse.has("executedQty") ? jsonResponse.get("executedQty").asDouble() : tradeAmount;
             double avgPrice = jsonResponse.has("avgPrice") ? jsonResponse.get("avgPrice").asDouble() : currentPrice;
             
-            return OrderResult.builder()
+            OrderResult result = OrderResult.builder()
                 .exchangeOrderId(orderId)
                 .clientOrderId(clientOrderId)
                 .symbol(symbol)
@@ -194,6 +222,9 @@ public class BinanceFuturesService implements FuturesExchangeService {
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
+            
+            publishTradeExecution(result, "BUY", executedQty, avgPrice);
+            return result;
 
         } catch (Exception e) {
             throw new BotOperationException("enter_long_position", "Failed to enter long position for " + symbol, e);
@@ -236,7 +267,7 @@ public class BinanceFuturesService implements FuturesExchangeService {
             double executedQty = jsonResponse.has("executedQty") ? jsonResponse.get("executedQty").asDouble() : tradeAmount;
             double avgPrice = jsonResponse.has("avgPrice") ? jsonResponse.get("avgPrice").asDouble() : currentPrice;
             
-            return OrderResult.builder()
+            OrderResult result = OrderResult.builder()
                 .exchangeOrderId(orderId)
                 .clientOrderId(clientOrderId)
                 .symbol(symbol)
@@ -249,6 +280,9 @@ public class BinanceFuturesService implements FuturesExchangeService {
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
+            
+            publishTradeExecution(result, "SELL", executedQty, avgPrice);
+            return result;
             
         } catch (Exception e) {
             throw new BotOperationException("enter_short_position", "Failed to enter short position for " + symbol, e);
@@ -284,7 +318,7 @@ public class BinanceFuturesService implements FuturesExchangeService {
             double executedQty = jsonResponse.has("executedQty") ? jsonResponse.get("executedQty").asDouble() : tradeAmount;
             double avgPrice = jsonResponse.has("avgPrice") ? jsonResponse.get("avgPrice").asDouble() : currentPrice;
             
-            return OrderResult.builder()
+            OrderResult result = OrderResult.builder()
                 .exchangeOrderId(orderId)
                 .clientOrderId(clientOrderId)
                 .symbol(symbol)
@@ -297,6 +331,9 @@ public class BinanceFuturesService implements FuturesExchangeService {
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
+            
+            publishTradeExecution(result, "SELL", executedQty, avgPrice);
+            return result;
                 
         } catch (Exception e) {
             throw new BotOperationException("exit_long_position", "Failed to exit long position for " + symbol, e);
@@ -325,7 +362,7 @@ public class BinanceFuturesService implements FuturesExchangeService {
             double executedQty = jsonResponse.has("executedQty") ? jsonResponse.get("executedQty").asDouble() : tradeAmount;
             double avgPrice = jsonResponse.has("avgPrice") ? jsonResponse.get("avgPrice").asDouble() : currentPrice;
             
-            return OrderResult.builder()
+            OrderResult result = OrderResult.builder()
                 .exchangeOrderId(orderId)
                 .clientOrderId(clientOrderId)
                 .symbol(symbol)
@@ -338,6 +375,9 @@ public class BinanceFuturesService implements FuturesExchangeService {
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
+            
+            publishTradeExecution(result, "BUY", executedQty, avgPrice);
+            return result;
                 
         } catch (Exception e) {
             throw new BotOperationException("exit_short_position", "Failed to exit short position for " + symbol, e);

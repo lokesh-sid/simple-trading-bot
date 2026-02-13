@@ -4,27 +4,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.ResultActions;
 
 import tradingbot.AbstractHttpTest;
 import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.application.AgentService;
+import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.agent.infrastructure.repository.JpaAgentRepository;
 import tradingbot.agent.infrastructure.repository.OrderRepository;
 import tradingbot.agent.infrastructure.repository.PositionRepository;
-import tradingbot.bot.persistence.repository.TradingEventRepository;
-import tradingbot.security.repository.UserRepository;
-import tradingbot.agent.infrastructure.llm.LLMProvider;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
 import tradingbot.agent.manager.AgentManager;
 import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.controller.config.TradingBotControllerValidationTestConfig;
 import tradingbot.bot.messaging.EventPublisher;
+import tradingbot.bot.persistence.repository.TradingEventRepository;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.config.InstanceConfig;
+import tradingbot.security.repository.UserRepository;
 
 /**
  * Abstract base class for controller validation tests.

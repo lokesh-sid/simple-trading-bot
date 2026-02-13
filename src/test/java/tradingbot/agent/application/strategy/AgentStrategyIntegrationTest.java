@@ -8,8 +8,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentGoal;
@@ -46,19 +46,19 @@ class AgentStrategyIntegrationTest {
     @Autowired
     private LegacyLLMStrategy legacyLLMStrategy;
     
-    @MockBean
+    @MockitoBean
     private AgentRepository agentRepository;
     
-    @MockBean
+    @MockitoBean
     private TradingAgentService tradingAgentService;
     
-    @MockBean
+    @MockitoBean
     private RAGService ragService;
     
-    @MockBean
+    @MockitoBean
     private LLMProvider llmProvider;
     
-    @MockBean
+    @MockitoBean
     private OrderPlacementService orderPlacementService;
     
     private Agent testAgent;

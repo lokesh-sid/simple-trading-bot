@@ -136,7 +136,8 @@ public class KafkaConfig {
      * @return ConcurrentKafkaListenerContainerFactory for @KafkaListener annotations
      */
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
+    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory(
+            KafkaTemplate<String, Object> kafkaTemplate) {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory = 
             new ConcurrentKafkaListenerContainerFactory<>();
         
@@ -145,8 +146,13 @@ public class KafkaConfig {
         // Configure concurrency (number of consumer threads per topic)
         factory.setConcurrency(3);
         
-        // Configure error handling
-        factory.setCommonErrorHandler(new DefaultErrorHandler());
+        // Configure error handling with Dead Letter Queue (DLQ)
+        // Retry 3 times with 1 second backoff, then send to DLT
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(
+                new org.springframework.kafka.listener.DeadLetterPublishingRecoverer(kafkaTemplate),
+                new org.springframework.util.backoff.FixedBackOff(1000L, 3));
+        
+        factory.setCommonErrorHandler(errorHandler);
         
         return factory;
     }

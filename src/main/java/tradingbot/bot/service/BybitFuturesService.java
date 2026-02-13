@@ -24,6 +24,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import tradingbot.bot.controller.exception.BotOperationException;
+import tradingbot.bot.events.TradeExecutionEvent;
+import tradingbot.bot.messaging.EventPublisher;
 
 /**
  * Bybit Futures Service - Alternative to Binance
@@ -50,15 +52,17 @@ public class BybitFuturesService implements FuturesExchangeService {
     private final String baseUrl;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final EventPublisher eventPublisher;
     
-    public BybitFuturesService(String apiKey, String apiSecret) {
-        this(apiKey, apiSecret, MAINNET_URL);
+    public BybitFuturesService(String apiKey, String apiSecret, EventPublisher eventPublisher) {
+        this(apiKey, apiSecret, MAINNET_URL, eventPublisher);
     }
     
-    public BybitFuturesService(String apiKey, String apiSecret, String baseUrl) {
+    public BybitFuturesService(String apiKey, String apiSecret, String baseUrl, EventPublisher eventPublisher) {
         this.apiKey = apiKey;
         this.apiSecret = apiSecret;
         this.baseUrl = baseUrl;
+        this.eventPublisher = eventPublisher;
         this.restTemplate = new RestTemplate();
         this.objectMapper = new ObjectMapper();
         
@@ -334,6 +338,20 @@ public class BybitFuturesService implements FuturesExchangeService {
                 
                 // Get current price for avgFillPrice (market orders fill immediately)
                 double currentPrice = getCurrentPrice(symbol);
+                
+                TradeExecutionEvent event = new TradeExecutionEvent();
+                event.setBotId("bybit-bot"); // Default bot ID
+                event.setOrderId(orderId);
+                event.setSymbol(symbol);
+                event.setSide(side);
+                event.setQuantity(quantity);
+                event.setPrice(currentPrice);
+                event.setStatus("FILLED");
+                // event.setFee(fee); // Would need API call
+                
+                if (eventPublisher != null) {
+                    eventPublisher.publishTradeExecution(event);
+                }
                 
                 return OrderResult.builder()
                     .exchangeOrderId(orderId)

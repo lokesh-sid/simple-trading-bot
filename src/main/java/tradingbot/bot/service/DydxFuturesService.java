@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -20,7 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.web3j.crypto.Credentials;
-import org.web3j.crypto.ECKeyPair;
 import org.web3j.crypto.Sign;
 import org.web3j.utils.Numeric;
 
@@ -29,6 +27,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import tradingbot.bot.controller.exception.BotOperationException;
+import tradingbot.bot.events.TradeExecutionEvent;
+import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.service.BinanceFuturesService.Candle;
 
 /**
@@ -47,15 +47,18 @@ public class DydxFuturesService implements FuturesExchangeService {
     private final String baseUrl;
     private final String privateKey;
     private final Credentials credentials;
+    private final EventPublisher eventPublisher;
 
     public DydxFuturesService(
             @Value("${trading.dydx.network:testnet}") String network,
             @Value("${trading.dydx.mainnet.url}") String mainnetUrl,
             @Value("${trading.dydx.testnet.url}") String testnetUrl,
-            @Value("${trading.dydx.eth.private.key:}") String privateKey) {
+            @Value("${trading.dydx.eth.private.key:}") String privateKey,
+            EventPublisher eventPublisher) {
         
         this.baseUrl = "mainnet".equalsIgnoreCase(network) ? mainnetUrl : testnetUrl;
         this.privateKey = privateKey;
+        this.eventPublisher = eventPublisher;
         this.restTemplate = new RestTemplateBuilder().build();
         this.objectMapper = new ObjectMapper();
         
@@ -274,18 +277,32 @@ public class DydxFuturesService implements FuturesExchangeService {
     }
     
     private OrderResult createMockOrderResult(String symbol, String side, double amount, String type) {
-        return OrderResult.builder()
+        OrderResult result = OrderResult.builder()
             .exchangeOrderId(UUID.randomUUID().toString())
             .symbol(symbol)
             .side(side)
             .status(OrderResult.OrderStatus.FILLED)
             .orderedQuantity(amount)
             .filledQuantity(amount)
-            .avgFillPrice(0.0)
+            .avgFillPrice(0.0) // Mock price
             .commission(0.0)
             .createdAt(Instant.now())
             .updatedAt(Instant.now())
             .build();
+
+        if (eventPublisher != null) {
+            TradeExecutionEvent event = new TradeExecutionEvent();
+            event.setBotId("dydx-bot");
+            event.setOrderId(result.getExchangeOrderId());
+            event.setSymbol(symbol);
+            event.setSide(side);
+            event.setQuantity(amount);
+            event.setPrice(0.0); // Mock price
+            event.setStatus("FILLED-MOCK");
+            eventPublisher.publishTradeExecution(event);
+        }
+
+        return result;
     }
 
     private String mapTimeframe(String timeframe) {
