@@ -51,7 +51,16 @@ import tradingbot.config.TradingConfig;
 // @EnableAsync  // Moved to AsyncConfig
 @EnableScheduling
 @EnableCaching
-
+@org.springframework.context.annotation.EnableAspectJAutoProxy
+@org.springframework.data.jpa.repository.config.EnableJpaRepositories(basePackages = {
+    "tradingbot.agent.persistence",
+    "tradingbot.security.repository"
+})
+@org.springframework.context.annotation.ComponentScan(basePackages = "tradingbot")
+@org.springframework.boot.autoconfigure.domain.EntityScan(basePackages = {
+    "tradingbot.agent.persistence",
+    "tradingbot.security.model"
+})
 public class SimpleTradingBotApplication {
     
     private static final Logger logger = LoggerFactory.getLogger(SimpleTradingBotApplication.class);

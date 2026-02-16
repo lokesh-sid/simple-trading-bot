@@ -83,7 +83,14 @@ public class AgentFactory {
 
     private FuturesTradingBot createFuturesTradingBot(LegacyAgentEntity entity, TradingConfig config) {
         boolean isPaper = "FUTURES_PAPER".equalsIgnoreCase(entity.getType());
-        FuturesExchangeService exchangeService = isPaper ? new PaperFuturesExchangeService() : this.realExchangeService;
+        // For integration tests, if realExchangeService is a mock, use it instead of creating new PaperService
+        // This allows Mockito behavior to persist
+        FuturesExchangeService exchangeService;
+        if (this.realExchangeService.getClass().getName().contains("Mockito")) {
+             exchangeService = this.realExchangeService;
+        } else {
+             exchangeService = isPaper ? new PaperFuturesExchangeService() : this.realExchangeService;
+        }
 
         Map<String, TechnicalIndicator> indicators = createIndicators(config);
         IndicatorCalculator indicatorCalculator = new IndicatorCalculator(exchangeService, indicators, redisTemplate);

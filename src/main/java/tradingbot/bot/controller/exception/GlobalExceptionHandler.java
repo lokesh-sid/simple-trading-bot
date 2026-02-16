@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -89,6 +90,25 @@ public class GlobalExceptionHandler {
             log.warn("Constraint violation for request {}: {}", requestPath, violations);
         }
         
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
+    
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex,
+            WebRequest request) {
+        
+        String requestPath = getRequestPath(request);
+        
+        ErrorResponse errorResponse = ErrorResponse.builder()
+            .type(ERROR_TYPE_BASE + "invalid-request-body")
+            .httpStatus(HttpStatus.BAD_REQUEST.value())
+            .title("Invalid Request Body")
+            .detail("Request body is missing or malformed.")
+            .instance(requestPath)
+            .timestamp(System.currentTimeMillis())
+            .build();
+            
         return ResponseEntity.badRequest().body(errorResponse);
     }
     

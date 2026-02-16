@@ -1,5 +1,7 @@
 package tradingbot.agent.infrastructure.repository;
 
+import org.springframework.stereotype.Component;
+
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentGoal;
 import tradingbot.agent.domain.model.AgentId;
@@ -10,6 +12,7 @@ import tradingbot.agent.domain.model.Reasoning;
 /**
  * AgentMapper - Maps between Agent domain model and AgentEntity
  */
+@Component
 public class AgentMapper {
     
     /**

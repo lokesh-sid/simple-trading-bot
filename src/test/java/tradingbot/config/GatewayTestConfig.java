@@ -17,6 +17,7 @@ import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -33,26 +34,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import io.github.resilience4j.circuitbreaker.CircuitBreaker;
-import io.github.resilience4j.ratelimiter.RateLimiter;
-import io.github.resilience4j.retry.Retry;
 import jakarta.persistence.EntityManagerFactory;
-import tradingbot.agent.factory.AgentFactory;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
-import tradingbot.agent.manager.AgentManager;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.service.PaperFuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.bot.strategy.calculator.IndicatorCalculator;
-import tradingbot.bot.strategy.calculator.IndicatorValues;
 import tradingbot.bot.strategy.exit.PositionExitCondition;
 import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 import tradingbot.security.repository.UserRepository;
 
 /**
- * Test configuration for Futures Trading Bot Integration Tests.
- * Provides minimal Spring context with in-memory implementations.
+ * Test configuration for Gateway Integration Tests.
+ * Provides minimal Spring context with mocked agent dependencies.
  */
 @SpringBootConfiguration
 @TestPropertySource(properties = {
@@ -60,7 +55,7 @@ import tradingbot.security.repository.UserRepository;
     "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
     "spring.jpa.hibernate.ddl-auto=create-drop",
     "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
-    "spring.kafka.consumer.auto-startup=false", 
+    "spring.kafka.consumer.auto-startup=false",
     "spring.kafka.producer.bootstrap-servers=localhost:9999",
     "spring.kafka.bootstrap-servers=localhost:9999",
     "trading.exchange.provider=paper",
@@ -75,28 +70,29 @@ import tradingbot.security.repository.UserRepository;
 })
 @ComponentScan(
     basePackages = {
-        "tradingbot.bot.controller", 
+        "tradingbot.bot.controller",
         "tradingbot.bot.service",
         "tradingbot.gateway.controller",
-        "tradingbot.agent.application",
-        "tradingbot.agent.infrastructure.repository",
-        "tradingbot.agent.api"
+        "tradingbot.gateway.service"
     },
-    useDefaultFilters = true
+    useDefaultFilters = true,
+    excludeFilters = {
+        @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {
+            tradingbot.bot.controller.TradingBotController.class,
+            tradingbot.bot.controller.BotStateController.class,
+            tradingbot.bot.controller.ResilienceController.class,
+            tradingbot.bot.service.BotCacheService.class
+        })
+    }
 )
-@Import({InstanceConfig.class, AgentManager.class, AgentFactory.class})
+@Import({InstanceConfig.class})
 @EnableJpaRepositories(basePackages = {
-    "tradingbot.agent.persistence",
-    "tradingbot.agent.infrastructure.repository",
     "tradingbot.bot.persistence.repository"
 })
 @EntityScan(basePackages = {
-    "tradingbot.agent.persistence",
-    "tradingbot.agent.infrastructure.repository",
-    "tradingbot.agent.infrastructure.persistence",
     "tradingbot.bot.persistence.entity"
 })
-public class FuturesTradingBotIntegrationTestConfig {
+public class GatewayTestConfig {
 
     @Bean
     public DataSource dataSource() {
@@ -109,19 +105,14 @@ public class FuturesTradingBotIntegrationTestConfig {
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource);
-        em.setPackagesToScan(
-            "tradingbot.agent.persistence", 
-            "tradingbot.bot.persistence.entity",
-            "tradingbot.agent.infrastructure.repository",
-            "tradingbot.agent.infrastructure.persistence"
-        );
+        em.setPackagesToScan("tradingbot.bot.persistence.entity");
         em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-        
+
         Map<String, Object> properties = new HashMap<>();
         properties.put("hibernate.hbm2ddl.auto", "create-drop");
         properties.put("hibernate.dialect", "org.hibernate.dialect.H2Dialect");
         em.setJpaPropertyMap(properties);
-        
+
         return em;
     }
 
@@ -161,20 +152,20 @@ public class FuturesTradingBotIntegrationTestConfig {
     public FuturesTradingBot tradingBot() {
         // Create a proper mock with required dependencies
         FuturesTradingBot mockBot = Mockito.mock(FuturesTradingBot.class);
-        
+
         // Mock the required dependencies that createBot() method uses
         Mockito.when(mockBot.getExchangeService()).thenReturn(new PaperFuturesExchangeService());
         Mockito.when(mockBot.getIndicatorCalculator()).thenReturn(Mockito.mock(IndicatorCalculator.class));
         Mockito.when(mockBot.getTrailingStopTracker()).thenReturn(Mockito.mock(TrailingStopTracker.class));
         Mockito.when(mockBot.getSentimentAnalyzer()).thenReturn(Mockito.mock(SentimentAnalyzer.class));
-        
+
         // Create a simple mock exit condition that never triggers
         PositionExitCondition mockExitCondition = Mockito.mock(PositionExitCondition.class);
         Mockito.when(mockExitCondition.shouldExit()).thenReturn(false);
         Mockito.when(mockBot.getExitConditions()).thenReturn(List.of(mockExitCondition)); // Non-empty list
-        
+
         Mockito.when(mockBot.getConfig()).thenReturn(tradingConfig());
-        
+
         return mockBot;
     }
 
@@ -204,8 +195,13 @@ public class FuturesTradingBotIntegrationTestConfig {
     }
 
     @Bean
+    public org.springframework.web.client.RestTemplate restTemplate() {
+        return Mockito.mock(org.springframework.web.client.RestTemplate.class);
+    }
+
+    @Bean
     @SuppressWarnings("unchecked")
-    public RedisTemplate<String, IndicatorValues> redisTemplate() {
+    public RedisTemplate<String, tradingbot.bot.strategy.calculator.IndicatorValues> redisTemplate() {
         return Mockito.mock(RedisTemplate.class);
     }
 
@@ -217,63 +213,47 @@ public class FuturesTradingBotIntegrationTestConfig {
 
     // Resilience4j beans for ResilienceController
     @Bean
-    public RateLimiter binanceTradingRateLimiter() {
-        return Mockito.mock(RateLimiter.class);
+    public io.github.resilience4j.ratelimiter.RateLimiter binanceTradingRateLimiter() {
+        return Mockito.mock(io.github.resilience4j.ratelimiter.RateLimiter.class);
     }
 
     @Bean
-    public RateLimiter binanceMarketRateLimiter() {
-        return Mockito.mock(RateLimiter.class);
+    public io.github.resilience4j.ratelimiter.RateLimiter binanceMarketRateLimiter() {
+        return Mockito.mock(io.github.resilience4j.ratelimiter.RateLimiter.class);
     }
 
     @Bean
-    public RateLimiter binanceAccountRateLimiter() {
-        return Mockito.mock(RateLimiter.class);
+    public io.github.resilience4j.ratelimiter.RateLimiter binanceAccountRateLimiter() {
+        return Mockito.mock(io.github.resilience4j.ratelimiter.RateLimiter.class);
     }
 
     @Bean
-    public CircuitBreaker binanceApiCircuitBreaker() {
-        return Mockito.mock(CircuitBreaker.class);
+    public io.github.resilience4j.circuitbreaker.CircuitBreaker binanceApiCircuitBreaker() {
+        return Mockito.mock(io.github.resilience4j.circuitbreaker.CircuitBreaker.class);
     }
 
     @Bean
-    public Retry binanceApiRetry() {
-        return Mockito.mock(Retry.class);
-    }
-
-    // LangChain4j beans for TradingAgentService
-    @Bean
-    public dev.langchain4j.model.chat.ChatLanguageModel chatLanguageModel() {
-        return Mockito.mock(dev.langchain4j.model.chat.ChatLanguageModel.class);
+    public io.github.resilience4j.retry.Retry binanceApiRetry() {
+        return Mockito.mock(io.github.resilience4j.retry.Retry.class);
     }
 
     @Bean
-    public dev.langchain4j.memory.ChatMemory chatMemory() {
-        return Mockito.mock(dev.langchain4j.memory.ChatMemory.class);
+    public tradingbot.agent.manager.AgentManager agentManager() {
+        return Mockito.mock(tradingbot.agent.manager.AgentManager.class);
     }
 
     @Bean
-    public tradingbot.agent.service.TradingTools tradingTools() {
-        return Mockito.mock(tradingbot.agent.service.TradingTools.class);
+    public tradingbot.agent.persistence.AgentRepository agentRepository() {
+        return Mockito.mock(tradingbot.agent.persistence.AgentRepository.class);
     }
 
     @Bean
-    public tradingbot.agent.service.RAGService ragService() {
-        return Mockito.mock(tradingbot.agent.service.RAGService.class);
+    public tradingbot.agent.application.AgentService agentService() {
+        return Mockito.mock(tradingbot.agent.application.AgentService.class);
     }
 
     @Bean
-    public tradingbot.agent.service.TradingAgentService tradingAgentService() {
-        return Mockito.mock(tradingbot.agent.service.TradingAgentService.class);
-    }
-
-    @Bean
-    public tradingbot.agent.service.OrderPlacementService orderPlacementService() {
-        return Mockito.mock(tradingbot.agent.service.OrderPlacementService.class);
-    }
-
-    @Bean
-    public tradingbot.gateway.service.GatewayService gatewayService() {
-        return Mockito.mock(tradingbot.gateway.service.GatewayService.class);
+    public tradingbot.agent.api.dto.AgentMapper agentApiMapper() {
+        return Mockito.mock(tradingbot.agent.api.dto.AgentMapper.class);
     }
 }
