@@ -8,11 +8,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -47,20 +51,14 @@ import tradingbot.config.TradingConfig;
 @SpringBootApplication(exclude = {
     GrpcServerSecurityAutoConfiguration.class
 })
+@EnableJpaRepositories(basePackages = "tradingbot")
+@EntityScan(basePackages = "tradingbot")
+@ComponentScan(basePackages = "tradingbot")
 @EnableKafka  // Enable Kafka support
 // @EnableAsync  // Moved to AsyncConfig
 @EnableScheduling
 @EnableCaching
-@org.springframework.context.annotation.EnableAspectJAutoProxy
-@org.springframework.data.jpa.repository.config.EnableJpaRepositories(basePackages = {
-    "tradingbot.agent.persistence",
-    "tradingbot.security.repository"
-})
-@org.springframework.context.annotation.ComponentScan(basePackages = "tradingbot")
-@org.springframework.boot.autoconfigure.domain.EntityScan(basePackages = {
-    "tradingbot.agent.persistence",
-    "tradingbot.security.model"
-})
+@EnableAspectJAutoProxy
 public class SimpleTradingBotApplication {
     
     private static final Logger logger = LoggerFactory.getLogger(SimpleTradingBotApplication.class);
@@ -95,11 +93,16 @@ public class SimpleTradingBotApplication {
             @Value("${trading.dydx.mainnet.url:https://indexer.dydx.trade/v4}") String dydxMainnetUrl,
             @Value("${trading.dydx.testnet.url:https://dydx-testnet.bwarelabs.com/v4}") String dydxTestnetUrl,
             @Value("${trading.dydx.eth.private.key:}") String dydxPrivateKey,
-            EventPublisher eventPublisher) {
+            EventPublisher eventPublisher,
+            tradingbot.bot.service.CcxtFuturesService ccxtService) {
         
         logger.info("Initializing exchange service: {}", provider);
         
         return switch(provider.toLowerCase()) {
+            case "ccxt" -> {
+                logger.info("Using CCXT Futures exchange");
+                yield ccxtService;
+            }
             case "binance" -> {
                 logger.info("Using Binance Futures exchange");
                 yield new RateLimitedBinanceFuturesService(binanceApiKey, binanceApiSecret, eventPublisher);

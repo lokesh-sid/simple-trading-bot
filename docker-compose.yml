@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   simple-trading-bot:
     build: .
@@ -89,6 +87,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - trading-network
+
+  ccxt-rest:
+    image: ccxtrest/ccxt-rest:latest
+    ports:
+      - "3000:3000"
     networks:
       - trading-network
 

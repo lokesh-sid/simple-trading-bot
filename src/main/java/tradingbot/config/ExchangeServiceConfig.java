@@ -38,7 +38,16 @@ public class ExchangeServiceConfig {
      */
     @Bean
     @Primary
-    FuturesExchangeService futuresExchangeService(tradingbot.bot.messaging.EventPublisher eventPublisher) {
+    FuturesExchangeService futuresExchangeService(tradingbot.bot.messaging.EventPublisher eventPublisher,
+                                                  @org.springframework.beans.factory.annotation.Autowired(required = false) 
+                                                  tradingbot.bot.service.CcxtFuturesService ccxtService) {
+        if ("ccxt".equalsIgnoreCase(provider)) {
+            if (ccxtService != null) {
+                return ccxtService;
+            }
+            // Fallback or throw error if bean not found
+            throw new IllegalStateException("Provider is 'ccxt' but CcxtFuturesService bean is missing");
+        }
         if ("paper".equalsIgnoreCase(provider)) {
             return new tradingbot.bot.service.PaperFuturesExchangeService();
         }
