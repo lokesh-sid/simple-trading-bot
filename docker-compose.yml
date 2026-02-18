@@ -90,13 +90,6 @@ services:
     networks:
       - trading-network
 
-  ccxt-rest:
-    image: ccxtrest/ccxt-rest:latest
-    ports:
-      - "3000:3000"
-    networks:
-      - trading-network
-
 networks:
   trading-network:
     driver: bridge

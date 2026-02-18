@@ -3,6 +3,7 @@ plugins {
     id 'org.springframework.boot' version '3.5.6'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'com.google.protobuf' version '0.9.4'
+    id 'jacoco'
 }
 
 group = 'com.tradingbot'
@@ -32,6 +33,7 @@ ext {
     protobufVersion = '3.25.1'
     mapstructVersion = '1.5.5.Final'
     langchain4jVersion = '0.36.2'
+    testcontainersVersion = '1.19.3'
 }
 
 dependencies {
@@ -115,6 +117,9 @@ dependencies {
     testImplementation "org.junit.jupiter:junit-jupiter:${junitVersion}"
     testImplementation "org.mockito:mockito-core:${mockitoVersion}"
     testImplementation 'org.springframework.kafka:spring-kafka-test'
+    testImplementation platform("org.testcontainers:testcontainers-bom:${testcontainersVersion}")
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:kafka'
 }
 
