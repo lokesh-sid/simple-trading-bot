@@ -61,7 +61,6 @@ import tradingbot.config.TradingConfig;
 @EnableAspectJAutoProxy
 public class SimpleTradingBotApplication {
     
-    private static final Logger logger = LoggerFactory.getLogger(SimpleTradingBotApplication.class);
     private static final Logger log = LoggerFactory.getLogger(SimpleTradingBotApplication.class);
     
     private final EventPublisher eventPublisher;
@@ -93,33 +92,28 @@ public class SimpleTradingBotApplication {
             @Value("${trading.dydx.mainnet.url:https://indexer.dydx.trade/v4}") String dydxMainnetUrl,
             @Value("${trading.dydx.testnet.url:https://dydx-testnet.bwarelabs.com/v4}") String dydxTestnetUrl,
             @Value("${trading.dydx.eth.private.key:}") String dydxPrivateKey,
-            EventPublisher eventPublisher,
-            tradingbot.bot.service.CcxtFuturesService ccxtService) {
+            EventPublisher eventPublisher) {
         
-        logger.info("Initializing exchange service: {}", provider);
+        log.info("Initializing exchange service: {}", provider);
         
         return switch(provider.toLowerCase()) {
-            case "ccxt" -> {
-                logger.info("Using CCXT Futures exchange");
-                yield ccxtService;
-            }
             case "binance" -> {
-                logger.info("Using Binance Futures exchange");
+                log.info("Using Binance Futures exchange");
                 yield new RateLimitedBinanceFuturesService(binanceApiKey, binanceApiSecret, eventPublisher);
             }
             case "paper" -> {
-                logger.info("Using Paper trading exchange");
+                log.info("Using Paper trading exchange");
                 yield new PaperFuturesExchangeService();
             }
             case "bybit" -> {
-                logger.info("Using Bybit Futures exchange (domain: {})", bybitDomain);
+                log.info("Using Bybit Futures exchange (domain: {})", bybitDomain);
                 String baseUrl = "TESTNET_DOMAIN".equals(bybitDomain) 
                     ? "https://api-testnet.bybit.com"
                     : "https://api.bybit.com";
                 yield new RateLimitedBybitFuturesService(bybitApiKey, bybitApiSecret, baseUrl, eventPublisher);
             }
             case "dydx" -> {
-                logger.info("Using dYdX Futures exchange v4 ({})", dydxNetwork);
+                log.info("Using dYdX Futures exchange v4 ({})", dydxNetwork);
                 yield new DydxFuturesService(dydxNetwork, dydxMainnetUrl, dydxTestnetUrl, dydxPrivateKey, eventPublisher);
             }
             default -> throw new IllegalArgumentException(
