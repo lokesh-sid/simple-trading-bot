@@ -65,10 +65,16 @@ dependencies {
     implementation "io.github.resilience4j:resilience4j-ratelimiter:${resilience4jVersion}"
     implementation "io.github.resilience4j:resilience4j-circuitbreaker:${resilience4jVersion}"
     implementation "io.github.resilience4j:resilience4j-retry:${resilience4jVersion}"
-    
+    implementation "io.github.resilience4j:resilience4j-reactor:${resilience4jVersion}"
+
     // External API dependencies
+    implementation 'io.github.binance:binance-connector-java:3.3.0'
     implementation "io.github.binance:binance-futures-connector-java:${binanceConnectorVersion}"
     implementation "io.github.wuhewuhe:bybit-java-api:${bybitApiVersion}"
+
+    // WebSocket support
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'io.projectreactor:reactor-core'
     
     // Technical analysis
     implementation "org.ta4j:ta4j-core:${ta4jVersion}"
