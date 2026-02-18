@@ -50,7 +50,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
     void createAgent_validRequest_shouldReturn201() throws Exception {
         CreateAgentRequest request = new CreateAgentRequest(
                 "Bitcoin Trend Follower",
-                "PROFIT_MAXIMIZATION",
+                "MAXIMIZE_PROFIT",
                 "Maximize short-term profits through momentum trading",
                 "BTCUSDT",
                 1000.0
@@ -61,7 +61,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.id").isString())
                 .andExpect(jsonPath("$.name").value("Bitcoin Trend Follower"))
-                .andExpect(jsonPath("$.goalType").value("PROFIT_MAXIMIZATION"))
+                .andExpect(jsonPath("$.goalType").value("MAXIMIZE_PROFIT"))
                 .andExpect(jsonPath("$.tradingSymbol").value("BTCUSDT"))
                 .andExpect(jsonPath("$.capital").value(1000.0))
                 .andExpect(jsonPath("$.status").exists())
@@ -73,7 +73,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
     void createAgent_minimalData_shouldReturn201() throws Exception {
         CreateAgentRequest request = new CreateAgentRequest(
                 "ETH Scalper",
-                "BALANCED",
+                "MAXIMIZE_PROFIT",
                 null, // Optional description
                 "ETHUSDT",
                 500.0
@@ -90,7 +90,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
     void createAgent_missingName_shouldReturn400() throws Exception {
         String invalidJson = """
                 {
-                    "goalType": "PROFIT_MAXIMIZATION",
+                    "goalType": "MAXIMIZE_PROFIT",
                     "tradingSymbol": "BTCUSDT",
                     "capital": 1000.0
                 }
@@ -106,7 +106,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
     void createAgent_invalidCapital_shouldReturn400() throws Exception {
         CreateAgentRequest request = new CreateAgentRequest(
                 "Test Agent",
-                "PROFIT_MAXIMIZATION",
+                "MAXIMIZE_PROFIT",
                 "Test description",
                 "BTCUSDT",
                 0.0 // Invalid: must be at least 0.01
@@ -122,7 +122,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
     void createAgent_invalidSymbol_shouldReturn400() throws Exception {
         CreateAgentRequest request = new CreateAgentRequest(
                 "Test Agent",
-                "PROFIT_MAXIMIZATION",
+                "MAXIMIZE_PROFIT",
                 "Test description",
                 "btc-usdt", // Invalid: lowercase and hyphen
                 1000.0
@@ -138,7 +138,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
     void createAgent_nameTooShort_shouldReturn400() throws Exception {
         CreateAgentRequest request = new CreateAgentRequest(
                 "AB", // Too short: must be at least 3 characters
-                "PROFIT_MAXIMIZATION",
+                "MAXIMIZE_PROFIT",
                 "Test description",
                 "BTCUSDT",
                 1000.0
@@ -157,7 +157,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
         // Create agent first
         CreateAgentRequest createRequest = new CreateAgentRequest(
                 "Test Agent",
-                "PROFIT_MAXIMIZATION",
+                "MAXIMIZE_PROFIT",
                 "Test description",
                 "BTCUSDT",
                 1000.0
@@ -172,7 +172,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(agentId))
                 .andExpect(jsonPath("$.name").value("Test Agent"))
-                .andExpect(jsonPath("$.goalType").value("PROFIT_MAXIMIZATION"))
+                .andExpect(jsonPath("$.goalType").value("MAXIMIZE_PROFIT"))
                 .andExpect(jsonPath("$.tradingSymbol").value("BTCUSDT"));
     }
 
@@ -202,10 +202,10 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
     void getAllAgents_shouldReturn200WithList() throws Exception {
         // Create multiple agents
         CreateAgentRequest request1 = new CreateAgentRequest(
-                "Agent 1", "PROFIT_MAXIMIZATION", "First agent", "BTCUSDT", 1000.0
+                "Agent 1", "MAXIMIZE_PROFIT", "First agent", "BTCUSDT", 1000.0
         );
         CreateAgentRequest request2 = new CreateAgentRequest(
-                "Agent 2", "RISK_MINIMIZATION", "Second agent", "ETHUSDT", 500.0
+                "Agent 2", "HEDGE_RISK", "Second agent", "ETHUSDT", 500.0
         );
 
         performPost(API_AGENTS, request1).andExpect(status().isCreated());
@@ -226,7 +226,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
         // Create agent
         CreateAgentRequest createRequest = new CreateAgentRequest(
                 "Activation Test Agent",
-                "PROFIT_MAXIMIZATION",
+                "MAXIMIZE_PROFIT",
                 "Test activation",
                 "BTCUSDT",
                 1000.0
@@ -249,7 +249,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
         // Create and activate agent
         CreateAgentRequest createRequest = new CreateAgentRequest(
                 "Pause Test Agent",
-                "PROFIT_MAXIMIZATION",
+                "MAXIMIZE_PROFIT",
                 "Test pause",
                 "BTCUSDT",
                 1000.0
@@ -275,7 +275,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
         // Create
         CreateAgentRequest createRequest = new CreateAgentRequest(
                 "Lifecycle Test Agent",
-                "BALANCED",
+                "MAXIMIZE_PROFIT",
                 "Test complete lifecycle",
                 "SOLUSDT",
                 750.0
@@ -325,7 +325,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
         // Create agent
         CreateAgentRequest createRequest = new CreateAgentRequest(
                 "Delete Test Agent",
-                "PROFIT_MAXIMIZATION",
+                "MAXIMIZE_PROFIT",
                 "Test deletion",
                 "BTCUSDT",
                 1000.0
@@ -361,7 +361,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
         // Create first agent
         CreateAgentRequest request1 = new CreateAgentRequest(
                 "BTC Agent",
-                "PROFIT_MAXIMIZATION",
+                "MAXIMIZE_PROFIT",
                 "Bitcoin trading",
                 "BTCUSDT",
                 2000.0
@@ -374,7 +374,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
         // Create second agent
         CreateAgentRequest request2 = new CreateAgentRequest(
                 "ETH Agent",
-                "RISK_MINIMIZATION",
+                "HEDGE_RISK",
                 "Ethereum trading",
                 "ETHUSDT",
                 1500.0
@@ -417,7 +417,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Should create agents with different goal types")
     void createAgents_differentGoalTypes_shouldSucceed() throws Exception {
-        String[] goalTypes = {"PROFIT_MAXIMIZATION", "RISK_MINIMIZATION", "BALANCED"};
+        String[] goalTypes = {"MAXIMIZE_PROFIT", "HEDGE_RISK", "ACCUMULATE_ASSET"};
 
         for (String goalType : goalTypes) {
             CreateAgentRequest request = new CreateAgentRequest(
@@ -442,7 +442,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
         for (String symbol : symbols) {
             CreateAgentRequest request = new CreateAgentRequest(
                     "Agent " + symbol,
-                    "PROFIT_MAXIMIZATION",
+                    "MAXIMIZE_PROFIT",
                     "Trading " + symbol,
                     symbol,
                     1000.0

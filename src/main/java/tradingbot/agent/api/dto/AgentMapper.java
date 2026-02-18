@@ -63,11 +63,11 @@ public interface AgentMapper {
     /**
      * Convert CreateAgentRequest to Agent domain model
      */
-    @Mapping(target = "id", ignore = true)
-    @Mapping(target = "state", ignore = true)
+    @Mapping(target = "id", expression = "java(tradingbot.agent.domain.model.AgentId.generate())")
+    @Mapping(target = "state", expression = "java(tradingbot.agent.domain.model.AgentState.createIdle())")
     @Mapping(target = "lastPerception", ignore = true)
     @Mapping(target = "lastReasoning", ignore = true)
-    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "createdAt", expression = "java(java.time.Instant.now())")
     @Mapping(source = "name", target = "name")
     @Mapping(source = "tradingSymbol", target = "tradingSymbol")
     @Mapping(source = "capital", target = "capital")

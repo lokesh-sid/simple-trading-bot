@@ -5,14 +5,20 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
+import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.bot.service.PaperFuturesExchangeService;
 import tradingbot.bot.service.RateLimitedBinanceFuturesService;
+import tradingbot.bot.service.RateLimitedBybitFuturesService;
 
 /**
- * Configuration for exchange services with rate limiting
+ * Configuration for exchange services with rate limiting.
+ * Central registration point for all supported exchange providers.
  */
 @Configuration
 public class ExchangeServiceConfig {
+
+    private static final String TESTNET_DOMAIN_VALUE = "TESTNET_DOMAIN";
 
     @Value("${trading.binance.api.key:YOUR_BINANCE_API_KEY}")
     private String binanceApiKey;
@@ -33,21 +39,27 @@ public class ExchangeServiceConfig {
     private String bybitDomain;
 
     /**
-     * Primary exchange service bean with rate limiting
-     * This will be used throughout the application instead of direct BinanceFuturesService
+     * Primary exchange service bean with rate limiting.
+     * This will be used throughout the application instead of direct BinanceFuturesService.
      */
     @Bean
     @Primary
-    FuturesExchangeService futuresExchangeService(tradingbot.bot.messaging.EventPublisher eventPublisher) {
-        if ("paper".equalsIgnoreCase(provider)) {
-            return new tradingbot.bot.service.PaperFuturesExchangeService();
-        }
-        if ("bybit".equalsIgnoreCase(provider)) {
-             String baseUrl = "TESTNET_DOMAIN".equals(bybitDomain) 
+    FuturesExchangeService futuresExchangeService(EventPublisher eventPublisher) {
+        return switch (provider.toLowerCase()) {
+            case "paper" -> new PaperFuturesExchangeService();
+            case "bybit" -> {
+                String baseUrl = TESTNET_DOMAIN_VALUE.equals(bybitDomain)
                     ? "https://api-testnet.bybit.com"
                     : "https://api.bybit.com";
-            return new tradingbot.bot.service.RateLimitedBybitFuturesService(bybitApiKey, bybitApiSecret, baseUrl, eventPublisher);
-        }
-        return new RateLimitedBinanceFuturesService(binanceApiKey, binanceApiSecret, eventPublisher);
+                yield new RateLimitedBybitFuturesService(
+                    bybitApiKey, bybitApiSecret, baseUrl, eventPublisher);
+            }
+            case "binance" -> new RateLimitedBinanceFuturesService(
+                binanceApiKey, binanceApiSecret, eventPublisher);
+            // TODO [Phase 3]: Add dYdX v4, OKX, Gate.io via XChange adapter
+            default -> throw new IllegalArgumentException(
+                "Unknown exchange provider: " + provider
+                + ". Valid values: binance, bybit, paper");
+        };
     }
 }

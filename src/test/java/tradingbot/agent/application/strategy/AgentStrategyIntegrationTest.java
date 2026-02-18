@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.time.Instant;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,8 +15,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentGoal;
+import tradingbot.agent.domain.model.Reasoning;
 import tradingbot.agent.domain.repository.AgentRepository;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
+import tradingbot.agent.infrastructure.repository.PositionRepository;
 import tradingbot.agent.service.OrderPlacementService;
 import tradingbot.agent.service.RAGService;
 import tradingbot.agent.service.TradingAgentService;
@@ -28,10 +32,12 @@ import tradingbot.agent.service.TradingAgentService;
  * - Strategy execution with proper dependencies
  * - End-to-end agent iteration flow
  */
-@SpringBootTest(properties = {
-    "agent.orchestrator.enabled=false",  // Disable scheduled execution
-    "rag.order.dry-run=true",
-    "rag.enabled=false",
+@SpringBootTest(classes = {
+    LangChain4jStrategy.class,
+    RAGEnhancedStrategy.class,
+    LegacyLLMStrategy.class
+}, properties = {
+    "agent.orchestrator.enabled=false",
     "spring.main.allow-bean-definition-overriding=true"
 })
 @ActiveProfiles("test")
@@ -58,6 +64,9 @@ class AgentStrategyIntegrationTest {
     @MockitoBean
     private LLMProvider llmProvider;
     
+    @MockitoBean
+    private PositionRepository positionRepository;
+
     @MockitoBean
     private OrderPlacementService orderPlacementService;
     
@@ -323,14 +332,14 @@ class AgentStrategyIntegrationTest {
         assertEquals(maximizeProfit, profitAgent.getGoal());
     }
     
-    private tradingbot.agent.domain.model.Reasoning createMockReasoning() {
-        return new tradingbot.agent.domain.model.Reasoning(
+    private Reasoning createMockReasoning() {
+        return new Reasoning(
             "Market analysis",
             "Bullish momentum",
             "Low risk",
             "BUY",
             80,
-            java.time.Instant.now()
+            Instant.now()
         );
     }
 }

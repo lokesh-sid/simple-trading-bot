@@ -289,6 +289,54 @@ public class GlobalExceptionHandler {
     }
     
     /**
+     * Handle AgentNotFoundException - 404 Not Found
+     */
+    @ExceptionHandler(tradingbot.agent.application.AgentNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleAgentNotFound(
+            tradingbot.agent.application.AgentNotFoundException ex,
+            WebRequest request) {
+        
+        ErrorResponse errorResponse = ErrorResponse.builder()
+            .type(ERROR_TYPE_BASE + "agent-not-found")
+            .title("Agent Not Found")
+            .httpStatus(HttpStatus.NOT_FOUND.value())
+            .detail(ex.getMessage())
+            .instance(getRequestPath(request))
+            .timestamp(System.currentTimeMillis())
+            .build();
+        
+        if (log.isWarnEnabled()) {
+            log.warn("Agent not found: {}", ex.getMessage());
+        }
+        
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    }
+
+    /**
+     * Handle AgentAlreadyExistsException - 409 Conflict
+     */
+    @ExceptionHandler(tradingbot.agent.application.AgentAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleAgentAlreadyExists(
+            tradingbot.agent.application.AgentAlreadyExistsException ex,
+            WebRequest request) {
+        
+        ErrorResponse errorResponse = ErrorResponse.builder()
+            .type(ERROR_TYPE_BASE + "agent-already-exists")
+            .title("Agent Already Exists")
+            .httpStatus(HttpStatus.CONFLICT.value())
+            .detail(ex.getMessage())
+            .instance(getRequestPath(request))
+            .timestamp(System.currentTimeMillis())
+            .build();
+        
+        if (log.isWarnEnabled()) {
+            log.warn("Agent already exists: {}", ex.getMessage());
+        }
+        
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+    }
+
+    /**
      * Handle all other exceptions - 500 Internal Server Error
      */
     @ExceptionHandler(Exception.class)

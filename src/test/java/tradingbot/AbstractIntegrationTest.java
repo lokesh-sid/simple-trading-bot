@@ -1,6 +1,5 @@
 package tradingbot;
 
-import org.springframework.boot.test.autoconfigure.orm.jpa.AutoConfigureDataJpa;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -18,7 +17,6 @@ import tradingbot.config.FuturesTradingBotIntegrationTestConfig;
     webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @AutoConfigureMockMvc(addFilters = false)
-@AutoConfigureDataJpa
 @ActiveProfiles("integration-test")
 public abstract class AbstractIntegrationTest extends AbstractHttpTest {
     // Integration-specific setup inherited from AbstractHttpTest

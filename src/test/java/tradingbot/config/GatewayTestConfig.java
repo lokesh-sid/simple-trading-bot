@@ -7,7 +7,6 @@ import java.util.Map;
 import javax.sql.DataSource;
 
 import org.mockito.Mockito;
-import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
@@ -15,10 +14,12 @@ import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoCo
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -29,18 +30,32 @@ import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.retry.Retry;
 import jakarta.persistence.EntityManagerFactory;
+import tradingbot.agent.api.dto.AgentMapper;
+import tradingbot.agent.application.AgentService;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
+import tradingbot.agent.manager.AgentManager;
+import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.bot.FuturesTradingBot;
+import tradingbot.bot.controller.BotStateController;
+import tradingbot.bot.controller.ResilienceController;
+import tradingbot.bot.controller.TradingBotController;
+import tradingbot.bot.controller.dto.BotState;
+import tradingbot.bot.service.BotCacheService;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.service.PaperFuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.bot.strategy.calculator.IndicatorCalculator;
+import tradingbot.bot.strategy.calculator.IndicatorValues;
 import tradingbot.bot.strategy.exit.PositionExitCondition;
 import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 import tradingbot.security.repository.UserRepository;
@@ -49,7 +64,14 @@ import tradingbot.security.repository.UserRepository;
  * Test configuration for Gateway Integration Tests.
  * Provides minimal Spring context with mocked agent dependencies.
  */
-@SpringBootConfiguration
+@TestConfiguration
+@EnableAutoConfiguration(exclude = {
+    KafkaAutoConfiguration.class,
+    RedisAutoConfiguration.class,
+    RedisRepositoriesAutoConfiguration.class,
+    SecurityAutoConfiguration.class,
+    ManagementWebSecurityAutoConfiguration.class
+})
 @TestPropertySource(properties = {
     // Use H2 in-memory database for testing
     "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
@@ -61,13 +83,6 @@ import tradingbot.security.repository.UserRepository;
     "trading.exchange.provider=paper",
     "trading.binance.api.key=test-api-key"
 })
-@EnableAutoConfiguration(exclude = {
-    KafkaAutoConfiguration.class,
-    RedisAutoConfiguration.class,
-    RedisRepositoriesAutoConfiguration.class,
-    SecurityAutoConfiguration.class,
-    ManagementWebSecurityAutoConfiguration.class
-})
 @ComponentScan(
     basePackages = {
         "tradingbot.bot.controller",
@@ -78,10 +93,10 @@ import tradingbot.security.repository.UserRepository;
     useDefaultFilters = true,
     excludeFilters = {
         @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = {
-            tradingbot.bot.controller.TradingBotController.class,
-            tradingbot.bot.controller.BotStateController.class,
-            tradingbot.bot.controller.ResilienceController.class,
-            tradingbot.bot.service.BotCacheService.class
+            TradingBotController.class,
+            BotStateController.class,
+            ResilienceController.class,
+            BotCacheService.class
         })
     }
 )
@@ -195,65 +210,66 @@ public class GatewayTestConfig {
     }
 
     @Bean
-    public org.springframework.web.client.RestTemplate restTemplate() {
-        return Mockito.mock(org.springframework.web.client.RestTemplate.class);
+    public RestTemplate restTemplate() {
+        return Mockito.mock(RestTemplate.class);
     }
 
     @Bean
     @SuppressWarnings("unchecked")
-    public RedisTemplate<String, tradingbot.bot.strategy.calculator.IndicatorValues> redisTemplate() {
+    public RedisTemplate<String, IndicatorValues> redisTemplate() {
         return Mockito.mock(RedisTemplate.class);
     }
 
     @Bean
     @SuppressWarnings("unchecked")
-    public RedisTemplate<String, tradingbot.bot.controller.dto.BotState> botStateRedisTemplate() {
+    public RedisTemplate<String, BotState> botStateRedisTemplate() {
         return Mockito.mock(RedisTemplate.class);
     }
 
     // Resilience4j beans for ResilienceController
     @Bean
-    public io.github.resilience4j.ratelimiter.RateLimiter binanceTradingRateLimiter() {
-        return Mockito.mock(io.github.resilience4j.ratelimiter.RateLimiter.class);
+    public RateLimiter binanceTradingRateLimiter() {
+        return Mockito.mock(RateLimiter.class);
     }
 
     @Bean
-    public io.github.resilience4j.ratelimiter.RateLimiter binanceMarketRateLimiter() {
-        return Mockito.mock(io.github.resilience4j.ratelimiter.RateLimiter.class);
+    public RateLimiter binanceMarketRateLimiter() {
+        return Mockito.mock(RateLimiter.class);
     }
 
     @Bean
-    public io.github.resilience4j.ratelimiter.RateLimiter binanceAccountRateLimiter() {
-        return Mockito.mock(io.github.resilience4j.ratelimiter.RateLimiter.class);
+    public RateLimiter binanceAccountRateLimiter() {
+        return Mockito.mock(RateLimiter.class);
     }
 
     @Bean
-    public io.github.resilience4j.circuitbreaker.CircuitBreaker binanceApiCircuitBreaker() {
-        return Mockito.mock(io.github.resilience4j.circuitbreaker.CircuitBreaker.class);
+    public CircuitBreaker binanceApiCircuitBreaker() {
+        return Mockito.mock(CircuitBreaker.class);
     }
 
     @Bean
-    public io.github.resilience4j.retry.Retry binanceApiRetry() {
-        return Mockito.mock(io.github.resilience4j.retry.Retry.class);
+    public Retry binanceApiRetry() {
+        return Mockito.mock(Retry.class);
     }
 
     @Bean
-    public tradingbot.agent.manager.AgentManager agentManager() {
-        return Mockito.mock(tradingbot.agent.manager.AgentManager.class);
+    public AgentManager agentManager() {
+        return Mockito.mock(AgentManager.class);
     }
 
     @Bean
-    public tradingbot.agent.persistence.AgentRepository agentRepository() {
-        return Mockito.mock(tradingbot.agent.persistence.AgentRepository.class);
+    public AgentRepository agentRepository() {
+        return Mockito.mock(AgentRepository.class);
     }
 
     @Bean
-    public tradingbot.agent.application.AgentService agentService() {
-        return Mockito.mock(tradingbot.agent.application.AgentService.class);
+    public AgentService agentService() {
+        return Mockito.mock(AgentService.class);
     }
 
     @Bean
-    public tradingbot.agent.api.dto.AgentMapper agentApiMapper() {
-        return Mockito.mock(tradingbot.agent.api.dto.AgentMapper.class);
+    @Primary
+    public AgentMapper agentApiMapper() {
+        return Mockito.mock(AgentMapper.class);
     }
 }

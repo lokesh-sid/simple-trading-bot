@@ -198,7 +198,7 @@ public class AgentController {
     public ResponseEntity<Void> stopAgent(
             @Parameter(description = "Unique agent identifier (UUID format)")
             @PathVariable @ValidBotId String id) {
-        agentService.stopAgent(new AgentId(id));
+        agentService.deleteAgent(new AgentId(id));
         return ResponseEntity.noContent().build();
     }
 }

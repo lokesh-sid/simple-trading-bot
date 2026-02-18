@@ -18,7 +18,6 @@ import tradingbot.agent.infrastructure.repository.PositionRepository;
 import tradingbot.agent.manager.AgentManager;
 import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.bot.FuturesTradingBot;
-import tradingbot.bot.controller.config.TradingBotControllerValidationTestConfig;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.persistence.repository.TradingEventRepository;
 import tradingbot.bot.service.FuturesExchangeService;
@@ -31,7 +30,7 @@ import tradingbot.security.repository.UserRepository;
  * Provides common Spring Boot test setup and validation test utilities.
  */
 @SpringBootTest(
-    classes = TradingBotControllerValidationTestConfig.class,
+    classes = tradingbot.config.FuturesTradingBotIntegrationTestConfig.class,
     webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @AutoConfigureMockMvc(addFilters = false)

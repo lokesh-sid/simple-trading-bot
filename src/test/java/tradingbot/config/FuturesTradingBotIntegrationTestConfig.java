@@ -1,8 +1,6 @@
 package tradingbot.config;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import javax.sql.DataSource;
 
@@ -23,24 +21,30 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.orm.jpa.JpaTransactionManager;
-import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.PlatformTransactionManager;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import dev.langchain4j.memory.ChatMemory;
+import dev.langchain4j.model.chat.ChatLanguageModel;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.retry.Retry;
-import jakarta.persistence.EntityManagerFactory;
+import reactor.core.publisher.Flux;
 import tradingbot.agent.factory.AgentFactory;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
+import tradingbot.agent.infrastructure.persistence.PositionEntity;
 import tradingbot.agent.manager.AgentManager;
+import tradingbot.agent.persistence.LegacyAgentEntity;
+import tradingbot.agent.service.OrderPlacementService;
+import tradingbot.agent.service.RAGService;
+import tradingbot.agent.service.TradingAgentService;
+import tradingbot.agent.service.TradingTools;
 import tradingbot.bot.FuturesTradingBot;
+import tradingbot.bot.controller.dto.BotState;
+import tradingbot.bot.persistence.entity.TradingEventEntity;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.service.PaperFuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
@@ -48,6 +52,9 @@ import tradingbot.bot.strategy.calculator.IndicatorCalculator;
 import tradingbot.bot.strategy.calculator.IndicatorValues;
 import tradingbot.bot.strategy.exit.PositionExitCondition;
 import tradingbot.bot.strategy.tracker.TrailingStopTracker;
+import tradingbot.domain.market.StreamMarketDataEvent;
+import tradingbot.gateway.service.GatewayService;
+import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
 import tradingbot.security.repository.UserRepository;
 
 /**
@@ -90,11 +97,10 @@ import tradingbot.security.repository.UserRepository;
     "tradingbot.agent.infrastructure.repository",
     "tradingbot.bot.persistence.repository"
 })
-@EntityScan(basePackages = {
-    "tradingbot.agent.persistence",
-    "tradingbot.agent.infrastructure.repository",
-    "tradingbot.agent.infrastructure.persistence",
-    "tradingbot.bot.persistence.entity"
+@EntityScan(basePackageClasses = {
+    PositionEntity.class,
+    LegacyAgentEntity.class,
+    TradingEventEntity.class
 })
 public class FuturesTradingBotIntegrationTestConfig {
 
@@ -106,28 +112,18 @@ public class FuturesTradingBotIntegrationTestConfig {
     }
 
     @Bean
-    public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
-        LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
-        em.setDataSource(dataSource);
-        em.setPackagesToScan(
-            "tradingbot.agent.persistence", 
-            "tradingbot.bot.persistence.entity",
-            "tradingbot.agent.infrastructure.repository",
-            "tradingbot.agent.infrastructure.persistence"
-        );
-        em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-        
-        Map<String, Object> properties = new HashMap<>();
-        properties.put("hibernate.hbm2ddl.auto", "create-drop");
-        properties.put("hibernate.dialect", "org.hibernate.dialect.H2Dialect");
-        em.setJpaPropertyMap(properties);
-        
-        return em;
-    }
+    public ExchangeWebSocketClient exchangeWebSocketClient() {
+        return new ExchangeWebSocketClient() {
+            @Override
+            public Flux<StreamMarketDataEvent> streamTrades(String symbol) {
+                return Flux.empty();
+            }
 
-    @Bean
-    public PlatformTransactionManager transactionManager(EntityManagerFactory entityManagerFactory) {
-        return new JpaTransactionManager(entityManagerFactory);
+            @Override
+            public Flux<StreamMarketDataEvent> streamBookTicker(String symbol) {
+                return Flux.empty();
+            }
+        };
     }
 
     @Bean
@@ -211,7 +207,7 @@ public class FuturesTradingBotIntegrationTestConfig {
 
     @Bean
     @SuppressWarnings("unchecked")
-    public RedisTemplate<String, tradingbot.bot.controller.dto.BotState> botStateRedisTemplate() {
+    public RedisTemplate<String, BotState> botStateRedisTemplate() {
         return Mockito.mock(RedisTemplate.class);
     }
 
@@ -243,37 +239,37 @@ public class FuturesTradingBotIntegrationTestConfig {
 
     // LangChain4j beans for TradingAgentService
     @Bean
-    public dev.langchain4j.model.chat.ChatLanguageModel chatLanguageModel() {
-        return Mockito.mock(dev.langchain4j.model.chat.ChatLanguageModel.class);
+    public ChatLanguageModel chatLanguageModel() {
+        return Mockito.mock(ChatLanguageModel.class);
     }
 
     @Bean
-    public dev.langchain4j.memory.ChatMemory chatMemory() {
-        return Mockito.mock(dev.langchain4j.memory.ChatMemory.class);
+    public ChatMemory chatMemory() {
+        return Mockito.mock(ChatMemory.class);
     }
 
     @Bean
-    public tradingbot.agent.service.TradingTools tradingTools() {
-        return Mockito.mock(tradingbot.agent.service.TradingTools.class);
+    public TradingTools tradingTools() {
+        return Mockito.mock(TradingTools.class);
     }
 
     @Bean
-    public tradingbot.agent.service.RAGService ragService() {
-        return Mockito.mock(tradingbot.agent.service.RAGService.class);
+    public RAGService ragService() {
+        return Mockito.mock(RAGService.class);
     }
 
     @Bean
-    public tradingbot.agent.service.TradingAgentService tradingAgentService() {
-        return Mockito.mock(tradingbot.agent.service.TradingAgentService.class);
+    public TradingAgentService tradingAgentService() {
+        return Mockito.mock(TradingAgentService.class);
     }
 
     @Bean
-    public tradingbot.agent.service.OrderPlacementService orderPlacementService() {
-        return Mockito.mock(tradingbot.agent.service.OrderPlacementService.class);
+    public OrderPlacementService orderPlacementService() {
+        return Mockito.mock(OrderPlacementService.class);
     }
 
     @Bean
-    public tradingbot.gateway.service.GatewayService gatewayService() {
-        return Mockito.mock(tradingbot.gateway.service.GatewayService.class);
+    public GatewayService gatewayService() {
+        return Mockito.mock(GatewayService.class);
     }
 }

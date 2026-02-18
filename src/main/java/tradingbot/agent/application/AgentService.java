@@ -81,22 +81,15 @@ public class AgentService {
         agent.stop();
         agentRepository.save(agent);
     }
-}
 
-/**
- * AgentAlreadyExistsException
- */
-class AgentAlreadyExistsException extends RuntimeException {
-    public AgentAlreadyExistsException(String message) {
-        super(message);
-    }
-}
-
-/**
- * AgentNotFoundException
- */
-class AgentNotFoundException extends RuntimeException {
-    public AgentNotFoundException(String message) {
-        super(message);
+    /**
+     * Stop and delete an agent
+     */
+    public void deleteAgent(AgentId id) {
+        // Stop the agent first (will throw AgentNotFoundException if not found)
+        stopAgent(id);
+        
+        // Then delete
+        agentRepository.delete(id);
     }
 }

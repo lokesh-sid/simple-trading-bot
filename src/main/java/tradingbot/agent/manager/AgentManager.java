@@ -60,9 +60,10 @@ public class AgentManager {
         if (agent != null) {
             if (!agent.isRunning()) {
                 agent.start();
-                updateAgentStatus(id, LegacyAgentEntity.AgentStatus.RUNNING);
-                log.info("Agent {} started", id);
             }
+            // Always ensure DB reflects running state if agent is running or just started
+            updateAgentStatus(id, LegacyAgentEntity.AgentStatus.RUNNING);
+            log.info("Agent {} started", id);
         } else {
             log.warn("Agent not found: {}", id);
         }
@@ -111,7 +112,7 @@ public class AgentManager {
         agentRepository.findById(id).ifPresent(entity -> {
             entity.setStatus(status);
             entity.setUpdatedAt(java.time.Instant.now());
-            agentRepository.save(entity);
+            agentRepository.saveAndFlush(entity);
         });
     }
 

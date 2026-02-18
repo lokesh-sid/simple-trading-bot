@@ -80,6 +80,12 @@ public class SimpleTradingBotApplication {
         return new RestTemplate();
     }
 
+
+    /*
+     * DEPRECATED: Use ExchangeServiceConfig.java instead
+     * This bean definition caused conflicts during tests.
+     */
+    /*
     @Bean
     FuturesExchangeService exchangeService(
             @Value("${trading.exchange.provider:binance}") String provider,
@@ -121,6 +127,7 @@ public class SimpleTradingBotApplication {
             );
         };
     }
+    */
 
     @Bean
     SentimentAnalyzer sentimentAnalyzer(RestTemplate restTemplate) {

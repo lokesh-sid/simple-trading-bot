@@ -18,6 +18,7 @@ import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.infrastructure.persistence.OrderEntity;
 import tradingbot.agent.infrastructure.repository.OrderRepository;
 import tradingbot.bot.controller.exception.BotOperationException;
+import tradingbot.bot.events.TradeExecutionEvent;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.service.FuturesExchangeService;
 
@@ -443,7 +444,7 @@ public class OrderPlacementService {
     private void publishOrderEvent(Order order, Reasoning reasoning) {
         try {
             // Create trade execution event
-            var event = new tradingbot.bot.events.TradeExecutionEvent(
+            var event = new TradeExecutionEvent(
                 order.getAgentId(), // botId
                 order.getId(), // orderId
                 order.getSymbol()
