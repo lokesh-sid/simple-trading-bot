@@ -3,6 +3,7 @@ package tradingbot.bot.service.backtest;
 import java.util.List;
 
 import tradingbot.agent.AgenticTradingAgent;
+import tradingbot.bot.service.BinanceFuturesService.Candle;
 import tradingbot.config.TradingConfig;
 
 /**
@@ -38,11 +39,13 @@ public interface BacktestAgentExecutionService {
      *
      * @param agent    fully initialised {@link AgenticTradingAgent} in
      *                 {@code ACTIVE} state
+     * @param history  historical OHLCV bars in chronological order
      * @param config   trading config for the run (symbol, leverage, capital…)
      * @param exchange the backtest exchange to route decisions through
      * @return a non-null {@link ExecutionResult} containing trades + equity curve
      */
     ExecutionResult execute(AgenticTradingAgent agent,
+                            List<Candle> history,
                             TradingConfig config,
                             BacktestExchangeService exchange);
 
