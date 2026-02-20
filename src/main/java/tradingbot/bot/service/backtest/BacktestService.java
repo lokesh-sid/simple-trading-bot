@@ -1,135 +1,124 @@
 package tradingbot.bot.service.backtest;
 
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Logger;
 
 import org.springframework.stereotype.Service;
 
-import tradingbot.bot.FuturesTradingBot;
-import tradingbot.bot.TradeDirection;
+import tradingbot.agent.AgenticTradingAgent;
+import tradingbot.agent.TradingAgentFactory;
 import tradingbot.bot.controller.exception.BotOperationException;
 import tradingbot.bot.service.BinanceFuturesService.Candle;
-import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
-import tradingbot.bot.strategy.calculator.IndicatorCalculator;
-import tradingbot.bot.strategy.exit.PositionExitCondition;
-import tradingbot.bot.strategy.indicator.BollingerBandsIndicator;
-import tradingbot.bot.strategy.indicator.MACDTechnicalIndicator;
-import tradingbot.bot.strategy.indicator.RSITechnicalIndicator;
-import tradingbot.bot.strategy.indicator.TechnicalIndicator;
-import tradingbot.bot.strategy.tracker.TrailingStopTracker;
+import tradingbot.bot.service.backtest.BacktestMetricsCalculator.BacktestMetrics;
 import tradingbot.config.TradingConfig;
 
+/**
+ * BacktestService — orchestrates the full backtest pipeline.
+ *
+ * <h3>Responsibility (SRP)</h3>
+ * This class is a thin orchestrator: <em>load → create agent → execute → metrics</em>.
+ * All algorithmic work lives in dedicated collaborators:
+ * <ul>
+ *   <li>{@link TradingAgentFactory} — constructs + starts the agent under test.</li>
+ *   <li>{@link BacktestAgentExecutionService} — drives the candle-by-candle replay loop.</li>
+ *   <li>{@link BacktestMetricsCalculator} — computes Sharpe, drawdown, win rate, etc.</li>
+ * </ul>
+ *
+ * <h3>DIP alignment</h3>
+ * All three collaborators are interfaces. Spring wires the active implementations
+ * ({@code LLMTradingAgentFactory}, {@code CsvBacktestAgentExecutionService},
+ * {@code StandardBacktestMetricsCalculator}) — this class knows nothing about concrete types.
+ *
+ * <h3>What was removed vs. the original</h3>
+ * <ul>
+ *   <li>{@code new FuturesTradingBot(...)} — delegated to {@link TradingAgentFactory}.</li>
+ *   <li>{@code MockSentimentAnalyzer} inner class — deleted; {@code CachedGrokService} handles it.</li>
+ *   <li>{@code TradeDirection.LONG} hardcode — removed; direction is agent-driven.</li>
+ *   <li>Inline indicator instantiation ({@code new RSITechnicalIndicator(14)}, etc.) — inside agent.</li>
+ *   <li>{@code BacktestResult} (3-field class) → {@link BacktestMetrics} record (8 fields).</li>
+ * </ul>
+ */
 @Service
 public class BacktestService {
+
     private static final Logger LOGGER = Logger.getLogger(BacktestService.class.getName());
-    
+
+    /** Starting capital for all backtests. Phase 3: derive from TradingConfig. */
+    private static final double INITIAL_CAPITAL = 10_000.0;
+
     private final HistoricalDataLoader dataLoader;
-    
-    public BacktestService(HistoricalDataLoader dataLoader) {
-        this.dataLoader = dataLoader;
+    private final TradingAgentFactory agentFactory;
+    private final BacktestAgentExecutionService executionService;
+    private final BacktestMetricsCalculator metricsCalculator;
+
+    public BacktestService(HistoricalDataLoader dataLoader,
+                           TradingAgentFactory agentFactory,
+                           BacktestAgentExecutionService executionService,
+                           BacktestMetricsCalculator metricsCalculator) {
+        this.dataLoader        = dataLoader;
+        this.agentFactory      = agentFactory;
+        this.executionService  = executionService;
+        this.metricsCalculator = metricsCalculator;
     }
-    
-    public BacktestResult runBacktest(InputStream csvData, TradingConfig config, long latencyMs, double slippagePercent, double feeRate) {
-        LOGGER.info("Starting backtest for " + config.getSymbol());
-        
-        // 1. Load Data
+
+    // ── public API ─────────────────────────────────────────────────────────────
+
+    /**
+     * Runs a backtest using CSV data from an {@link InputStream}.
+     * Used by {@code BacktestController} (multipart REST upload).
+     */
+    public BacktestMetrics runBacktest(InputStream csvData, TradingConfig config,
+                                       long latencyMs, double slippagePercent,
+                                       double feeRate) {
+        LOGGER.info("Starting backtest (stream) for " + config.getSymbol());
         List<Candle> history = dataLoader.loadFromStream(csvData);
         if (history.isEmpty()) {
             throw new BotOperationException("backtest", "No data loaded from stream");
         }
-        
         return executeBacktest(history, config, latencyMs, slippagePercent, feeRate);
     }
-    
-    public BacktestResult runBacktest(String csvFilePath, TradingConfig config, long latencyMs, double slippagePercent, double feeRate) {
-        LOGGER.info("Starting backtest for " + config.getSymbol());
-        
-        // 1. Load Data
+
+    /**
+     * Runs a backtest using a CSV file path.
+     * Used in integration tests and CLI tooling.
+     */
+    public BacktestMetrics runBacktest(String csvFilePath, TradingConfig config,
+                                       long latencyMs, double slippagePercent,
+                                       double feeRate) {
+        LOGGER.info("Starting backtest (file) for " + config.getSymbol());
         List<Candle> history = dataLoader.loadFromCsv(csvFilePath);
         if (history.isEmpty()) {
             throw new BotOperationException("backtest", "No data loaded from " + csvFilePath);
         }
-        
         return executeBacktest(history, config, latencyMs, slippagePercent, feeRate);
     }
 
-    private BacktestResult executeBacktest(List<Candle> history, TradingConfig config, long latencyMs, double slippagePercent, double feeRate) {
-        // 2. Setup Exchange
-        BacktestExchangeService exchange = new BacktestExchangeService(latencyMs, slippagePercent, feeRate);
-        
-        // 3. Setup Indicators
-        Map<String, TechnicalIndicator> indicators = new HashMap<>();
-        indicators.put("rsi", new RSITechnicalIndicator(14));
-        indicators.put("macd", new MACDTechnicalIndicator(12, 26, 9, false));
-        indicators.put("signal", new MACDTechnicalIndicator(12, 26, 9, true));
-        indicators.put("lowerBand", new BollingerBandsIndicator(20, 2.0, true));
-        indicators.put("upperBand", new BollingerBandsIndicator(20, 2.0, false));
-        
-        // 4. Setup Bot Dependencies
-        TrailingStopTracker trailingStopTracker = new TrailingStopTracker(exchange, config.getTrailingStopPercent());
-        SentimentAnalyzer sentimentAnalyzer = new MockSentimentAnalyzer(); 
-        List<PositionExitCondition> exitConditions = new ArrayList<>();
-        exitConditions.add(() -> false); // Dummy condition that never triggers
-        
-        // 5. Initialize Bot
-        FuturesTradingBot.BotParams params = new FuturesTradingBot.BotParams.Builder()
-                .exchangeService(exchange)
-                .indicatorCalculator(new IndicatorCalculator(exchange, indicators, null))
-                .trailingStopTracker(trailingStopTracker)
-                .sentimentAnalyzer(sentimentAnalyzer)
-                .exitConditions(exitConditions)
-                .config(config)
-                .tradeDirection(TradeDirection.LONG) 
-                .forTesting()
-                .build();
-                
-        FuturesTradingBot bot = new FuturesTradingBot(params);
-        
-        // 6. Run Simulation Loop
-        int startIdx = 100; 
-        for (int i = startIdx; i < history.size(); i++) {
-            exchange.setMarketContext(history, i);
-            exchange.processPendingOrders();
-            
-            bot.executeTradingStep();
-        }
-        
-        // 7. Generate Report
-        return new BacktestResult(
-                exchange.getMarginBalance(), 
-                exchange.getMarginBalance() - 10000.0, 
-                0 
-        );
-    }
-    
-    private static class MockSentimentAnalyzer extends SentimentAnalyzer {
-        public MockSentimentAnalyzer() {
-            super(null);
-        }
-        @Override
-        public boolean isPositiveSentiment(String symbol) { return true; }
-        @Override
-        public boolean isNegativeSentiment(String symbol) { return true; }
-    }
-    
-    public static class BacktestResult {
-        public double finalBalance;
-        public double totalProfit;
-        public int totalTrades;
-        
-        public BacktestResult(double finalBalance, double totalProfit, int totalTrades) {
-            this.finalBalance = finalBalance;
-            this.totalProfit = totalProfit;
-            this.totalTrades = totalTrades;
-        }
-        
-        @Override
-        public String toString() {
-            return "BacktestResult{finalBalance=%.2f, totalProfit=%.2f, totalTrades=%d}".formatted(finalBalance, totalProfit, totalTrades);
+    // ── private pipeline ───────────────────────────────────────────────────────
+
+    private BacktestMetrics executeBacktest(List<Candle> history, TradingConfig config,
+                                            long latencyMs, double slippagePercent,
+                                            double feeRate) {
+        // 1. Simulation exchange (concrete — this is a value object not a service boundary)
+        BacktestExchangeService exchange =
+                new BacktestExchangeService(latencyMs, slippagePercent, feeRate);
+
+        // 2. Create + start agent via factory (DIP — no FuturesTradingBot instantiation here)
+        AgenticTradingAgent agent = agentFactory.create(config);
+        LOGGER.info("Agent created: " + agent.getId() + " via " + agentFactory.describe());
+
+        try {
+            // 3. Replay loop (SRP — all candle iteration in executionService)
+            BacktestAgentExecutionService.ExecutionResult rawResult =
+                    executionService.execute(agent, history, config, exchange);
+
+            // 4. Derive financial statistics (SRP — all math in metricsCalculator)
+            BacktestMetrics metrics = metricsCalculator.calculate(rawResult, INITIAL_CAPITAL);
+            LOGGER.info("Backtest completed: " + metrics);
+            return metrics;
+
+        } finally {
+            agent.stop(); // release ta4j / scheduler resources
         }
     }
 }

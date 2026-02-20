@@ -14,8 +14,8 @@ import org.springframework.web.multipart.MultipartFile;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import tradingbot.bot.service.backtest.BacktestMetricsCalculator.BacktestMetrics;
 import tradingbot.bot.service.backtest.BacktestService;
-import tradingbot.bot.service.backtest.BacktestService.BacktestResult;
 import tradingbot.config.TradingConfig;
 
 @RestController
@@ -31,7 +31,7 @@ public class BacktestController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Run Backtest", description = "Run a backtest simulation using uploaded CSV data and trading configuration")
-    public ResponseEntity<BacktestResult> runBacktest(
+    public ResponseEntity<BacktestMetrics> runBacktest(
             @Parameter(description = "CSV file containing historical candle data", required = true)
             @RequestPart("file") MultipartFile file,
             
@@ -52,11 +52,11 @@ public class BacktestController {
             throw new IllegalArgumentException("File cannot be empty");
         }
 
-        BacktestResult result = backtestService.runBacktest(
-                file.getInputStream(), 
-                config, 
-                latencyMs, 
-                slippagePercent, 
+        BacktestMetrics result = backtestService.runBacktest(
+                file.getInputStream(),
+                config,
+                latencyMs,
+                slippagePercent,
                 feeRate
         );
         
