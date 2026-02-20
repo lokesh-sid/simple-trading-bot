@@ -7,6 +7,7 @@ import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
@@ -37,6 +38,9 @@ public class EventPublisher {
     private static final Logger log = LoggerFactory.getLogger(EventPublisher.class);
     
     private final KafkaTemplate<String, Object> kafkaTemplate;
+
+    @Value("${trading.kafka.publish.enabled:true}")
+    private boolean kafkaPublishEnabled;
     
     public EventPublisher(KafkaTemplate<String, Object> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
@@ -127,6 +131,10 @@ public class EventPublisher {
      * @param event The event to publish
      */
     private void publishToTopic(EventTopic topic, String key, TradingEvent event) {
+        if (!kafkaPublishEnabled) {
+            log.debug("[Kafka disabled] Skipping publish to topic {} for key {}", topic.getTopicName(), key);
+            return;
+        }
         try {
             // Create event wrapper with metadata
             EventWrapper eventWrapper = new EventWrapper(
