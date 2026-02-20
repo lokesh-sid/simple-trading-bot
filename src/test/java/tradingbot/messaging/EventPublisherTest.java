@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import tradingbot.bot.events.BotStatusEvent;
 import tradingbot.bot.events.MarketDataEvent;
@@ -48,6 +49,8 @@ class EventPublisherTest {
     @BeforeEach
     void setUp() {
         eventPublisher = new EventPublisher(kafkaTemplate);
+        // Enable Kafka publishing (normally injected by @Value — not set in pure unit tests)
+        ReflectionTestUtils.setField(eventPublisher, "kafkaPublishEnabled", true);
         
         // Mock successful Kafka send (lenient to avoid UnnecessaryStubbing in non-publishing tests)
         lenient().when(kafkaTemplate.send(anyString(), anyString(), any()))

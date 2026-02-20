@@ -2,6 +2,7 @@ package tradingbot.agent.impl;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 import tradingbot.agent.AgenticTradingAgent;
@@ -34,6 +35,7 @@ import tradingbot.config.TradingConfig;
  *       qualify it via {@code @Qualifier}; nothing here changes.</li>
  * </ul>
  */
+@Primary
 @Component
 public class LLMTradingAgentFactory implements TradingAgentFactory {
 

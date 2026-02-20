@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
-import org.springframework.boot.test.autoconfigure.orm.jpa.AutoConfigureDataJpa;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
@@ -17,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import tradingbot.agent.TradingAgentFactory;
+import tradingbot.agent.infrastructure.repository.JpaAgentRepository;
 import tradingbot.bot.controller.dto.request.BotStartRequest;
 import tradingbot.bot.controller.dto.request.LeverageUpdateRequest;
 import tradingbot.bot.controller.dto.response.BotCreatedResponse;
@@ -52,7 +53,6 @@ import tradingbot.security.dto.LoginResponse;
     webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @AutoConfigureMockMvc(addFilters = false)
-@AutoConfigureDataJpa
 @ActiveProfiles("integration-test")
 @DisplayName("ApiGatewayController Integration Tests")
 class ApiGatewayControllerIntegrationTest extends tradingbot.AbstractHttpTest {
@@ -70,6 +70,14 @@ class ApiGatewayControllerIntegrationTest extends tradingbot.AbstractHttpTest {
 
     @MockitoBean
     private EventPublisher eventPublisher;
+
+    // Prevent JPA scan failure — AgentEntity not in GatewayTestConfig's @EntityScan
+    @MockitoBean
+    private JpaAgentRepository jpaAgentRepository;
+
+    // TradingAgentFactory lives in tradingbot.agent.impl — not in GatewayTestConfig scan
+    @MockitoBean
+    private TradingAgentFactory tradingAgentFactory;
 
     // ========== GATEWAY HEALTH AND INFO TESTS ==========
 

@@ -9,6 +9,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.ResultActions;
 
 import tradingbot.AbstractHttpTest;
+import tradingbot.agent.TradingAgentFactory;
 import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.application.AgentService;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
@@ -83,6 +84,9 @@ public abstract class AbstractControllerValidationTest extends AbstractHttpTest 
 
     @MockitoBean
     protected AgentMapper agentMapper;
+
+    @MockitoBean
+    protected TradingAgentFactory tradingAgentFactory;
 
     /**
      * Performs a POST request and expects validation failure with field errors.

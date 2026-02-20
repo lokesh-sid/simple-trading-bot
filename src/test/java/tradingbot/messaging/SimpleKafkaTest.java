@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import tradingbot.bot.TradeDirection;
 import tradingbot.bot.events.TradeSignalEvent;
@@ -32,6 +33,8 @@ class SimpleKafkaTest {
     @BeforeEach
     void setUp() {
         eventPublisher = new EventPublisher(mockKafkaTemplate);
+        // Enable Kafka publishing (normally injected by @Value — not set in pure unit tests)
+        ReflectionTestUtils.setField(eventPublisher, "kafkaPublishEnabled", true);
     }
 
     @Test

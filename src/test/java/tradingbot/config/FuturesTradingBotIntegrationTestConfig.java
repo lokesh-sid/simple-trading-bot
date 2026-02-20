@@ -42,6 +42,9 @@ import tradingbot.agent.service.OrderPlacementService;
 import tradingbot.agent.service.RAGService;
 import tradingbot.agent.service.TradingAgentService;
 import tradingbot.agent.service.TradingTools;
+import tradingbot.agent.TradingAgentFactory;
+import tradingbot.bot.service.backtest.BacktestAgentExecutionService;
+import tradingbot.bot.service.backtest.BacktestMetricsCalculator;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.controller.dto.BotState;
 import tradingbot.bot.persistence.entity.TradingEventEntity;
@@ -266,6 +269,11 @@ public class FuturesTradingBotIntegrationTestConfig {
     @Bean
     public OrderPlacementService orderPlacementService() {
         return Mockito.mock(OrderPlacementService.class);
+    }
+
+    @Bean
+    public TradingAgentFactory tradingAgentFactory() {
+        return Mockito.mock(TradingAgentFactory.class);
     }
 
     @Bean

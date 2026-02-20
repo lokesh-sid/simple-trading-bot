@@ -45,6 +45,9 @@ import tradingbot.agent.application.AgentService;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.agent.manager.AgentManager;
 import tradingbot.agent.persistence.AgentRepository;
+import tradingbot.agent.TradingAgentFactory;
+import tradingbot.bot.service.backtest.BacktestAgentExecutionService;
+import tradingbot.bot.service.backtest.BacktestMetricsCalculator;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.controller.BotStateController;
 import tradingbot.bot.controller.ResilienceController;
@@ -105,7 +108,11 @@ import tradingbot.security.repository.UserRepository;
     "tradingbot.bot.persistence.repository"
 })
 @EntityScan(basePackages = {
-    "tradingbot.bot.persistence.entity"
+    "tradingbot.bot.persistence.entity",
+    "tradingbot.agent.infrastructure.repository",
+    "tradingbot.agent.infrastructure.persistence",
+    "tradingbot.agent.persistence",
+    "tradingbot.security.entity"
 })
 public class GatewayTestConfig {
 
@@ -120,7 +127,13 @@ public class GatewayTestConfig {
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource);
-        em.setPackagesToScan("tradingbot.bot.persistence.entity");
+        em.setPackagesToScan(
+            "tradingbot.bot.persistence.entity",
+            "tradingbot.agent.infrastructure.repository",
+            "tradingbot.agent.infrastructure.persistence",
+            "tradingbot.agent.persistence",
+            "tradingbot.security.entity"
+        );
         em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
 
         Map<String, Object> properties = new HashMap<>();
