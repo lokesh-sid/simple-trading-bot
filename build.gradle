@@ -66,6 +66,7 @@ dependencies {
     implementation "io.github.resilience4j:resilience4j-circuitbreaker:${resilience4jVersion}"
     implementation "io.github.resilience4j:resilience4j-retry:${resilience4jVersion}"
     implementation "io.github.resilience4j:resilience4j-reactor:${resilience4jVersion}"
+    implementation "io.github.resilience4j:resilience4j-bulkhead:${resilience4jVersion}"
 
     // External API dependencies
     implementation 'io.github.binance:binance-connector-java:3.3.0'

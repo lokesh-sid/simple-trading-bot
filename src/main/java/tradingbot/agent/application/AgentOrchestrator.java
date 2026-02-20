@@ -1,6 +1,8 @@
 package tradingbot.agent.application;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -10,22 +12,29 @@ import java.util.stream.StreamSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import io.github.resilience4j.bulkhead.Bulkhead;
+import io.github.resilience4j.bulkhead.BulkheadConfig;
+import io.github.resilience4j.bulkhead.BulkheadRegistry;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import reactor.core.Disposable;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
+import tradingbot.agent.AgenticTradingAgent;
 import tradingbot.agent.application.strategy.AgentStrategy;
 import tradingbot.agent.application.strategy.LangChain4jStrategy;
 import tradingbot.agent.application.strategy.LegacyLLMStrategy;
 import tradingbot.agent.application.strategy.RAGEnhancedStrategy;
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentId;
+import tradingbot.agent.domain.model.AgentStatus;
 import tradingbot.agent.domain.repository.AgentRepository;
+import tradingbot.domain.market.KlineClosedEvent;
 import tradingbot.domain.market.StreamMarketDataEvent;
 import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
 
@@ -66,17 +75,36 @@ public class AgentOrchestrator {
     
     // Throttling state: AgentId -> Last Execution Time
     private final Map<AgentId, Instant> lastExecutionTime = new ConcurrentHashMap<>();
-    
+
+    // --- Phase 1.5 / Pre-Phase 2: AgenticTradingAgent event-driven path -------------
+
+    /**
+     * Reactive agents implementing {@link AgenticTradingAgent}.
+     * Populated by Spring when concrete implementations are registered as beans.
+     * Empty until Phase 2 agent implementations are added.
+     */
+    private final List<AgenticTradingAgent> agenticAgents;
+
+    /**
+     * Per-agent bulkhead registry — isolates one misbehaving agent from others.
+     * A named {@link Bulkhead} is created lazily on first dispatch per agentId.
+     */
+    private final BulkheadRegistry bulkheadRegistry;
+
     public AgentOrchestrator(
             AgentRepository agentRepository,
             LangChain4jStrategy langChain4jStrategy,
             RAGEnhancedStrategy ragEnhancedStrategy,
             LegacyLLMStrategy legacyLLMStrategy,
             ExchangeWebSocketClient webSocketClient,
+            List<AgenticTradingAgent> agenticAgents,
+            BulkheadRegistry bulkheadRegistry,
             @Value("${agent.strategy:langchain4j}") String strategyName) {
-        
+
         this.agentRepository = agentRepository;
         this.webSocketClient = webSocketClient;
+        this.agenticAgents = agenticAgents;
+        this.bulkheadRegistry = bulkheadRegistry;
         // Create a bounded elastic scheduler for offloading blocking agent logic
         this.agentScheduler = Schedulers.boundedElastic();
         
@@ -256,7 +284,82 @@ public class AgentOrchestrator {
                 agentCount, activeStrategy.getStrategyName());
         }
     }
-    
+
+    // -------------------------------------------------------------------------
+    // Phase 1.5 / Pre-Phase 2 — Event-driven path via KlineClosedEvent
+    // -------------------------------------------------------------------------
+
+    /**
+     * Consumes {@link KlineClosedEvent}s published to
+     * {@code kline-closed.{symbol}} Kafka topics by exchange adapters.
+     *
+     * <p>Design notes (Option C — separate event type):
+     * <ul>
+     *   <li>This listener only sees fully-closed candles; no TRADE / tick
+     *       noise ever reaches agent logic.</li>
+     *   <li>A per-agent {@link Bulkhead} is acquired before dispatching so
+     *       that one slow LLM call cannot starve other agents.</li>
+     *   <li>In backtest profile this method is never invoked because
+     *       {@code spring.kafka.listener.auto-startup=false}.</li>
+     * </ul>
+     *
+     * <p>Topic pattern: {@code kline-closed.BTCUSDT}, {@code kline-closed.ETHUSDT}, …
+     */
+    @KafkaListener(
+            topicPattern = "kline-closed\\..*",
+            groupId = "agent-orchestrator-klines",
+            containerFactory = "kafkaListenerContainerFactory")
+    public void onKlineClosedEvent(KlineClosedEvent event) {
+        if (agenticAgents.isEmpty()) {
+            // No AgenticTradingAgent beans registered yet (normal during Phase 1).
+            logger.trace("[KlineListener] No AgenticTradingAgent beans — skipping dispatch for {}/{}",
+                    event.exchange(), event.symbol());
+            return;
+        }
+
+        agenticAgents.stream()
+                .filter(agent -> event.symbol().equals(agent.getSymbol()))
+                .filter(agent -> agent.getStatus() == AgentStatus.ACTIVE)
+                .forEach(agent -> dispatchWithBulkhead(agent, event));
+    }
+
+    /**
+     * Acquires the per-agent {@link Bulkhead} and dispatches the agent
+     * asynchronously on the bounded-elastic scheduler.
+     *
+     * <p>A bulkhead is created lazily with conservative defaults
+     * (10 concurrent calls, 500 ms max wait) if one does not yet exist.
+     */
+    private void dispatchWithBulkhead(AgenticTradingAgent agent, KlineClosedEvent event) {
+        String bulkheadName = "agent-" + agent.getId();
+        Bulkhead bulkhead = bulkheadRegistry.bulkhead(
+                bulkheadName,
+                () -> BulkheadConfig.custom()
+                        .maxConcurrentCalls(10)
+                        .maxWaitDuration(Duration.ofMillis(500))
+                        .build());
+
+        agentScheduler.schedule(() -> {
+            if (!bulkhead.tryAcquirePermission()) {
+                logger.warn("[Bulkhead] Agent {} is saturated — dropping event for {}",
+                        agent.getId(), event.symbol());
+                return;
+            }
+            try {
+                agent.onKlineClosed(event)
+                        .doOnSuccess(decision -> logger.info(
+                                "[AgenticAgent] {} → {} (confidence {}%) for {}",
+                                agent.getId(), decision.action(), decision.confidence(), event.symbol()))
+                        .doOnError(ex -> logger.error(
+                                "[AgenticAgent] {} error on kline {}: {}",
+                                agent.getId(), event.symbol(), ex.getMessage(), ex))
+                        .subscribe();
+            } finally {
+                bulkhead.releasePermission();
+            }
+        });
+    }
+
     /**
      * Run a single iteration using the active strategy (Polling version)
      */
