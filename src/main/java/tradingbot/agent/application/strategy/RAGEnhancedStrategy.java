@@ -14,6 +14,7 @@ import tradingbot.agent.domain.model.ReasoningContext;
 import tradingbot.agent.service.OrderPlacementService;
 import tradingbot.agent.service.RAGService;
 import tradingbot.bot.model.MarketData;
+import tradingbot.domain.market.StreamMarketDataEvent;
 
 /**
  * RAG-enhanced LLM strategy
@@ -37,11 +38,12 @@ public class RAGEnhancedStrategy implements AgentStrategy {
     }
     
     @Override
-    public void executeIteration(Agent agent) {
-        logger.info("[RAG] Agent {} using RAG-enhanced reasoning", agent.getId());
-        
-        // 1. PERCEIVE
-        Perception perception = perceiveMarket(agent);
+    public void executeIteration(Agent agent, StreamMarketDataEvent triggeringEvent) {
+        logger.info("[RAG] Agent {} using RAG-enhanced reasoning (triggerPrice={})",
+                agent.getId(), triggeringEvent != null ? triggeringEvent.price() : "n/a");
+
+        // 1. PERCEIVE — use live event price when available, fallback stub for polling
+        Perception perception = perceiveMarket(agent, triggeringEvent);
         agent.perceive(perception);
         
         logger.debug("Agent {} perceived market - Price: {} Trend: {}", 
@@ -74,7 +76,19 @@ public class RAGEnhancedStrategy implements AgentStrategy {
         return "RAG-Enhanced LLM";
     }
     
-    private Perception perceiveMarket(Agent agent) {
+    private Perception perceiveMarket(Agent agent, StreamMarketDataEvent event) {
+        if (event != null) {
+            // Use the real-time price from the triggering WebSocket event
+            return new Perception(
+                agent.getTradingSymbol(),
+                event.price().doubleValue(),
+                "UNKNOWN",   // trend derived from ta4j indicators, not raw tick
+                "UNKNOWN",   // sentiment enrichment is a separate concern
+                event.quantity().doubleValue(),
+                event.timestamp()
+            );
+        }
+        // Polling fallback — stub data (Phase 2: replace with exchange REST call)
         MarketData data = getMarketData(agent.getTradingSymbol());
         return new Perception(
             agent.getTradingSymbol(),
@@ -85,9 +99,9 @@ public class RAGEnhancedStrategy implements AgentStrategy {
             Instant.now()
         );
     }
-    
+
     private MarketData getMarketData(String symbol) {
-        // MVP: Dummy data
+        // TODO(Phase 2): replace with real REST market-data fetch
         return new MarketData(45000.0, 2.5, 1000000, "UPTREND", "BULLISH", 0.7);
     }
     

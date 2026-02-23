@@ -19,6 +19,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
+import tradingbot.domain.market.BookTickerPayload;
 import tradingbot.domain.market.StreamMarketDataEvent;
 import tradingbot.domain.market.StreamMarketDataEvent.EventType;
 import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
@@ -105,21 +106,26 @@ public class BybitWebSocketAdapter implements ExchangeWebSocketClient {
     }
 
     private void parseOrderBook(JsonNode data, String symbol, long ts, Sinks.Many<StreamMarketDataEvent> sink, String raw) {
-         BigDecimal bestAsk = BigDecimal.ZERO;
+        BigDecimal bestAsk = BigDecimal.ZERO;
         if (data.has("a") && data.get("a").isArray() && data.get("a").size() > 0) {
             bestAsk = new BigDecimal(data.get("a").get(0).get(0).asText());
         }
+        BigDecimal bestBid = BigDecimal.ZERO;
+        if (data.has("b") && data.get("b").isArray() && data.get("b").size() > 0) {
+            bestBid = new BigDecimal(data.get("b").get(0).get(0).asText());
+        }
 
         if (bestAsk.signum() > 0) {
-             StreamMarketDataEvent event = new StreamMarketDataEvent(
+            // price = ask; both sides preserved in payload for direction-aware fills
+            StreamMarketDataEvent event = new StreamMarketDataEvent(
                     "BYBIT_LINEAR",
                     symbol,
                     EventType.BOOK_TICKER,
                     bestAsk,
-                    BigDecimal.ZERO, 
+                    BigDecimal.ZERO,
                     Instant.ofEpochMilli(ts),
-                    raw
-                );
+                    new BookTickerPayload(bestBid, bestAsk)
+            );
             sink.tryEmitNext(event);
         }
     }

@@ -67,11 +67,11 @@ class LangChain4jStrategyTest {
         // Given
         String mockResponse = "After analyzing the market, I recommend BUY. Confidence: 85%";
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn(mockResponse);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(tradingAgentService).analyzeAndDecide(
@@ -79,6 +79,7 @@ class LangChain4jStrategyTest {
             eq(testAgent.getGoal().toString()),
             eq(10000.0),
             anyInt(),
+            anyString(),
             anyString()
         );
     }
@@ -88,11 +89,11 @@ class LangChain4jStrategyTest {
         // Given
         String mockResponse = "I analyzed the market using tools. Decision: BUY. Confidence: 92%";
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn(mockResponse);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertNotNull(testAgent.getLastReasoning());
@@ -104,11 +105,11 @@ class LangChain4jStrategyTest {
         // Given
         String mockResponse = "Market analysis complete. Recommendation: BUY. Confidence: 78%";
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn(mockResponse);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertEquals(78, testAgent.getLastReasoning().getConfidence());
@@ -119,11 +120,11 @@ class LangChain4jStrategyTest {
         // Given
         String mockResponse = "Market looks good. I recommend buying Bitcoin.";
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn(mockResponse);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertEquals(70, testAgent.getLastReasoning().getConfidence());
@@ -134,11 +135,11 @@ class LangChain4jStrategyTest {
         // Given
         String mockResponse = "After using getCurrentPrice() and calculateRSI(), I recommend BUY. Confidence: 85%";
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn(mockResponse);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertTrue(testAgent.getLastReasoning().getRecommendation().contains("BUY"));
@@ -149,11 +150,11 @@ class LangChain4jStrategyTest {
         // Given
         String mockResponse = "Market is overbought. Decision: SELL. Confidence: 80%";
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn(mockResponse);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertTrue(testAgent.getLastReasoning().getRecommendation().contains("SELL"));
@@ -164,11 +165,11 @@ class LangChain4jStrategyTest {
         // Given
         String mockResponse = "Market conditions unclear. Recommendation: HOLD. Confidence: 50%";
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn(mockResponse);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertEquals("HOLD", testAgent.getLastReasoning().getRecommendation());
@@ -181,17 +182,17 @@ class LangChain4jStrategyTest {
         
         ArgumentCaptor<String> ragContextCaptor = ArgumentCaptor.forClass(String.class);
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), ragContextCaptor.capture()))
+            anyString(), anyString(), anyDouble(), anyInt(), ragContextCaptor.capture(), anyString()))
             .thenReturn("Decision: BUY");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         String capturedContext = ragContextCaptor.getValue();
         assertNotNull(capturedContext);
         verify(tradingAgentService).analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString());
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString());
     }
     
     @Test
@@ -201,11 +202,11 @@ class LangChain4jStrategyTest {
         
         ArgumentCaptor<String> ragContextCaptor = ArgumentCaptor.forClass(String.class);
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), ragContextCaptor.capture()))
+            anyString(), anyString(), anyDouble(), anyInt(), ragContextCaptor.capture(), anyString()))
             .thenReturn("Decision: BUY");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         String capturedContext = ragContextCaptor.getValue();
@@ -217,13 +218,13 @@ class LangChain4jStrategyTest {
         // Given
         String mockResponse = "Analysis complete. Decision: BUY. Confidence: 88%";
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn(mockResponse);
         
         int initialIterationCount = testAgent.getState().getIterationCount();
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertNotNull(testAgent.getLastReasoning());
@@ -237,11 +238,11 @@ class LangChain4jStrategyTest {
         Agent ethAgent = Agent.create("ETH Agent", goal, "ETHUSDT", 5000.0);
         
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: BUY");
         
         // When
-        strategy.executeIteration(ethAgent);
+        strategy.executeIteration(ethAgent, null);
         
         // Then
         verify(tradingAgentService).analyzeAndDecide(
@@ -249,6 +250,7 @@ class LangChain4jStrategyTest {
             anyString(),
             eq(5000.0),
             anyInt(),
+            anyString(),
             anyString()
         );
     }
@@ -261,11 +263,11 @@ class LangChain4jStrategyTest {
         
         ArgumentCaptor<String> goalCaptor = ArgumentCaptor.forClass(String.class);
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), goalCaptor.capture(), anyDouble(), anyInt(), anyString()))
+            anyString(), goalCaptor.capture(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: HOLD");
         
         // When
-        strategy.executeIteration(hedgeAgent);
+        strategy.executeIteration(hedgeAgent, null);
         
         // Then
         String capturedGoal = goalCaptor.getValue();
@@ -280,11 +282,11 @@ class LangChain4jStrategyTest {
         Agent bigAgent = Agent.create("Big Agent", goal, "BTCUSDT", capital);
         
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: BUY");
         
         // When
-        strategy.executeIteration(bigAgent);
+        strategy.executeIteration(bigAgent, null);
         
         // Then
         verify(tradingAgentService).analyzeAndDecide(
@@ -292,6 +294,7 @@ class LangChain4jStrategyTest {
             anyString(),
             eq(capital),
             anyInt(),
+            anyString(),
             anyString()
         );
     }
@@ -300,26 +303,26 @@ class LangChain4jStrategyTest {
     void testExecuteIteration_HandlesMultipleIterations() {
         // Given
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Iteration 1: BUY")
             .thenReturn("Iteration 2: HOLD")
             .thenReturn("Iteration 3: SELL");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         int iteration1Count = testAgent.getState().getIterationCount();
         
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         int iteration2Count = testAgent.getState().getIterationCount();
         
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         int iteration3Count = testAgent.getState().getIterationCount();
         
         // Then
         assertTrue(iteration2Count > iteration1Count);
         assertTrue(iteration3Count > iteration2Count);
         verify(tradingAgentService, times(3)).analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString());
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString());
     }
     
     @Test
@@ -327,11 +330,11 @@ class LangChain4jStrategyTest {
         // Given
         String mockResponse = "Analysis: BUY recommended. Confidence: 95%";
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn(mockResponse);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertEquals(95, testAgent.getLastReasoning().getConfidence());
@@ -342,11 +345,11 @@ class LangChain4jStrategyTest {
         // Given
         String mockResponse = "Analysis: BUY recommended. Confidence 82%";
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn(mockResponse);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertEquals(82, testAgent.getLastReasoning().getConfidence());
@@ -368,11 +371,11 @@ class LangChain4jStrategyTest {
             """;
         
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn(longResponse);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertEquals(87, testAgent.getLastReasoning().getConfidence());
@@ -393,11 +396,11 @@ class LangChain4jStrategyTest {
         when(ragService.retrieveSimilarTrades(anyString(), eq(3)))
             .thenReturn(mockMemories);
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: BUY. Confidence: 85%");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(ragService).retrieveSimilarTrades(contains("BTCUSDT"), eq(3));
@@ -418,11 +421,11 @@ class LangChain4jStrategyTest {
         
         ArgumentCaptor<String> contextCaptor = ArgumentCaptor.forClass(String.class);
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), contextCaptor.capture()))
+            anyString(), anyString(), anyDouble(), anyInt(), contextCaptor.capture(), anyString()))
             .thenReturn("Decision: BUY");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         String capturedContext = contextCaptor.getValue();
@@ -441,11 +444,11 @@ class LangChain4jStrategyTest {
         when(ragService.retrieveSimilarTrades(anyString(), eq(3)))
             .thenReturn(List.of());
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: BUY. Confidence: 88%");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(ragService).storeTradeMemory(
@@ -470,11 +473,11 @@ class LangChain4jStrategyTest {
         when(ragService.retrieveSimilarTrades(anyString(), eq(3)))
             .thenReturn(List.of());
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: SELL. Confidence: 75%");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(ragService).storeTradeMemory(
@@ -499,11 +502,11 @@ class LangChain4jStrategyTest {
         when(ragService.retrieveSimilarTrades(anyString(), eq(3)))
             .thenReturn(List.of());
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: HOLD. Confidence: 60%");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(ragService).storeTradeMemory(
@@ -526,11 +529,11 @@ class LangChain4jStrategyTest {
         ReflectionTestUtils.setField(strategy, "ragEnabled", false);
         
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: BUY. Confidence: 80%");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(ragService, never()).retrieveSimilarTrades(anyString(), anyInt());
@@ -542,11 +545,11 @@ class LangChain4jStrategyTest {
         ReflectionTestUtils.setField(strategy, "ragEnabled", false);
         
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: BUY. Confidence: 80%");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(ragService, never()).storeTradeMemory(
@@ -563,11 +566,11 @@ class LangChain4jStrategyTest {
         when(ragService.retrieveSimilarTrades(anyString(), anyInt()))
             .thenThrow(new RuntimeException("Vector DB Connection Failed"));
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: BUY");
         
         // When & Then - Should not throw
-        assertDoesNotThrow(() -> strategy.executeIteration(testAgent));
+        assertDoesNotThrow(() -> strategy.executeIteration(testAgent, null));
         
         // Verify it still processes the agent response
         assertNotNull(testAgent.getLastReasoning());
@@ -583,11 +586,11 @@ class LangChain4jStrategyTest {
         
         ArgumentCaptor<String> contextCaptor = ArgumentCaptor.forClass(String.class);
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), contextCaptor.capture()))
+            anyString(), anyString(), anyDouble(), anyInt(), contextCaptor.capture(), anyString()))
             .thenReturn("Decision: BUY");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         String capturedContext = contextCaptor.getValue();
@@ -610,11 +613,11 @@ class LangChain4jStrategyTest {
         
         ArgumentCaptor<String> contextCaptor = ArgumentCaptor.forClass(String.class);
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), contextCaptor.capture()))
+            anyString(), anyString(), anyDouble(), anyInt(), contextCaptor.capture(), anyString()))
             .thenReturn("Decision: BUY");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         String capturedContext = contextCaptor.getValue();
@@ -634,11 +637,11 @@ class LangChain4jStrategyTest {
         when(ragService.retrieveSimilarTrades(queryCaptor.capture(), eq(3)))
             .thenReturn(List.of());
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: BUY");
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         String query = queryCaptor.getValue();

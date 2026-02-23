@@ -18,6 +18,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
+import tradingbot.domain.market.BookTickerPayload;
 import tradingbot.domain.market.StreamMarketDataEvent;
 import tradingbot.domain.market.StreamMarketDataEvent.EventType;
 import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
@@ -117,15 +118,18 @@ public class BinanceWebSocketAdapter implements ExchangeWebSocketClient {
                     BigDecimal askPrice = new BigDecimal(json.get("a").asText());
                     BigDecimal bidPrice = new BigDecimal(json.get("b").asText());
                     long time = json.has("T") ? json.get("T").asLong() : System.currentTimeMillis();
-                    
+
+                    // price = ask (conservative entry cost for LONG).
+                    // Both sides preserved in payload so OrderPlacementService can
+                    // choose ask for BUY fills and bid for SELL fills.
                     StreamMarketDataEvent marketEvent = new StreamMarketDataEvent(
                         "BINANCE_FUTURES",
                         s,
                         EventType.BOOK_TICKER,
-                        askPrice, // Using Ask as 'price' for buying focus, or use mid-price
-                        BigDecimal.ZERO, 
+                        askPrice,
+                        BigDecimal.ZERO,
                         Instant.ofEpochMilli(time),
-                        event 
+                        new BookTickerPayload(bidPrice, askPrice)
                     );
                     
                     sink.tryEmitNext(marketEvent);

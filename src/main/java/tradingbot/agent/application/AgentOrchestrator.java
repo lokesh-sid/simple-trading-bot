@@ -148,7 +148,7 @@ public class AgentOrchestrator {
         // 2. Rebuild the symbol -> agent mapping
         Map<String, Set<AgentId>> newMapping = StreamSupport.stream(activeAgents.spliterator(), false)
             .collect(Collectors.groupingBy(
-                agent -> "BTCUSDT", // TODO: Replace with agent.getSymbol() when available on Agent
+                Agent::getTradingSymbol,
                 Collectors.mapping(Agent::getId, Collectors.toSet())
             ));
         
@@ -231,7 +231,7 @@ public class AgentOrchestrator {
                 agent.getName(), triggeringEvent.type(), triggeringEvent.price());
             
             // Execute iteration (Note: this modifies agent state)
-            activeStrategy.executeIteration(agent); 
+            activeStrategy.executeIteration(agent, triggeringEvent);
             
             // Save updated state
             agentRepository.save(agent);
@@ -369,7 +369,8 @@ public class AgentOrchestrator {
             agent.getName(), activeStrategy.getStrategyName());
         
         try {
-            activeStrategy.executeIteration(agent);
+            // Polling path — no triggering event available
+            activeStrategy.executeIteration(agent, null);
             agentRepository.save(agent);
         } catch (Exception e) {
             logger.error("Failed to complete iteration for agent {}: {}", 

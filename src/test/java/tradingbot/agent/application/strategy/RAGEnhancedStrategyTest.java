@@ -89,7 +89,7 @@ class RAGEnhancedStrategyTest {
             .thenReturn(expectedOrder);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(ragService).generateReasoningWithRAG(eq(testAgent), any(ReasoningContext.class));
@@ -117,7 +117,7 @@ class RAGEnhancedStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(ragService).generateReasoningWithRAG(eq(testAgent), any(ReasoningContext.class));
@@ -134,7 +134,7 @@ class RAGEnhancedStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertNotNull(testAgent.getLastPerception());
@@ -153,7 +153,7 @@ class RAGEnhancedStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         ReasoningContext capturedContext = contextCaptor.getValue();
@@ -194,7 +194,7 @@ class RAGEnhancedStrategyTest {
             .thenReturn(expectedOrder);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(orderPlacementService).processReasoning(eq(testAgent), any(Perception.class), eq(sellReasoning));
@@ -219,7 +219,7 @@ class RAGEnhancedStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertEquals(95, testAgent.getLastReasoning().getConfidence());
@@ -243,7 +243,7 @@ class RAGEnhancedStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertEquals(25, testAgent.getLastReasoning().getConfidence());
@@ -259,10 +259,10 @@ class RAGEnhancedStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         int firstIterationCount = testAgent.getState().getIterationCount();
         
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         int secondIterationCount = testAgent.getState().getIterationCount();
         
         // Then
@@ -283,7 +283,7 @@ class RAGEnhancedStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(ethAgent);
+        strategy.executeIteration(ethAgent, null);
         
         // Then
         assertEquals("ETHUSDT", ethAgent.getLastPerception().getSymbol());
@@ -304,7 +304,7 @@ class RAGEnhancedStrategyTest {
         ArgumentCaptor<ReasoningContext> contextCaptor = ArgumentCaptor.forClass(ReasoningContext.class);
         
         // When
-        strategy.executeIteration(hedgeAgent);
+        strategy.executeIteration(hedgeAgent, null);
         
         // Then
         verify(ragService).generateReasoningWithRAG(eq(hedgeAgent), contextCaptor.capture());

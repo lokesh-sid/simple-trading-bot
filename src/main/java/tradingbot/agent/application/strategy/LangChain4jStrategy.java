@@ -14,6 +14,7 @@ import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.domain.model.TradeMemory;
 import tradingbot.agent.domain.model.TradeOutcome;
 import tradingbot.agent.service.RAGService;
+import tradingbot.domain.market.StreamMarketDataEvent;
 import tradingbot.agent.service.TradingAgentService;
 
 /**
@@ -48,19 +49,26 @@ public class LangChain4jStrategy implements AgentStrategy {
     }
     
     @Override
-    public void executeIteration(Agent agent) {
-        logger.info("[AGENTIC] Agent {} analyzing market with tool access", agent.getId());
-        
+    public void executeIteration(Agent agent, StreamMarketDataEvent triggeringEvent) {
+        logger.info("[AGENTIC] Agent {} analyzing market with tool access (triggerPrice={})",
+                agent.getId(), triggeringEvent != null ? triggeringEvent.price() : "n/a");
+
         // 1. Prepare RAG context (historical learnings)
         String ragContext = prepareRAGContext(agent);
-        
-        // 2. Invoke the agent - it will autonomously call tools and make decisions
+
+        // 2. Surface the trigger price so the LLM prompt has it without a tool call
+        String triggerPrice = (triggeringEvent != null)
+                ? String.format("$%.2f", triggeringEvent.price().doubleValue())
+                : "unknown (polling mode — use market-data tool)";
+
+        // 3. Invoke the agent - it will autonomously call tools and make decisions
         String agentResponse = tradingAgentService.analyzeAndDecide(
             agent.getTradingSymbol(),
             agent.getGoal().toString(),
             agent.getCapital(),
             agent.getState().getIterationCount(),
-            ragContext
+            ragContext,
+            triggerPrice
         );
         
         logger.info("Agent {} decision: {}", agent.getId(), agentResponse);

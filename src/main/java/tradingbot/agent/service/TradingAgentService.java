@@ -64,14 +64,18 @@ public interface TradingAgentService {
         
         Historical Context from RAG:
         {{ragContext}}
-        
+
+        Triggering Market Price: {{triggerPrice}}
+        (This is the price from the WebSocket event that triggered this analysis.
+         Use your market-data tools to get updated prices and deeper indicators.)
+
         Analyze the market and decide what action to take. Use the available tools to:
         1. Check current price and market conditions
         2. Calculate technical indicators if needed
         3. Determine if it's a good time to trade
         4. If trading, calculate proper position size
         5. Execute the trade or recommend HOLD
-        
+
         Provide your analysis and decision with clear reasoning.
         """)
     String analyzeAndDecide(
@@ -79,6 +83,7 @@ public interface TradingAgentService {
         @V("goal") String goal,
         @V("capital") double capital,
         @V("iteration") int iteration,
-        @V("ragContext") String ragContext
+        @V("ragContext") String ragContext,
+        @V("triggerPrice") String triggerPrice
     );
 }

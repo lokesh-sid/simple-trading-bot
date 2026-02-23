@@ -1,23 +1,26 @@
 package tradingbot.agent.application.strategy;
 
 import tradingbot.agent.domain.model.Agent;
+import tradingbot.domain.market.StreamMarketDataEvent;
 
 /**
  * Strategy interface for different agent reasoning approaches
- * 
+ *
  * Implementations:
  * - LangChain4jStrategy: Agentic framework with tool use
  * - RAGEnhancedStrategy: RAG + manual LLM
  * - LegacyLLMStrategy: Original implementation
  */
 public interface AgentStrategy {
-    
+
     /**
-     * Execute one iteration of the agent loop
-     * 
-     * @param agent The agent to run
+     * Execute one iteration of the agent loop.
+     *
+     * @param agent          the agent to run
+     * @param triggeringEvent the WebSocket event that triggered this iteration,
+     *                        or {@code null} when invoked from the polling path
      */
-    void executeIteration(Agent agent);
+    void executeIteration(Agent agent, StreamMarketDataEvent triggeringEvent);
     
     /**
      * Get the name of this strategy

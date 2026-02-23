@@ -104,11 +104,11 @@ class AgentStrategyIntegrationTest {
     void testLangChain4jStrategy_ExecutesWithDependencies() {
         // Given
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: BUY. Confidence: 85%");
         
         // When
-        assertDoesNotThrow(() -> langChain4jStrategy.executeIteration(testAgent));
+        assertDoesNotThrow(() -> langChain4jStrategy.executeIteration(testAgent, null));
         
         // Then
         verify(tradingAgentService).analyzeAndDecide(
@@ -116,6 +116,7 @@ class AgentStrategyIntegrationTest {
             anyString(),
             eq(10000.0),
             anyInt(),
+            anyString(),
             anyString()
         );
         assertNotNull(testAgent.getLastReasoning());
@@ -130,7 +131,7 @@ class AgentStrategyIntegrationTest {
             .thenReturn(null);
         
         // When
-        assertDoesNotThrow(() -> ragEnhancedStrategy.executeIteration(testAgent));
+        assertDoesNotThrow(() -> ragEnhancedStrategy.executeIteration(testAgent, null));
         
         // Then
         verify(ragService).generateReasoningWithRAG(eq(testAgent), any());
@@ -148,7 +149,7 @@ class AgentStrategyIntegrationTest {
             .thenReturn(null);
         
         // When
-        assertDoesNotThrow(() -> legacyLLMStrategy.executeIteration(testAgent));
+        assertDoesNotThrow(() -> legacyLLMStrategy.executeIteration(testAgent, null));
         
         // Then
         verify(llmProvider).generateReasoning(any());
@@ -160,10 +161,10 @@ class AgentStrategyIntegrationTest {
     @Test
     void testAllStrategies_UpdateAgentState() {
         // Test LangChain4j
-        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("BUY");
         
-        langChain4jStrategy.executeIteration(testAgent);
+        langChain4jStrategy.executeIteration(testAgent, null);
         int langchainIterations = testAgent.getState().getIterationCount();
         assertTrue(langchainIterations > 0);
         
@@ -173,7 +174,7 @@ class AgentStrategyIntegrationTest {
         when(orderPlacementService.processReasoning(any(), any(), any()))
             .thenReturn(null);
         
-        ragEnhancedStrategy.executeIteration(testAgent);
+        ragEnhancedStrategy.executeIteration(testAgent, null);
         int ragIterations = testAgent.getState().getIterationCount();
         assertTrue(ragIterations > langchainIterations);
         
@@ -181,7 +182,7 @@ class AgentStrategyIntegrationTest {
         when(llmProvider.generateReasoning(any()))
             .thenReturn(createMockReasoning());
         
-        legacyLLMStrategy.executeIteration(testAgent);
+        legacyLLMStrategy.executeIteration(testAgent, null);
         int legacyIterations = testAgent.getState().getIterationCount();
         assertTrue(legacyIterations > ragIterations);
     }
@@ -191,21 +192,21 @@ class AgentStrategyIntegrationTest {
         // Each strategy should work independently without affecting others
         
         // Execute with LangChain4j
-        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("BUY");
-        langChain4jStrategy.executeIteration(testAgent);
+        langChain4jStrategy.executeIteration(testAgent, null);
         
         // Execute with RAG Enhanced
         when(ragService.generateReasoningWithRAG(any(), any()))
             .thenReturn(createMockReasoning());
         when(orderPlacementService.processReasoning(any(), any(), any()))
             .thenReturn(null);
-        ragEnhancedStrategy.executeIteration(testAgent);
+        ragEnhancedStrategy.executeIteration(testAgent, null);
         
         // Execute with Legacy
         when(llmProvider.generateReasoning(any()))
             .thenReturn(createMockReasoning());
-        legacyLLMStrategy.executeIteration(testAgent);
+        legacyLLMStrategy.executeIteration(testAgent, null);
         
         // All should have executed successfully
         assertTrue(testAgent.getState().getIterationCount() >= 3);
@@ -218,17 +219,17 @@ class AgentStrategyIntegrationTest {
             new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "BTC"), 
             "BTCUSDT", 10000.0);
         
-        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("BUY");
         
-        langChain4jStrategy.executeIteration(btcAgent);
+        langChain4jStrategy.executeIteration(btcAgent, null);
         
         // Test with ETH agent
         Agent ethAgent = Agent.create("ETH Agent",
             new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "ETH"),
             "ETHUSDT", 5000.0);
         
-        langChain4jStrategy.executeIteration(ethAgent);
+        langChain4jStrategy.executeIteration(ethAgent, null);
         
         // Both should execute successfully
         assertTrue(btcAgent.getState().getIterationCount() > 0);
@@ -251,8 +252,8 @@ class AgentStrategyIntegrationTest {
         when(orderPlacementService.processReasoning(any(), any(), any()))
             .thenReturn(null);
         
-        ragEnhancedStrategy.executeIteration(agent1);
-        ragEnhancedStrategy.executeIteration(agent2);
+        ragEnhancedStrategy.executeIteration(agent1, null);
+        ragEnhancedStrategy.executeIteration(agent2, null);
         
         assertTrue(agent1.getState().getIterationCount() > 0);
         assertTrue(agent2.getState().getIterationCount() > 0);
@@ -273,8 +274,8 @@ class AgentStrategyIntegrationTest {
         when(orderPlacementService.processReasoning(any(), any(), any()))
             .thenReturn(null);
         
-        legacyLLMStrategy.executeIteration(agent1);
-        legacyLLMStrategy.executeIteration(agent2);
+        legacyLLMStrategy.executeIteration(agent1, null);
+        legacyLLMStrategy.executeIteration(agent2, null);
         
         assertTrue(agent1.getState().getIterationCount() > 0);
         assertTrue(agent2.getState().getIterationCount() > 0);
@@ -283,25 +284,25 @@ class AgentStrategyIntegrationTest {
     @Test
     void testStrategiesHandleExceptionsGracefully() {
         // LangChain4j with exception
-        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenThrow(new RuntimeException("LLM error"));
         
         assertThrows(RuntimeException.class, () -> 
-            langChain4jStrategy.executeIteration(testAgent));
+            langChain4jStrategy.executeIteration(testAgent, null));
         
         // RAG Enhanced with exception (should be caught internally)
         when(ragService.generateReasoningWithRAG(any(), any()))
             .thenThrow(new RuntimeException("RAG error"));
         
         assertThrows(RuntimeException.class, () ->
-            ragEnhancedStrategy.executeIteration(testAgent));
+            ragEnhancedStrategy.executeIteration(testAgent, null));
         
         // Legacy with exception
         when(llmProvider.generateReasoning(any()))
             .thenThrow(new RuntimeException("LLM error"));
         
         assertThrows(RuntimeException.class, () ->
-            legacyLLMStrategy.executeIteration(testAgent));
+            legacyLLMStrategy.executeIteration(testAgent, null));
     }
     
     @Test
@@ -312,7 +313,7 @@ class AgentStrategyIntegrationTest {
         AgentGoal hedgeRisk = new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Hedge risk");
         Agent hedgeAgent = Agent.create("Hedge Agent", hedgeRisk, "BTCUSDT", 10000.0);
         
-        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString()))
+        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("BUY");
         when(ragService.generateReasoningWithRAG(any(), any()))
             .thenReturn(createMockReasoning());
@@ -322,13 +323,13 @@ class AgentStrategyIntegrationTest {
             .thenReturn(null);
         
         // Execute with different strategies
-        langChain4jStrategy.executeIteration(profitAgent);
+        langChain4jStrategy.executeIteration(profitAgent, null);
         assertEquals(maximizeProfit, profitAgent.getGoal());
         
-        ragEnhancedStrategy.executeIteration(hedgeAgent);
+        ragEnhancedStrategy.executeIteration(hedgeAgent, null);
         assertEquals(hedgeRisk, hedgeAgent.getGoal());
         
-        legacyLLMStrategy.executeIteration(profitAgent);
+        legacyLLMStrategy.executeIteration(profitAgent, null);
         assertEquals(maximizeProfit, profitAgent.getGoal());
     }
     

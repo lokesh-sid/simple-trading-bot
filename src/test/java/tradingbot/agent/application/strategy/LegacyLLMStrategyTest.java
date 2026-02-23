@@ -77,7 +77,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(llmProvider).generateReasoning(any(ReasoningContext.class));
@@ -92,7 +92,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertNotNull(testAgent.getLastPerception());
@@ -109,7 +109,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertEquals(mockReasoning, testAgent.getLastReasoning());
@@ -139,7 +139,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(expectedOrder);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(orderPlacementService).processReasoning(
@@ -180,7 +180,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(expectedOrder);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(orderPlacementService).processReasoning(
@@ -209,7 +209,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         verify(orderPlacementService).processReasoning(any(), any(), eq(holdReasoning));
@@ -227,7 +227,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         ReasoningContext capturedContext = contextCaptor.getValue();
@@ -255,7 +255,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertEquals(95, testAgent.getLastReasoning().getConfidence());
@@ -279,7 +279,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertEquals(20, testAgent.getLastReasoning().getConfidence());
@@ -294,13 +294,13 @@ class LegacyLLMStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         int firstCount = testAgent.getState().getIterationCount();
         
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         int secondCount = testAgent.getState().getIterationCount();
         
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         int thirdCount = testAgent.getState().getIterationCount();
         
         // Then
@@ -324,7 +324,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(ethAgent);
+        strategy.executeIteration(ethAgent, null);
         
         // Then
         assertEquals("ETHUSDT", contextCaptor.getValue().getTradingSymbol());
@@ -345,7 +345,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(hedgeAgent);
+        strategy.executeIteration(hedgeAgent, null);
         
         // Then
         assertEquals(hedgeGoal, contextCaptor.getValue().getGoal());
@@ -366,7 +366,7 @@ class LegacyLLMStrategyTest {
             .thenReturn(null);
         
         // When
-        strategy.executeIteration(largeAgent);
+        strategy.executeIteration(largeAgent, null);
         
         // Then
         assertEquals(largeCapital, contextCaptor.getValue().getCapital());
@@ -383,7 +383,7 @@ class LegacyLLMStrategyTest {
         Instant before = Instant.now();
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         Instant after = Instant.now();
         
@@ -404,7 +404,7 @@ class LegacyLLMStrategyTest {
         int initialCount = testAgent.getState().getIterationCount();
         
         // When
-        strategy.executeIteration(testAgent);
+        strategy.executeIteration(testAgent, null);
         
         // Then
         assertTrue(testAgent.getState().getIterationCount() > initialCount);
