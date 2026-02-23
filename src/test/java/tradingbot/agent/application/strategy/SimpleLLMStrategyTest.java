@@ -1,5 +1,6 @@
 package tradingbot.agent.application.strategy;
 
+import static java.util.UUID.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -34,7 +35,7 @@ import tradingbot.agent.service.OrderPlacementService;
  * - No RAG or tool use
  */
 @ExtendWith(MockitoExtension.class)
-class LegacyLLMStrategyTest {
+class SimpleLLMStrategyTest {
     
     @Mock
     private LLMProvider llmProvider;
@@ -43,7 +44,7 @@ class LegacyLLMStrategyTest {
     private OrderPlacementService orderPlacementService;
     
     @InjectMocks
-    private LegacyLLMStrategy strategy;
+    private SimpleLLMStrategy strategy;
     
     private Agent testAgent;
     private Reasoning mockReasoning;
@@ -121,7 +122,7 @@ class LegacyLLMStrategyTest {
     void testExecuteIteration_PlacesBuyOrder() {
         // Given
         Order expectedOrder = Order.builder()
-            .id(java.util.UUID.randomUUID().toString())
+            .id(randomUUID().toString())
             .agentId(testAgent.getId().toString())
             .symbol("BTCUSDT")
             .direction(TradeDirection.LONG)

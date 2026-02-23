@@ -28,8 +28,8 @@ import reactor.core.scheduler.Schedulers;
 import tradingbot.agent.AgenticTradingAgent;
 import tradingbot.agent.application.strategy.AgentStrategy;
 import tradingbot.agent.application.strategy.LangChain4jStrategy;
-import tradingbot.agent.application.strategy.LegacyLLMStrategy;
 import tradingbot.agent.application.strategy.RAGEnhancedStrategy;
+import tradingbot.agent.application.strategy.SimpleLLMStrategy;
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentId;
 import tradingbot.agent.domain.model.AgentStatus;
@@ -95,7 +95,7 @@ public class AgentOrchestrator {
             AgentRepository agentRepository,
             LangChain4jStrategy langChain4jStrategy,
             RAGEnhancedStrategy ragEnhancedStrategy,
-            LegacyLLMStrategy legacyLLMStrategy,
+            SimpleLLMStrategy legacyLLMStrategy,
             ExchangeWebSocketClient webSocketClient,
             List<AgenticTradingAgent> agenticAgents,
             BulkheadRegistry bulkheadRegistry,

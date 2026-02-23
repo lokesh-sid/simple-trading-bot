@@ -22,14 +22,14 @@ import tradingbot.domain.market.StreamMarketDataEvent;
  * Uses direct LLM calls without RAG or tool use
  */
 @Component
-public class LegacyLLMStrategy implements AgentStrategy {
+public class SimpleLLMStrategy implements AgentStrategy {
     
-    private static final Logger logger = LoggerFactory.getLogger(LegacyLLMStrategy.class);
+    private static final Logger logger = LoggerFactory.getLogger(SimpleLLMStrategy.class);
     
     private final LLMProvider llmProvider;
     private final OrderPlacementService orderPlacementService;
     
-    public LegacyLLMStrategy(
+    public SimpleLLMStrategy(
             LLMProvider llmProvider,
             OrderPlacementService orderPlacementService) {
         this.llmProvider = llmProvider;

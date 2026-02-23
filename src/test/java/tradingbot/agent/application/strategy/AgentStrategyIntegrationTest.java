@@ -35,7 +35,7 @@ import tradingbot.agent.service.TradingAgentService;
 @SpringBootTest(classes = {
     LangChain4jStrategy.class,
     RAGEnhancedStrategy.class,
-    LegacyLLMStrategy.class
+    SimpleLLMStrategy.class
 }, properties = {
     "agent.orchestrator.enabled=false",
     "spring.main.allow-bean-definition-overriding=true"
@@ -50,7 +50,7 @@ class AgentStrategyIntegrationTest {
     private RAGEnhancedStrategy ragEnhancedStrategy;
     
     @Autowired
-    private LegacyLLMStrategy legacyLLMStrategy;
+    private SimpleLLMStrategy legacyLLMStrategy;
     
     @MockitoBean
     private AgentRepository agentRepository;

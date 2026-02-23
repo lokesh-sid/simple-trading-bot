@@ -14,8 +14,8 @@ import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.domain.model.TradeMemory;
 import tradingbot.agent.domain.model.TradeOutcome;
 import tradingbot.agent.service.RAGService;
-import tradingbot.domain.market.StreamMarketDataEvent;
 import tradingbot.agent.service.TradingAgentService;
+import tradingbot.domain.market.StreamMarketDataEvent;
 
 /**
  * LangChain4j-based agentic strategy
