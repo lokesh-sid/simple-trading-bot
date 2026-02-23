@@ -51,15 +51,18 @@ public class BacktestService {
     private final TradingAgentFactory agentFactory;
     private final BacktestAgentExecutionService executionService;
     private final BacktestMetricsCalculator metricsCalculator;
+    private final BacktestRunRegistry runRegistry;
 
     public BacktestService(HistoricalDataLoader dataLoader,
                            TradingAgentFactory agentFactory,
                            BacktestAgentExecutionService executionService,
-                           BacktestMetricsCalculator metricsCalculator) {
+                           BacktestMetricsCalculator metricsCalculator,
+                           BacktestRunRegistry runRegistry) {
         this.dataLoader        = dataLoader;
         this.agentFactory      = agentFactory;
         this.executionService  = executionService;
         this.metricsCalculator = metricsCalculator;
+        this.runRegistry       = runRegistry;
     }
 
     // ── public API ─────────────────────────────────────────────────────────────
@@ -115,6 +118,9 @@ public class BacktestService {
             // 4. Derive financial statistics (SRP — all math in metricsCalculator)
             BacktestMetrics metrics = metricsCalculator.calculate(rawResult, INITIAL_CAPITAL);
             LOGGER.info("Backtest completed: " + metrics);
+
+            // 5. Persist run so it can be retrieved via GET /api/v1/backtest/{runId}
+            runRegistry.save(metrics);
             return metrics;
 
         } finally {

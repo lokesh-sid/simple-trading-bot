@@ -2,6 +2,8 @@ package tradingbot.bot.service.backtest;
 
 import java.util.List;
 
+import tradingbot.bot.service.backtest.BacktestAgentExecutionService.TradeEvent;
+
 /**
  * BacktestMetricsCalculator — DIP port for backtest statistics.
  *
@@ -33,6 +35,7 @@ public interface BacktestMetricsCalculator {
     /**
      * Immutable snapshot of a completed backtest's financial statistics.
      *
+     * @param runId            UUID assigned at calculation time — used to retrieve this run via REST
      * @param finalBalance     ending account balance
      * @param totalProfit      absolute profit/loss (finalBalance − initialCapital)
      * @param totalTrades      number of closed round-trip trades
@@ -40,9 +43,11 @@ public interface BacktestMetricsCalculator {
      * @param profitFactor     gross profit / gross loss; {@code Double.MAX_VALUE} when no losses
      * @param maxDrawdownPct   maximum peak-to-trough decline as a positive percentage (0–100)
      * @param sharpeRatio      annualised Sharpe Ratio (risk-free rate = 0); NaN if < 2 bars
-     * @param equityCurve      account balance sampled after every bar (for charting)
+     * @param equityCurve      typed equity samples — one {@link EquityCurvePoint} per bar
+     * @param trades           full per-trade audit log for CSV/JSON export
      */
     record BacktestMetrics(
+            String runId,
             double finalBalance,
             double totalProfit,
             int totalTrades,
@@ -50,16 +55,17 @@ public interface BacktestMetricsCalculator {
             double profitFactor,
             double maxDrawdownPct,
             double sharpeRatio,
-            List<Double> equityCurve) {
+            List<EquityCurvePoint> equityCurve,
+            List<TradeEvent> trades) {
 
         /** Returns true if the backtest was profitable. */
         public boolean isProfitable() { return totalProfit > 0; }
 
         @Override
         public String toString() {
-            return ("BacktestMetrics{finalBalance=%.2f, profit=%.2f, trades=%d, " +
+            return ("BacktestMetrics{runId=%s, finalBalance=%.2f, profit=%.2f, trades=%d, " +
                     "winRate=%.1f%%, profitFactor=%.2f, maxDD=%.1f%%, sharpe=%.3f}")
-                    .formatted(finalBalance, totalProfit, totalTrades,
+                    .formatted(runId, finalBalance, totalProfit, totalTrades,
                                winRate * 100, profitFactor, maxDrawdownPct, sharpeRatio);
         }
     }

@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,6 +27,7 @@ class BacktestServiceTest {
     @Mock private TradingAgentFactory agentFactory;
     @Mock private BacktestAgentExecutionService executionService;
     @Mock private BacktestMetricsCalculator metricsCalculator;
+    @Mock private BacktestRunRegistry runRegistry;
     @Mock private AgenticTradingAgent mockAgent;
 
     private BacktestService backtestService;
@@ -33,7 +35,7 @@ class BacktestServiceTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        backtestService = new BacktestService(dataLoader, agentFactory, executionService, metricsCalculator);
+        backtestService = new BacktestService(dataLoader, agentFactory, executionService, metricsCalculator, runRegistry);
     }
 
     @Test
@@ -42,10 +44,14 @@ class BacktestServiceTest {
         when(dataLoader.loadFromCsv(anyString())).thenReturn(history);
         when(agentFactory.create(any())).thenReturn(mockAgent);
 
-        ExecutionResult execResult = new ExecutionResult(List.of(), List.of(10_000.0, 10_050.0), 200);
+        List<EquityCurvePoint> curve = List.of(
+                new EquityCurvePoint(0, Instant.ofEpochMilli(1000L), BigDecimal.valueOf(10_000.0), 0.0, "HOLD", "BTCUSDT"),
+                new EquityCurvePoint(1, Instant.ofEpochMilli(61000L), BigDecimal.valueOf(10_050.0), 0.0, "BUY",  "BTCUSDT"));
+        ExecutionResult execResult = new ExecutionResult(List.of(), curve, 200);
         when(executionService.execute(any(), anyList(), any(), any())).thenReturn(execResult);
 
-        BacktestMetrics expected = new BacktestMetrics(10_050.0, 50.0, 0, 0.0, 0.0, 0.0, 0.0, List.of(10_000.0, 10_050.0));
+        BacktestMetrics expected = new BacktestMetrics(
+                "test-run-id", 10_050.0, 50.0, 0, Double.NaN, 1.0, 0.0, 0.0, curve, List.of());
         when(metricsCalculator.calculate(any(), anyDouble())).thenReturn(expected);
 
         TradingConfig config = buildConfig();

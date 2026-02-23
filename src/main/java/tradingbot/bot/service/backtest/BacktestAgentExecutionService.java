@@ -53,12 +53,13 @@ public interface BacktestAgentExecutionService {
      * Raw output of a single backtest replay.
      *
      * @param trades          ordered list of simulated trade events
-     * @param equityCurve     balance sampled after every bar (index 0 = first bar)
+     * @param equityCurve     equity snapshot after every bar — typed {@link EquityCurvePoint}
+     *                        carrying timestamp, balance, action and symbol per bar
      * @param barsProcessed   total number of historical bars replayed
      */
     record ExecutionResult(
             List<TradeEvent> trades,
-            List<Double> equityCurve,
+            List<EquityCurvePoint> equityCurve,
             int barsProcessed) {
 
         /** Returns true when at least one trade was executed. */

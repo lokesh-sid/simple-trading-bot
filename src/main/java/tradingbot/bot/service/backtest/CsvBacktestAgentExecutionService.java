@@ -58,8 +58,8 @@ public class CsvBacktestAgentExecutionService implements BacktestAgentExecutionS
         String symbol    = config.getSymbol();
         int    totalBars = history.size();
 
-        List<TradeEvent> trades      = new ArrayList<>();
-        List<Double>     equityCurve = new ArrayList<>(totalBars);
+        List<TradeEvent>       trades      = new ArrayList<>();
+        List<EquityCurvePoint> equityCurve = new ArrayList<>(totalBars);
 
         boolean inLong = false; // simple 1-position tracker
 
@@ -79,17 +79,18 @@ public class CsvBacktestAgentExecutionService implements BacktestAgentExecutionS
                 decision = agent.onKlineClosed(event).block();
             } catch (Exception ex) {
                 log.warn("[CsvBacktest] bar {} agent error: {}", i, ex.getMessage());
-                equityCurve.add(exchange.getMarginBalance());
+                equityCurve.add(equityPoint(i, candle, exchange, "HOLD", symbol));
                 continue;
             }
 
             if (decision == null) {
-                equityCurve.add(exchange.getMarginBalance());
+                equityCurve.add(equityPoint(i, candle, exchange, "HOLD", symbol));
                 continue;
             }
 
             // 3. Route decision → exchange
             Action action = decision.action();
+            String barAction = action.name(); // default; BUY/SELL may override below
             double balanceBefore = exchange.getMarginBalance();
 
             if (action == Action.BUY && !inLong) {
@@ -99,6 +100,7 @@ public class CsvBacktestAgentExecutionService implements BacktestAgentExecutionS
                     trades.add(new TradeEvent(i, symbol, "BUY", fillPrice,
                             DEFAULT_TRADE_QUANTITY, 0.0, decision.reasoning()));
                     inLong = true;
+                    barAction = "BUY";
                     log.debug("[CsvBacktest] bar={} BUY @ {}", i, fillPrice);
                 } catch (Exception ex) {
                     log.warn("[CsvBacktest] bar {} BUY failed: {}", i, ex.getMessage());
@@ -112,14 +114,15 @@ public class CsvBacktestAgentExecutionService implements BacktestAgentExecutionS
                     trades.add(new TradeEvent(i, symbol, "SELL", fillPrice,
                             DEFAULT_TRADE_QUANTITY, realizedPnl, decision.reasoning()));
                     inLong = false;
+                    barAction = "SELL";
                     log.debug("[CsvBacktest] bar={} SELL @ {} pnl={}", i, fillPrice, realizedPnl);
                 } catch (Exception ex) {
                     log.warn("[CsvBacktest] bar {} SELL failed: {}", i, ex.getMessage());
                 }
             }
 
-            // 4. Record equity snapshot after the bar
-            equityCurve.add(exchange.getMarginBalance());
+            // 4. Record equity snapshot after the bar (drawdownPct filled in by StandardBacktestMetricsCalculator)
+            equityCurve.add(equityPoint(i, candle, exchange, barAction, symbol));
         }
 
         log.info("[CsvBacktest] replay complete: bars={} trades={} finalBalance={}",
@@ -129,6 +132,23 @@ public class CsvBacktestAgentExecutionService implements BacktestAgentExecutionS
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────
+
+    /**
+     * Builds an {@link EquityCurvePoint} for the current bar.
+     * {@code drawdownPct} is left at {@code 0.0}; the running-peak drawdown is
+     * calculated in a second pass inside {@link StandardBacktestMetricsCalculator}.
+     */
+    private EquityCurvePoint equityPoint(int barIndex, Candle candle,
+                                          BacktestExchangeService exchange,
+                                          String action, String symbol) {
+        return new EquityCurvePoint(
+                barIndex,
+                Instant.ofEpochMilli(candle.getCloseTime()),
+                java.math.BigDecimal.valueOf(exchange.getMarginBalance()),
+                0.0,
+                action,
+                symbol);
+    }
 
     /**
      * Converts a {@link Candle} (epoch-ms timestamps) into a

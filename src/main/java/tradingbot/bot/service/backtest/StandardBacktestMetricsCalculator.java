@@ -1,8 +1,13 @@
 package tradingbot.bot.service.backtest;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
+
+import tradingbot.bot.service.backtest.BacktestAgentExecutionService.TradeEvent;
 
 /**
  * StandardBacktestMetricsCalculator — default {@link BacktestMetricsCalculator}.
@@ -36,10 +41,15 @@ public class StandardBacktestMetricsCalculator implements BacktestMetricsCalcula
     public BacktestMetrics calculate(BacktestAgentExecutionService.ExecutionResult result,
                                      double initialCapital) {
 
-        List<Double> equity = result.equityCurve();
-        List<BacktestAgentExecutionService.TradeEvent> trades = result.trades();
+        List<EquityCurvePoint> rawPoints = result.equityCurve();
+        List<TradeEvent>       trades    = result.trades();
 
-        double finalBalance = equity.isEmpty() ? initialCapital : equity.get(equity.size() - 1);
+        // Extract raw balance doubles for statistical calculations
+        List<Double> balances = rawPoints.stream()
+                .map(p -> p.balance().doubleValue())
+                .toList();
+
+        double finalBalance = balances.isEmpty() ? initialCapital : balances.get(balances.size() - 1);
         double totalProfit  = finalBalance - initialCapital;
 
         // ── Win Rate + Profit Factor ──────────────────────────────────────────
@@ -65,11 +75,11 @@ public class StandardBacktestMetricsCalculator implements BacktestMetricsCalcula
                 ? (grossProfit > 0 ? Double.MAX_VALUE : 1.0)
                 : grossProfit / grossLoss;
 
-        // ── Max Drawdown ──────────────────────────────────────────────────────
+        // ── Max Drawdown (global peak-to-trough) ─────────────────────────────
         double maxDrawdownPct = 0.0;
-        if (!equity.isEmpty()) {
-            double peak = equity.get(0);
-            for (double val : equity) {
+        if (!balances.isEmpty()) {
+            double peak = balances.get(0);
+            for (double val : balances) {
                 if (val > peak) {
                     peak = val;
                 } else if (peak > 0) {
@@ -81,10 +91,14 @@ public class StandardBacktestMetricsCalculator implements BacktestMetricsCalcula
             }
         }
 
-        // ── Sharpe Ratio (per-bar, raw — multiply by sqrt(N) to annualise) ───
-        double sharpeRatio = computeSharpe(equity);
+        // ── Sharpe Ratio (per-bar, raw) ───────────────────────────────────────
+        double sharpeRatio = computeSharpe(balances);
+
+        // ── Enrich equity curve with per-point drawdown (second pass) ─────────
+        List<EquityCurvePoint> equityCurveWithDrawdown = computeEquityCurveWithDrawdown(rawPoints, initialCapital);
 
         return new BacktestMetrics(
+                UUID.randomUUID().toString(),
                 finalBalance,
                 totalProfit,
                 closedTrades,
@@ -92,13 +106,39 @@ public class StandardBacktestMetricsCalculator implements BacktestMetricsCalcula
                 profitFactor,
                 maxDrawdownPct,
                 sharpeRatio,
-                equity);
+                equityCurveWithDrawdown,
+                trades);
     }
 
     // ── private helpers ────────────────────────────────────────────────────────
 
-    /**
-     * Computes the raw (per-bar) Sharpe Ratio from an equity curve.
+    /**     * Enriches raw {@link EquityCurvePoint}s (which have {@code drawdownPct=0.0})
+     * with the running peak-to-trough drawdown at each point.
+     */
+    private List<EquityCurvePoint> computeEquityCurveWithDrawdown(
+            List<EquityCurvePoint> rawPoints, double initialCapital) {
+
+        List<EquityCurvePoint> result = new ArrayList<>(rawPoints.size());
+        double peak = initialCapital;
+
+        for (EquityCurvePoint p : rawPoints) {
+            double bal = p.balance().doubleValue();
+            if (bal > peak) {
+                peak = bal;
+            }
+            double dd = peak > 0 ? (peak - bal) / peak * 100.0 : 0.0;
+            result.add(new EquityCurvePoint(
+                    p.barIndex(),
+                    p.timestamp(),
+                    p.balance(),
+                    dd,
+                    p.action(),
+                    p.symbol()));
+        }
+        return result;
+    }
+
+    /**     * Computes the raw (per-bar) Sharpe Ratio from an equity curve.
      * Returns {@code Double.NaN} for fewer than 2 samples.
      * Returns {@code 0.0} when all returns are identical (zero std-dev).
      */
