@@ -47,3 +47,4 @@ bin/presentation/Simple-Trading-Bot-Presentation.html
 
 gateway/nohup.out
 build_log*.txt
+nohup.out
