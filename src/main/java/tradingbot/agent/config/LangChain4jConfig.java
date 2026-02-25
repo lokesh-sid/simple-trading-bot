@@ -6,7 +6,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -69,14 +68,16 @@ public class LangChain4jConfig {
     }
     
     /**
-     * Create chat memory for maintaining conversation context
-     * 
-     * MessageWindowChatMemory keeps the last N messages,
-     * which helps the agent maintain context across tool calls.
+     * Create chat memory provider for maintaining per-agent conversation context
+     * backed by persistent store.
      */
     @Bean
-    public ChatMemory chatMemory() {
-        return MessageWindowChatMemory.withMaxMessages(10);
+    public dev.langchain4j.memory.chat.ChatMemoryProvider chatMemoryProvider(dev.langchain4j.store.memory.chat.ChatMemoryStore chatMemoryStore) {
+        return memoryId -> MessageWindowChatMemory.builder()
+                .id(memoryId)
+                .maxMessages(10)
+                .chatMemoryStore(chatMemoryStore)
+                .build();
     }
     
     /**
@@ -91,12 +92,12 @@ public class LangChain4jConfig {
     @Bean
     public TradingAgentService tradingAgentService(
             ChatLanguageModel chatLanguageModel,
-            ChatMemory chatMemory,
+            dev.langchain4j.memory.chat.ChatMemoryProvider chatMemoryProvider,
             TradingTools tradingTools) {
         
         return AiServices.builder(TradingAgentService.class)
             .chatLanguageModel(chatLanguageModel)
-            .chatMemory(chatMemory)
+            .chatMemoryProvider(chatMemoryProvider)
             .tools(tradingTools)
             .build();
     }

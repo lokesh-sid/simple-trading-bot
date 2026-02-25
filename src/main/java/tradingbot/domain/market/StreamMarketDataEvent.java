@@ -15,11 +15,16 @@ public record StreamMarketDataEvent(
     BigDecimal quantity,
     Instant timestamp,
     Object payload // Optional raw payload or specialized data (e.g. OrderBook)
-) {
+) implements MarketEvent {
     public enum EventType {
         TRADE,
         BOOK_TICKER,
         KLINE,
         ORDER_BOOK
+    }
+
+    @Override
+    public BigDecimal volume() {
+        return quantity;
     }
 }

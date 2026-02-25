@@ -30,11 +30,14 @@ import tradingbot.agent.application.strategy.AgentStrategy;
 import tradingbot.agent.application.strategy.LangChain4jStrategy;
 import tradingbot.agent.application.strategy.RAGEnhancedStrategy;
 import tradingbot.agent.application.strategy.SimpleLLMStrategy;
+import tradingbot.agent.domain.execution.ExecutionResult;
+import tradingbot.agent.domain.execution.OrderExecutionGateway;
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentId;
 import tradingbot.agent.domain.model.AgentStatus;
 import tradingbot.agent.domain.repository.AgentRepository;
 import tradingbot.domain.market.KlineClosedEvent;
+import tradingbot.domain.market.MarketEvent;
 import tradingbot.domain.market.StreamMarketDataEvent;
 import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
 
@@ -91,6 +94,13 @@ public class AgentOrchestrator {
      */
     private final BulkheadRegistry bulkheadRegistry;
 
+    /**
+     * Unified order execution gateway (P1).  When non-null, agent decisions
+     * are routed through this gateway after the signal is produced.
+     * Nullable — when absent, decisions are only logged (pre-P1 behaviour).
+     */
+    private final OrderExecutionGateway executionGateway;
+
     public AgentOrchestrator(
             AgentRepository agentRepository,
             LangChain4jStrategy langChain4jStrategy,
@@ -99,12 +109,14 @@ public class AgentOrchestrator {
             ExchangeWebSocketClient webSocketClient,
             List<AgenticTradingAgent> agenticAgents,
             BulkheadRegistry bulkheadRegistry,
+            @org.springframework.lang.Nullable OrderExecutionGateway executionGateway,
             @Value("${agent.strategy:langchain4j}") String strategyName) {
 
         this.agentRepository = agentRepository;
         this.webSocketClient = webSocketClient;
         this.agenticAgents = agenticAgents;
         this.bulkheadRegistry = bulkheadRegistry;
+        this.executionGateway = executionGateway;
         // Create a bounded elastic scheduler for offloading blocking agent logic
         this.agentScheduler = Schedulers.boundedElastic();
         
@@ -177,7 +189,7 @@ public class AgentOrchestrator {
      * Reactively handles market events.
      * Finds interested agents and schedules their execution if not throttled.
      */
-    private void handleMarketEvent(StreamMarketDataEvent event) {
+    private void handleMarketEvent(MarketEvent event) {
         // Find agents interested in this symbol
         // For Phase 1 we hardcode "BTCUSDT" mapping or use event.symbol()
         // If event.symbol() is null, assume global/default but it shouldn't be.
@@ -211,7 +223,7 @@ public class AgentOrchestrator {
      * Non-transactional wrapper to call the transactional method.
      * This ensures the transaction boundary is clean.
      */
-    private void executeAgentTransactionWrapper(AgentId agentId, StreamMarketDataEvent event) {
+    private void executeAgentTransactionWrapper(AgentId agentId, MarketEvent event) {
         try {
             executeAgentTransaction(agentId, event);
         } catch (Exception e) {
@@ -224,11 +236,13 @@ public class AgentOrchestrator {
      * Loads the fresh agent state and runs the strategy.
      */
     @Transactional
-    protected void executeAgentTransaction(AgentId agentId, StreamMarketDataEvent triggeringEvent) {
+    protected void executeAgentTransaction(AgentId agentId, MarketEvent triggeringEvent) {
         // Reload agent to ensure we have fresh state in this transaction
         agentRepository.findById(agentId).ifPresentOrElse(agent -> {
             logger.debug("Executing strategy for agent {} triggered by {} @ {}", 
-                agent.getName(), triggeringEvent.type(), triggeringEvent.price());
+                agent.getName(), 
+                (triggeringEvent instanceof StreamMarketDataEvent se) ? se.type() : "MARKET_EVENT", 
+                triggeringEvent.price());
             
             // Execute iteration (Note: this modifies agent state)
             activeStrategy.executeIteration(agent, triggeringEvent);
@@ -347,9 +361,24 @@ public class AgentOrchestrator {
             }
             try {
                 agent.onKlineClosed(event)
-                        .doOnSuccess(decision -> logger.info(
-                                "[AgenticAgent] {} → {} (confidence {}%) for {}",
-                                agent.getId(), decision.action(), decision.confidence(), event.symbol()))
+                        .doOnSuccess(decision -> {
+                            logger.info(
+                                    "[AgenticAgent] {} → {} (confidence {}%) for {}",
+                                    agent.getId(), decision.action(), decision.confidence(), event.symbol());
+                            // P1: Route decision through the execution gateway
+                            if (executionGateway != null && decision.isEntry()) {
+                                try {
+                                    double price = event.close().doubleValue();
+                                    ExecutionResult result = executionGateway.execute(
+                                            decision, event.symbol(), price);
+                                    logger.info("[AgenticAgent] {} execution: {} success={} fill={}",
+                                            agent.getId(), result.action(), result.success(), result.fillPrice());
+                                } catch (Exception exGw) {
+                                    logger.error("[AgenticAgent] {} gateway error: {}",
+                                            agent.getId(), exGw.getMessage(), exGw);
+                                }
+                            }
+                        })
                         .doOnError(ex -> logger.error(
                                 "[AgenticAgent] {} error on kline {}: {}",
                                 agent.getId(), event.symbol(), ex.getMessage(), ex))

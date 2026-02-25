@@ -15,7 +15,7 @@ import tradingbot.agent.domain.model.TradeMemory;
 import tradingbot.agent.domain.model.TradeOutcome;
 import tradingbot.agent.service.RAGService;
 import tradingbot.agent.service.TradingAgentService;
-import tradingbot.domain.market.StreamMarketDataEvent;
+import tradingbot.domain.market.MarketEvent;
 
 /**
  * LangChain4j-based agentic strategy
@@ -49,7 +49,7 @@ public class LangChain4jStrategy implements AgentStrategy {
     }
     
     @Override
-    public void executeIteration(Agent agent, StreamMarketDataEvent triggeringEvent) {
+    public void executeIteration(Agent agent, MarketEvent triggeringEvent) {
         logger.info("[AGENTIC] Agent {} analyzing market with tool access (triggerPrice={})",
                 agent.getId(), triggeringEvent != null ? triggeringEvent.price() : "n/a");
 
@@ -63,6 +63,7 @@ public class LangChain4jStrategy implements AgentStrategy {
 
         // 3. Invoke the agent - it will autonomously call tools and make decisions
         String agentResponse = tradingAgentService.analyzeAndDecide(
+            agent.getId().getValue(),
             agent.getTradingSymbol(),
             agent.getGoal().toString(),
             agent.getCapital(),

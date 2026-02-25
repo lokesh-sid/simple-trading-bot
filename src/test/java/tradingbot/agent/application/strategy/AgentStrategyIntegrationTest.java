@@ -104,7 +104,7 @@ class AgentStrategyIntegrationTest {
     void testLangChain4jStrategy_ExecutesWithDependencies() {
         // Given
         when(tradingAgentService.analyzeAndDecide(
-            anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
+            anyString(), anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("Decision: BUY. Confidence: 85%");
         
         // When
@@ -112,6 +112,7 @@ class AgentStrategyIntegrationTest {
         
         // Then
         verify(tradingAgentService).analyzeAndDecide(
+            anyString(),
             eq("BTCUSDT"),
             anyString(),
             eq(10000.0),
@@ -161,7 +162,7 @@ class AgentStrategyIntegrationTest {
     @Test
     void testAllStrategies_UpdateAgentState() {
         // Test LangChain4j
-        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
+        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("BUY");
         
         langChain4jStrategy.executeIteration(testAgent, null);
@@ -192,7 +193,7 @@ class AgentStrategyIntegrationTest {
         // Each strategy should work independently without affecting others
         
         // Execute with LangChain4j
-        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
+        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("BUY");
         langChain4jStrategy.executeIteration(testAgent, null);
         
@@ -219,7 +220,7 @@ class AgentStrategyIntegrationTest {
             new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "BTC"), 
             "BTCUSDT", 10000.0);
         
-        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
+        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("BUY");
         
         langChain4jStrategy.executeIteration(btcAgent, null);
@@ -284,7 +285,7 @@ class AgentStrategyIntegrationTest {
     @Test
     void testStrategiesHandleExceptionsGracefully() {
         // LangChain4j with exception
-        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
+        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenThrow(new RuntimeException("LLM error"));
         
         assertThrows(RuntimeException.class, () -> 
@@ -313,7 +314,7 @@ class AgentStrategyIntegrationTest {
         AgentGoal hedgeRisk = new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Hedge risk");
         Agent hedgeAgent = Agent.create("Hedge Agent", hedgeRisk, "BTCUSDT", 10000.0);
         
-        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
+        when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("BUY");
         when(ragService.generateReasoningWithRAG(any(), any()))
             .thenReturn(createMockReasoning());

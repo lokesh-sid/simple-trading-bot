@@ -4,8 +4,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +28,8 @@ import tradingbot.agent.domain.model.AgentGoal.GoalType;
 import tradingbot.agent.domain.model.AgentStatus;
 import tradingbot.agent.domain.model.Perception;
 import tradingbot.agent.domain.model.ReasoningContext;
+import tradingbot.agent.domain.risk.RiskContext;
+import tradingbot.agent.domain.risk.RiskGuard;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.domain.market.KlineClosedEvent;
 
@@ -68,6 +72,8 @@ public class LLMTradingAgent implements AgenticTradingAgent {
 
     // --- dependencies -----------------------------------------------------------
     private final LLMProvider llmProvider;
+    private final RiskGuard riskGuard;
+    private final Supplier<RiskContext> riskContextSupplier;
 
     // --- indicator config -------------------------------------------------------
     private final int macdFast;
@@ -91,24 +97,30 @@ public class LLMTradingAgent implements AgenticTradingAgent {
     /**
      * Creates a new {@code LLMTradingAgent} with customisable indicator periods.
      *
-     * @param agentId     unique agent identifier (e.g. {@code "btc-llm-01"})
-     * @param symbol      trading pair (e.g. {@code "BTCUSDT"})
-     * @param exchange    exchange name (e.g. {@code "BINANCE"})
-     * @param llmProvider LLM reasoning provider (wired via Spring DI)
-     * @param macdFast    MACD fast EMA period (default 12)
-     * @param macdSlow    MACD slow EMA period (default 26)
-     * @param macdSignal  MACD signal EMA period (default 9)
-     * @param rsiPeriod   RSI look-back period  (default 14)
-     * @param warmupBars  minimum bars before signals are emitted (default 34)
+     * @param agentId             unique agent identifier (e.g. {@code "btc-llm-01"})
+     * @param symbol              trading pair (e.g. {@code "BTCUSDT"})
+     * @param exchange            exchange name (e.g. {@code "BINANCE"})
+     * @param llmProvider         LLM reasoning provider (wired via Spring DI)
+     * @param riskGuard           pre-LLM risk evaluator (never null)
+     * @param riskContextSupplier supplies the current position/risk state on each candle
+     * @param macdFast            MACD fast EMA period (default 12)
+     * @param macdSlow            MACD slow EMA period (default 26)
+     * @param macdSignal          MACD signal EMA period (default 9)
+     * @param rsiPeriod           RSI look-back period  (default 14)
+     * @param warmupBars          minimum bars before signals are emitted (default 34)
      */
     public LLMTradingAgent(String agentId, String symbol, String exchange,
                            LLMProvider llmProvider,
+                           RiskGuard riskGuard,
+                           Supplier<RiskContext> riskContextSupplier,
                            int macdFast, int macdSlow, int macdSignal,
                            int rsiPeriod, int warmupBars) {
         this.agentId    = agentId;
         this.symbol     = symbol;
         this.exchange   = exchange;
         this.llmProvider = llmProvider;
+        this.riskGuard  = riskGuard;
+        this.riskContextSupplier = riskContextSupplier;
         this.macdFast   = macdFast;
         this.macdSlow   = macdSlow;
         this.macdSignal = macdSignal;
@@ -214,6 +226,18 @@ public class LLMTradingAgent implements AgenticTradingAgent {
         addBar(event);
         int idx = barSeries.getEndIndex();
         int count = iterationCount.incrementAndGet();
+
+        // ── 0. RiskGuard — fast pre-LLM safety check ────────────────────────
+        // Runs pure arithmetic (< 1ms). If a hard stop-loss / take-profit is
+        // breached, we short-circuit immediately and never call the LLM.
+        if (riskGuard != null && riskContextSupplier != null) {
+            RiskContext riskCtx = riskContextSupplier.get();
+            Optional<AgentDecision> override = riskGuard.evaluate(event, riskCtx);
+            if (override.isPresent()) {
+                log.info("[{}] RiskGuard override: {} — skipping LLM", agentId, override.get().reasoning());
+                return override.get();
+            }
+        }
 
         // Warmup guard — not enough bars for reliable MACD / RSI
         if (idx < warmupBars) {

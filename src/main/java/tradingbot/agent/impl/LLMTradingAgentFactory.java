@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 import tradingbot.agent.AgenticTradingAgent;
 import tradingbot.agent.TradingAgentFactory;
+import tradingbot.agent.domain.risk.RiskContext;
+import tradingbot.agent.domain.risk.RiskGuard;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.config.TradingConfig;
 
@@ -49,9 +51,11 @@ public class LLMTradingAgentFactory implements TradingAgentFactory {
     private static final int WARMUP_BARS = 34; // slowPeriod + signalPeriod
 
     private final LLMProvider llmProvider;
+    private final RiskGuard riskGuard;
 
-    public LLMTradingAgentFactory(LLMProvider llmProvider) {
+    public LLMTradingAgentFactory(LLMProvider llmProvider, RiskGuard riskGuard) {
         this.llmProvider = llmProvider;
+        this.riskGuard = riskGuard;
     }
 
     /**
@@ -69,8 +73,15 @@ public class LLMTradingAgentFactory implements TradingAgentFactory {
         log.info("[LLMTradingAgentFactory] creating agent id={} symbol={} llm={}",
                 agentId, config.getSymbol(), llmProvider.getProviderName());
 
+        // RiskContext supplier starts with no position; the OrderExecutionGateway
+        // (P1) will update this dynamically as positions open/close.
+        // For now, a safe default: no open position = no risk overrides.
+        var riskCtxRef = new java.util.concurrent.atomic.AtomicReference<>(
+                RiskContext.noPosition(agentId, config.getSymbol()));
+
         LLMTradingAgent agent = new LLMTradingAgent(
                 agentId, config.getSymbol(), exchange, llmProvider,
+                riskGuard, riskCtxRef::get,
                 MACD_FAST, MACD_SLOW, MACD_SIGNAL, RSI_PERIOD, WARMUP_BARS);
 
         agent.start(); // CREATED → ACTIVE

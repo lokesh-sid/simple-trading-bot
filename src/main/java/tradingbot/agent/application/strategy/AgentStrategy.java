@@ -1,7 +1,7 @@
 package tradingbot.agent.application.strategy;
 
 import tradingbot.agent.domain.model.Agent;
-import tradingbot.domain.market.StreamMarketDataEvent;
+import tradingbot.domain.market.MarketEvent;
 
 /**
  * Strategy interface for different agent reasoning approaches
@@ -17,10 +17,10 @@ public interface AgentStrategy {
      * Execute one iteration of the agent loop.
      *
      * @param agent          the agent to run
-     * @param triggeringEvent the WebSocket event that triggered this iteration,
+     * @param triggeringEvent the market event that triggered this iteration,
      *                        or {@code null} when invoked from the polling path
      */
-    void executeIteration(Agent agent, StreamMarketDataEvent triggeringEvent);
+    void executeIteration(Agent agent, MarketEvent triggeringEvent);
     
     /**
      * Get the name of this strategy

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 import tradingbot.agent.AgenticTradingAgent;
 import tradingbot.agent.domain.model.AgentDecision;
-import tradingbot.agent.domain.model.AgentDecision.Action;
+import tradingbot.agent.impl.execution.BacktestOrderGateway;
 import tradingbot.bot.service.BinanceFuturesService.Candle;
 import tradingbot.config.TradingConfig;
 import tradingbot.domain.market.KlineClosedEvent;
@@ -34,10 +34,11 @@ import tradingbot.domain.market.KlineClosedEvent;
  * </ol>
  *
  * <h3>Position model</h3>
- * Simple directional tracking:  one long position at a time.
+ * Directional tracking delegated to {@link BacktestOrderGateway} (P1).
  * <ul>
- *   <li>BUY signal → open long (if not already long)</li>
- *   <li>SELL signal → close long (if currently long)</li>
+ *   <li>BUY signal → enter long / close short (via gateway)</li>
+ *   <li>SELL signal → enter short / close long (via gateway)</li>
+ *   <li>HOLD → no-op</li>
  *   <li>Quantity = fixed 1.0 contract (configurable per agent in Phase 3)</li>
  * </ul>
  */
@@ -46,8 +47,6 @@ public class CsvBacktestAgentExecutionService implements BacktestAgentExecutionS
 
     private static final Logger log =
             LoggerFactory.getLogger(CsvBacktestAgentExecutionService.class);
-
-    private static final double DEFAULT_TRADE_QUANTITY = 1.0;
 
     @Override
     public ExecutionResult execute(AgenticTradingAgent agent,
@@ -61,7 +60,8 @@ public class CsvBacktestAgentExecutionService implements BacktestAgentExecutionS
         List<TradeEvent>       trades      = new ArrayList<>();
         List<EquityCurvePoint> equityCurve = new ArrayList<>(totalBars);
 
-        boolean inLong = false; // simple 1-position tracker
+        // P1: Use BacktestOrderGateway instead of inline position tracking
+        BacktestOrderGateway gateway = new BacktestOrderGateway(exchange, null);
 
         log.info("[CsvBacktest] starting replay: symbol={} bars={} agent={}",
                 symbol, totalBars, agent.getId());
@@ -88,37 +88,23 @@ public class CsvBacktestAgentExecutionService implements BacktestAgentExecutionS
                 continue;
             }
 
-            // 3. Route decision → exchange
-            Action action = decision.action();
-            String barAction = action.name(); // default; BUY/SELL may override below
-            double balanceBefore = exchange.getMarginBalance();
+            // 3. Route decision through the gateway
+            double currentPrice = event.close().doubleValue();
+            tradingbot.agent.domain.execution.ExecutionResult gwResult =
+                    gateway.execute(decision, symbol, currentPrice);
 
-            if (action == Action.BUY && !inLong) {
-                try {
-                    exchange.enterLongPosition(symbol, DEFAULT_TRADE_QUANTITY);
-                    double fillPrice = exchange.getCurrentPrice(symbol);
-                    trades.add(new TradeEvent(i, symbol, "BUY", fillPrice,
-                            DEFAULT_TRADE_QUANTITY, 0.0, decision.reasoning()));
-                    inLong = true;
-                    barAction = "BUY";
-                    log.debug("[CsvBacktest] bar={} BUY @ {}", i, fillPrice);
-                } catch (Exception ex) {
-                    log.warn("[CsvBacktest] bar {} BUY failed: {}", i, ex.getMessage());
-                }
+            String barAction = decision.action().name();
 
-            } else if (action == Action.SELL && inLong) {
-                try {
-                    exchange.exitLongPosition(symbol, DEFAULT_TRADE_QUANTITY);
-                    double fillPrice   = exchange.getCurrentPrice(symbol);
-                    double realizedPnl = exchange.getMarginBalance() - balanceBefore;
-                    trades.add(new TradeEvent(i, symbol, "SELL", fillPrice,
-                            DEFAULT_TRADE_QUANTITY, realizedPnl, decision.reasoning()));
-                    inLong = false;
-                    barAction = "SELL";
-                    log.debug("[CsvBacktest] bar={} SELL @ {} pnl={}", i, fillPrice, realizedPnl);
-                } catch (Exception ex) {
-                    log.warn("[CsvBacktest] bar {} SELL failed: {}", i, ex.getMessage());
-                }
+            if (gwResult.success() && gwResult.action() != tradingbot.agent.domain.execution.ExecutionResult.ExecutionAction.NOOP) {
+                barAction = switch (gwResult.action()) {
+                    case ENTER_LONG, EXIT_SHORT -> "BUY";
+                    case EXIT_LONG, ENTER_SHORT -> "SELL";
+                    default -> barAction;
+                };
+                trades.add(new TradeEvent(i, symbol, barAction, gwResult.fillPrice(),
+                        gwResult.fillQuantity(), gwResult.realizedPnl(), decision.reasoning()));
+                log.debug("[CsvBacktest] bar={} {} @ {} pnl={}", i, barAction,
+                        gwResult.fillPrice(), gwResult.realizedPnl());
             }
 
             // 4. Record equity snapshot after the bar (drawdownPct filled in by StandardBacktestMetricsCalculator)

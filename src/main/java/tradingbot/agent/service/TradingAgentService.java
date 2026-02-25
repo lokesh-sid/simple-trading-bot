@@ -1,5 +1,6 @@
 package tradingbot.agent.service;
 
+import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
@@ -79,6 +80,7 @@ public interface TradingAgentService {
         Provide your analysis and decision with clear reasoning.
         """)
     String analyzeAndDecide(
+        @MemoryId String memoryId,
         @V("symbol") String symbol,
         @V("goal") String goal,
         @V("capital") double capital,

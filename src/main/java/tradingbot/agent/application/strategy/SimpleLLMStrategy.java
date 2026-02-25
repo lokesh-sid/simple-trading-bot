@@ -14,7 +14,7 @@ import tradingbot.agent.domain.model.ReasoningContext;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.agent.service.OrderPlacementService;
 import tradingbot.bot.model.MarketData;
-import tradingbot.domain.market.StreamMarketDataEvent;
+import tradingbot.domain.market.MarketEvent;
 
 /**
  * Legacy LLM strategy (original implementation)
@@ -37,7 +37,7 @@ public class SimpleLLMStrategy implements AgentStrategy {
     }
     
     @Override
-    public void executeIteration(Agent agent, StreamMarketDataEvent triggeringEvent) {
+    public void executeIteration(Agent agent, MarketEvent triggeringEvent) {
         logger.info("[LEGACY] Agent {} using traditional LLM (triggerPrice={})",
                 agent.getId(), triggeringEvent != null ? triggeringEvent.price() : "n/a");
 
@@ -76,15 +76,15 @@ public class SimpleLLMStrategy implements AgentStrategy {
         return "Legacy LLM";
     }
     
-    private Perception perceiveMarket(Agent agent, StreamMarketDataEvent event) {
+    private Perception perceiveMarket(Agent agent, MarketEvent event) {
         if (event != null) {
-            // Use the real-time price from the triggering WebSocket event
+            // Use the real-time price from the triggering market event
             return new Perception(
                 agent.getTradingSymbol(),
                 event.price().doubleValue(),
                 "UNKNOWN",   // trend derived from ta4j indicators, not raw tick
                 "UNKNOWN",   // sentiment enrichment is a separate concern
-                event.quantity().doubleValue(),
+                event.volume().doubleValue(),
                 event.timestamp()
             );
         }

@@ -46,7 +46,18 @@ public record KlineClosedEvent(
         BigDecimal volume,
         Instant openTime,
         Instant closeTime
-) {
+) implements MarketEvent {
+
+    @Override
+    public BigDecimal price() {
+        return close;
+    }
+
+    @Override
+    public Instant timestamp() {
+        return closeTime;
+    }
+
     /**
      * Convenience constructor: derives {@code closeTime} from
      * {@code openTime + interval} for callers that only have the open timestamp.
