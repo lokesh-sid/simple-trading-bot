@@ -148,7 +148,6 @@ public class TradeExecutionService {
         try {
             String orderId;
             String side;
-            
             // Execute the appropriate trade
             switch (signalEvent.getSignal()) {
                 case LONG -> {
@@ -163,10 +162,28 @@ public class TradeExecutionService {
                 }
                 default -> throw new IllegalArgumentException("Invalid signal direction: " + signalEvent.getSignal());
             }
-            
+
+            // Place stop-loss and take-profit orders if provided
+            if (signalEvent.getStopLoss() != null) {
+                exchangeService.placeStopLossOrder(
+                    signalEvent.getSymbol(),
+                    side,
+                    quantity,
+                    signalEvent.getStopLoss()
+                );
+            }
+            if (signalEvent.getTakeProfit() != null) {
+                exchangeService.placeTakeProfitOrder(
+                    signalEvent.getSymbol(),
+                    side,
+                    quantity,
+                    signalEvent.getTakeProfit()
+                );
+            }
+
             // Get current price for execution record
             double executionPrice = exchangeService.getCurrentPrice(signalEvent.getSymbol());
-            
+
             // Create execution event
             TradeExecutionEvent executionEvent = new TradeExecutionEvent(
                 signalEvent.getBotId(), orderId, signalEvent.getSymbol()
@@ -176,9 +193,9 @@ public class TradeExecutionService {
             executionEvent.setPrice(executionPrice);
             executionEvent.setStatus("FILLED"); // Simplified - would track actual status
             executionEvent.setTradeId("TRADE_" + System.currentTimeMillis());
-            
+
             return executionEvent;
-            
+
         } catch (Exception ex) {
             log.error("Trade execution failed for signal: {}", signalEvent.getEventId(), ex);
             throw new TradeExecutionException("Failed to execute trade", ex);

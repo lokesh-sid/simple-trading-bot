@@ -10,6 +10,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -29,11 +30,7 @@ import tradingbot.bot.TradeDirection;
 import tradingbot.bot.events.BotStatusEvent;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.messaging.EventTopic;
-import tradingbot.bot.service.DydxFuturesService;
 import tradingbot.bot.service.FuturesExchangeService;
-import tradingbot.bot.service.PaperFuturesExchangeService;
-import tradingbot.bot.service.RateLimitedBinanceFuturesService;
-import tradingbot.bot.service.RateLimitedBybitFuturesService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.bot.strategy.calculator.IndicatorCalculator;
 import tradingbot.bot.strategy.exit.LiquidationRiskExit;
@@ -59,6 +56,7 @@ import tradingbot.config.TradingConfig;
 @EnableScheduling
 @EnableCaching
 @EnableAspectJAutoProxy
+@EnableConfigurationProperties(tradingbot.agent.config.AgentProperties.class)
 public class SimpleTradingBotApplication {
     
     private static final Logger log = LoggerFactory.getLogger(SimpleTradingBotApplication.class);

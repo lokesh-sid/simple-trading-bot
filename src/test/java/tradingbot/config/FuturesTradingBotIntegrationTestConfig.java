@@ -33,6 +33,7 @@ import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.retry.Retry;
 import reactor.core.publisher.Flux;
+import tradingbot.agent.TradingAgentFactory;
 import tradingbot.agent.factory.AgentFactory;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.agent.infrastructure.persistence.PositionEntity;
@@ -42,9 +43,6 @@ import tradingbot.agent.service.OrderPlacementService;
 import tradingbot.agent.service.RAGService;
 import tradingbot.agent.service.TradingAgentService;
 import tradingbot.agent.service.TradingTools;
-import tradingbot.agent.TradingAgentFactory;
-import tradingbot.bot.service.backtest.BacktestAgentExecutionService;
-import tradingbot.bot.service.backtest.BacktestMetricsCalculator;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.controller.dto.BotState;
 import tradingbot.bot.persistence.entity.TradingEventEntity;
@@ -65,17 +63,7 @@ import tradingbot.security.repository.UserRepository;
  * Provides minimal Spring context with in-memory implementations.
  */
 @SpringBootConfiguration
-@TestPropertySource(properties = {
-    // Use H2 in-memory database for testing
-    "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
-    "spring.jpa.hibernate.ddl-auto=create-drop",
-    "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
-    "spring.kafka.consumer.auto-startup=false", 
-    "spring.kafka.producer.bootstrap-servers=localhost:9999",
-    "spring.kafka.bootstrap-servers=localhost:9999",
-    "trading.exchange.provider=paper",
-    "trading.binance.api.key=test-api-key"
-})
+@TestPropertySource("classpath:application-test.properties")
 @EnableAutoConfiguration(exclude = {
     KafkaAutoConfiguration.class,
     RedisAutoConfiguration.class,
@@ -106,6 +94,10 @@ import tradingbot.security.repository.UserRepository;
     TradingEventEntity.class
 })
 public class FuturesTradingBotIntegrationTestConfig {
+    @Bean
+    public tradingbot.agent.config.AgentProperties agentProperties() {
+        return new tradingbot.agent.config.AgentProperties();
+    }
 
     @Bean
     public DataSource dataSource() {

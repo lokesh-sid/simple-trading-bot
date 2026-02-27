@@ -1,5 +1,7 @@
 package tradingbot.agent.impl;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Primary;
@@ -11,7 +13,6 @@ import tradingbot.agent.domain.risk.RiskContext;
 import tradingbot.agent.domain.risk.RiskGuard;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.config.TradingConfig;
-
 /**
  * LLMTradingAgentFactory — default {@link TradingAgentFactory} implementation.
  *
@@ -76,8 +77,8 @@ public class LLMTradingAgentFactory implements TradingAgentFactory {
         // RiskContext supplier starts with no position; the OrderExecutionGateway
         // (P1) will update this dynamically as positions open/close.
         // For now, a safe default: no open position = no risk overrides.
-        var riskCtxRef = new java.util.concurrent.atomic.AtomicReference<>(
-                RiskContext.noPosition(agentId, config.getSymbol()));
+        var riskCtxRef = new AtomicReference<>(
+            RiskContext.noPosition(agentId, config.getSymbol()));
 
         LLMTradingAgent agent = new LLMTradingAgent(
                 agentId, config.getSymbol(), exchange, llmProvider,

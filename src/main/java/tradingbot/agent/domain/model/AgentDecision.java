@@ -17,12 +17,15 @@ import java.time.Instant;
  * @param decidedAt      wall-clock time when the decision was produced
  */
 public record AgentDecision(
-        String agentId,
-        String symbol,
-        Action action,
-        int confidence,
-        String reasoning,
-        Instant decidedAt
+    String agentId,
+    String symbol,
+    Action action,
+    int confidence,
+    String reasoning,
+    Instant decidedAt,
+    Double quantity,
+    Double stopLossPercent,
+    Double takeProfitPercent
 ) {
     /**
      * Possible trading actions an agent can emit.
@@ -40,11 +43,35 @@ public record AgentDecision(
             Action action,
             int confidence,
             String reasoning) {
-        return new AgentDecision(agentId, symbol, action, confidence, reasoning, Instant.now());
+        return new AgentDecision(agentId, symbol, action, confidence, reasoning, Instant.now(), null, null, null);
+    }
+
+    public static AgentDecision of(
+            String agentId,
+            String symbol,
+            Action action,
+            int confidence,
+            String reasoning,
+            Double quantity,
+            Double stopLossPercent,
+            Double takeProfitPercent) {
+        return new AgentDecision(agentId, symbol, action, confidence, reasoning, Instant.now(), quantity, stopLossPercent, takeProfitPercent);
     }
 
     /** Returns true when the agent recommends entering a position. */
     public boolean isEntry() {
         return action == Action.BUY || action == Action.SELL;
+    }
+
+    public Double quantity() {
+        return quantity;
+    }
+
+    public Double stopLossPercent() {
+        return stopLossPercent;
+    }
+
+    public Double takeProfitPercent() {
+        return takeProfitPercent;
     }
 }

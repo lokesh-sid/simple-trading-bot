@@ -109,23 +109,27 @@ public class LiveOrderGateway implements OrderExecutionGateway {
 
     private ExecutionResult enterLong(AgentDecision decision, String symbol, double currentPrice) {
         try {
-            OrderResult order = exchange.enterLongPosition(symbol, DEFAULT_QUANTITY);
+            double quantity = decision.quantity() != null ? decision.quantity() : DEFAULT_QUANTITY;
+            double slPercent = decision.stopLossPercent() != null ? decision.stopLossPercent() : SL_PERCENT;
+            double tpPercent = decision.takeProfitPercent() != null ? decision.takeProfitPercent() : TP_PERCENT;
+
+            OrderResult order = exchange.enterLongPosition(symbol, quantity);
             double fillPrice = order.getAvgFillPrice() > 0 ? order.getAvgFillPrice() : currentPrice;
 
             positionSides.put(symbol, "LONG");
             entryPrices.put(symbol, fillPrice);
-            quantities.put(symbol, DEFAULT_QUANTITY);
+            quantities.put(symbol, quantity);
 
             // Place bracket orders (SL + TP)
-            placeBracketOrders(symbol, "LONG", fillPrice, DEFAULT_QUANTITY);
+            placeBracketOrders(symbol, "LONG", fillPrice, quantity, slPercent, tpPercent);
 
-            updateRiskContext(decision.agentId(), symbol);
+            updateRiskContext(decision.agentId(), symbol, slPercent, tpPercent);
 
             log.info("[LiveGateway] ENTER_LONG {} @ {} qty={} orderId={}",
-                    symbol, fillPrice, DEFAULT_QUANTITY, order.getExchangeOrderId());
+                symbol, fillPrice, quantity, order.getExchangeOrderId());
             return ExecutionResult.filled(ExecutionAction.ENTER_LONG, symbol,
-                    order.getExchangeOrderId(), fillPrice, DEFAULT_QUANTITY, 0,
-                    "Entered LONG on live exchange");
+                order.getExchangeOrderId(), fillPrice, quantity, 0,
+                "Entered LONG on live exchange");
         } catch (Exception ex) {
             log.error("[LiveGateway] ENTER_LONG failed for {}: {}", symbol, ex.getMessage(), ex);
             return ExecutionResult.failed(ExecutionAction.ENTER_LONG, symbol, ex.getMessage());
@@ -155,22 +159,26 @@ public class LiveOrderGateway implements OrderExecutionGateway {
 
     private ExecutionResult enterShort(AgentDecision decision, String symbol, double currentPrice) {
         try {
-            OrderResult order = exchange.enterShortPosition(symbol, DEFAULT_QUANTITY);
+            double quantity = decision.quantity() != null ? decision.quantity() : DEFAULT_QUANTITY;
+            double slPercent = decision.stopLossPercent() != null ? decision.stopLossPercent() : SL_PERCENT;
+            double tpPercent = decision.takeProfitPercent() != null ? decision.takeProfitPercent() : TP_PERCENT;
+
+            OrderResult order = exchange.enterShortPosition(symbol, quantity);
             double fillPrice = order.getAvgFillPrice() > 0 ? order.getAvgFillPrice() : currentPrice;
 
             positionSides.put(symbol, "SHORT");
             entryPrices.put(symbol, fillPrice);
-            quantities.put(symbol, DEFAULT_QUANTITY);
+            quantities.put(symbol, quantity);
 
-            placeBracketOrders(symbol, "SHORT", fillPrice, DEFAULT_QUANTITY);
+            placeBracketOrders(symbol, "SHORT", fillPrice, quantity, slPercent, tpPercent);
 
-            updateRiskContext(decision.agentId(), symbol);
+            updateRiskContext(decision.agentId(), symbol, slPercent, tpPercent);
 
             log.info("[LiveGateway] ENTER_SHORT {} @ {} qty={} orderId={}",
-                    symbol, fillPrice, DEFAULT_QUANTITY, order.getExchangeOrderId());
+                symbol, fillPrice, quantity, order.getExchangeOrderId());
             return ExecutionResult.filled(ExecutionAction.ENTER_SHORT, symbol,
-                    order.getExchangeOrderId(), fillPrice, DEFAULT_QUANTITY, 0,
-                    "Entered SHORT on live exchange");
+                order.getExchangeOrderId(), fillPrice, quantity, 0,
+                "Entered SHORT on live exchange");
         } catch (Exception ex) {
             log.error("[LiveGateway] ENTER_SHORT failed for {}: {}", symbol, ex.getMessage(), ex);
             return ExecutionResult.failed(ExecutionAction.ENTER_SHORT, symbol, ex.getMessage());
@@ -183,13 +191,16 @@ public class LiveOrderGateway implements OrderExecutionGateway {
         double qty = quantities.getOrDefault(symbol, DEFAULT_QUANTITY);
         double balanceBefore = exchange.getMarginBalance();
 
+        double slPercent = decision.stopLossPercent() != null ? decision.stopLossPercent() : SL_PERCENT;
+        double tpPercent = decision.takeProfitPercent() != null ? decision.takeProfitPercent() : TP_PERCENT;
+
         try {
             OrderResult order = exchange.exitLongPosition(symbol, qty);
             double fillPrice = order.getAvgFillPrice() > 0 ? order.getAvgFillPrice() : currentPrice;
             double realizedPnl = exchange.getMarginBalance() - balanceBefore;
 
             clearPosition(symbol);
-            updateRiskContext(decision.agentId(), symbol);
+            updateRiskContext(decision.agentId(), symbol, slPercent, tpPercent);
 
             log.info("[LiveGateway] EXIT_LONG {} @ {} pnl={} orderId={}",
                     symbol, fillPrice, realizedPnl, order.getExchangeOrderId());
@@ -206,13 +217,16 @@ public class LiveOrderGateway implements OrderExecutionGateway {
         double qty = quantities.getOrDefault(symbol, DEFAULT_QUANTITY);
         double balanceBefore = exchange.getMarginBalance();
 
+        double slPercent = decision.stopLossPercent() != null ? decision.stopLossPercent() : SL_PERCENT;
+        double tpPercent = decision.takeProfitPercent() != null ? decision.takeProfitPercent() : TP_PERCENT;
+
         try {
             OrderResult order = exchange.exitShortPosition(symbol, qty);
             double fillPrice = order.getAvgFillPrice() > 0 ? order.getAvgFillPrice() : currentPrice;
             double realizedPnl = exchange.getMarginBalance() - balanceBefore;
 
             clearPosition(symbol);
-            updateRiskContext(decision.agentId(), symbol);
+            updateRiskContext(decision.agentId(), symbol, slPercent, tpPercent);
 
             log.info("[LiveGateway] EXIT_SHORT {} @ {} pnl={} orderId={}",
                     symbol, fillPrice, realizedPnl, order.getExchangeOrderId());
@@ -231,17 +245,17 @@ public class LiveOrderGateway implements OrderExecutionGateway {
      * Places stop-loss and take-profit bracket orders after a fill.
      * Failures are logged but do not roll back the entry.
      */
-    private void placeBracketOrders(String symbol, String side, double entryPrice, double qty) {
+    private void placeBracketOrders(String symbol, String side, double entryPrice, double qty, double slPercent, double tpPercent) {
         try {
             if ("LONG".equals(side)) {
-                double slPrice = entryPrice * (1 - SL_PERCENT / 100.0);
-                double tpPrice = entryPrice * (1 + TP_PERCENT / 100.0);
+                double slPrice = entryPrice * (1 - slPercent / 100.0);
+                double tpPrice = entryPrice * (1 + tpPercent / 100.0);
                 exchange.placeStopLossOrder(symbol, "Sell", qty, slPrice);
                 exchange.placeTakeProfitOrder(symbol, "Sell", qty, tpPrice);
                 log.info("[LiveGateway] Bracket LONG: SL={} TP={}", slPrice, tpPrice);
             } else {
-                double slPrice = entryPrice * (1 + SL_PERCENT / 100.0);
-                double tpPrice = entryPrice * (1 - TP_PERCENT / 100.0);
+                double slPrice = entryPrice * (1 + slPercent / 100.0);
+                double tpPrice = entryPrice * (1 - tpPercent / 100.0);
                 exchange.placeStopLossOrder(symbol, "Buy", qty, slPrice);
                 exchange.placeTakeProfitOrder(symbol, "Buy", qty, tpPrice);
                 log.info("[LiveGateway] Bracket SHORT: SL={} TP={}", slPrice, tpPrice);
@@ -260,7 +274,7 @@ public class LiveOrderGateway implements OrderExecutionGateway {
         quantities.remove(symbol);
     }
 
-    private void updateRiskContext(String agentId, String symbol) {
+    private void updateRiskContext(String agentId, String symbol, double slPercent, double tpPercent) {
         if (riskContextUpdater == null) return;
 
         String side = positionSides.get(symbol);
@@ -271,17 +285,17 @@ public class LiveOrderGateway implements OrderExecutionGateway {
             riskContextUpdater.accept(RiskContext.longPosition(
                     agentId, symbol, entry,
                     quantities.getOrDefault(symbol, 0.0),
-                    entry * (1 - SL_PERCENT / 100.0),   // hard SL price
-                    entry * (1 + TP_PERCENT / 100.0),    // hard TP price
-                    SL_PERCENT, TP_PERCENT));
+                    entry * (1 - slPercent / 100.0),   // dynamic SL price
+                    entry * (1 + tpPercent / 100.0),    // dynamic TP price
+                    slPercent, tpPercent));
         } else {
             double entry = entryPrices.getOrDefault(symbol, 0.0);
             riskContextUpdater.accept(RiskContext.shortPosition(
                     agentId, symbol, entry,
                     quantities.getOrDefault(symbol, 0.0),
-                    entry * (1 + SL_PERCENT / 100.0),
-                    entry * (1 - TP_PERCENT / 100.0),
-                    SL_PERCENT, TP_PERCENT));
+                    entry * (1 + slPercent / 100.0),
+                    entry * (1 - tpPercent / 100.0),
+                    slPercent, tpPercent));
         }
     }
 

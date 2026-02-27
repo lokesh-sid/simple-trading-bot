@@ -184,18 +184,19 @@ public class LLMTradingAgent implements AgenticTradingAgent {
      */
     @Override
     public Mono<AgentDecision> onKlineClosed(KlineClosedEvent event) {
+        RiskParams params = getCurrentRiskParams();
         if (status.get() != AgentStatus.ACTIVE) {
             return Mono.just(AgentDecision.of(agentId, symbol, Action.HOLD, 0,
-                    "Agent not ACTIVE (status=" + status.get() + ")"));
+                    "Agent not ACTIVE (status=" + status.get() + ")", params.quantity, params.stopLossPercent, params.takeProfitPercent));
         }
-        return Mono.fromCallable(() -> evaluate(event))
-                   .subscribeOn(Schedulers.boundedElastic())
-                   .onErrorResume(ex -> {
-                       log.error("[{}] error evaluating bar at {}: {}", agentId, event.closeTime(), ex.getMessage());
-                       status.compareAndSet(AgentStatus.ACTIVE, AgentStatus.ERROR);
-                       return Mono.just(AgentDecision.of(agentId, symbol, Action.HOLD, 0,
-                               "Evaluation error: " + ex.getMessage()));
-                   });
+        return Mono.fromCallable(() -> evaluate(event, params))
+               .subscribeOn(Schedulers.boundedElastic())
+               .onErrorResume(ex -> {
+                   log.error("[{}] error evaluating bar at {}: {}", agentId, event.closeTime(), ex.getMessage());
+                   status.compareAndSet(AgentStatus.ACTIVE, AgentStatus.ERROR);
+                   return Mono.just(AgentDecision.of(agentId, symbol, Action.HOLD, 0,
+                       "Evaluation error: " + ex.getMessage(), params.quantity, params.stopLossPercent, params.takeProfitPercent));
+               });
     }
 
     // ── TradingAgent boilerplate ───────────────────────────────────────────────
@@ -222,14 +223,12 @@ public class LLMTradingAgent implements AgenticTradingAgent {
 
     // ── private logic ─────────────────────────────────────────────────────────
 
-    private AgentDecision evaluate(KlineClosedEvent event) {
+    private AgentDecision evaluate(KlineClosedEvent event, RiskParams params) {
         addBar(event);
         int idx = barSeries.getEndIndex();
         int count = iterationCount.incrementAndGet();
 
         // ── 0. RiskGuard — fast pre-LLM safety check ────────────────────────
-        // Runs pure arithmetic (< 1ms). If a hard stop-loss / take-profit is
-        // breached, we short-circuit immediately and never call the LLM.
         if (riskGuard != null && riskContextSupplier != null) {
             RiskContext riskCtx = riskContextSupplier.get();
             Optional<AgentDecision> override = riskGuard.evaluate(event, riskCtx);
@@ -239,10 +238,9 @@ public class LLMTradingAgent implements AgenticTradingAgent {
             }
         }
 
-        // Warmup guard — not enough bars for reliable MACD / RSI
         if (idx < warmupBars) {
             return AgentDecision.of(agentId, symbol, Action.HOLD, 50,
-                    "Warming up (%d/%d bars)".formatted(idx, warmupBars));
+                    "Warming up (%d/%d bars)".formatted(idx, warmupBars), params.quantity, params.stopLossPercent, params.takeProfitPercent);
         }
 
         // ── 1. Technical indicators ──────────────────────────────────────────
@@ -303,7 +301,33 @@ public class LLMTradingAgent implements AgenticTradingAgent {
                 .formatted(macdNow, histNow, rsi, rsiZone, technicalAction, recommendation, finalAction);
 
         log.debug("[{}] bar={} close={} {}", agentId, idx, closeVal, fullReasoning);
-        return AgentDecision.of(agentId, symbol, finalAction, confidence, fullReasoning);
+        return AgentDecision.of(agentId, symbol, finalAction, confidence, fullReasoning, params.quantity, params.stopLossPercent, params.takeProfitPercent);
+    }
+
+    private static class RiskParams {
+        final Double quantity;
+        final Double stopLossPercent;
+        final Double takeProfitPercent;
+        RiskParams(Double quantity, Double stopLossPercent, Double takeProfitPercent) {
+            this.quantity = quantity;
+            this.stopLossPercent = stopLossPercent;
+            this.takeProfitPercent = takeProfitPercent;
+        }
+    }
+
+    private RiskParams getCurrentRiskParams() {
+        Double quantity = null;
+        Double stopLossPercent = null;
+        Double takeProfitPercent = null;
+        if (riskContextSupplier != null) {
+            RiskContext rc = riskContextSupplier.get();
+            if (rc != null) {
+                quantity = rc.quantity() > 0 ? rc.quantity() : null;
+                stopLossPercent = rc.maxLossPercent() > 0 ? rc.maxLossPercent() : null;
+                takeProfitPercent = rc.maxGainPercent() > 0 ? rc.maxGainPercent() : null;
+            }
+        }
+        return new RiskParams(quantity, stopLossPercent, takeProfitPercent);
     }
 
     private void addBar(KlineClosedEvent e) {

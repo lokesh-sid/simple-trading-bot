@@ -107,6 +107,10 @@ public class DefaultRiskGuard implements RiskGuard {
      * interprets SELL as "close the current position".
      */
     private AgentDecision exitDecision(RiskContext ctx, int confidence, String reason) {
-        return AgentDecision.of(ctx.agentId(), ctx.symbol(), Action.SELL, confidence, reason);
+        // Pass through current position's quantity, maxLossPercent, and maxGainPercent as SL/TP percent
+        Double quantity = ctx.quantity() > 0 ? ctx.quantity() : null;
+        Double stopLossPercent = ctx.maxLossPercent() > 0 ? ctx.maxLossPercent() : null;
+        Double takeProfitPercent = ctx.maxGainPercent() > 0 ? ctx.maxGainPercent() : null;
+        return AgentDecision.of(ctx.agentId(), ctx.symbol(), Action.SELL, confidence, reason, quantity, stopLossPercent, takeProfitPercent);
     }
 }

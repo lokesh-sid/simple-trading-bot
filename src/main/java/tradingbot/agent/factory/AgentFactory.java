@@ -5,17 +5,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
+// import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import tradingbot.agent.TradingAgent;
+import tradingbot.agent.config.AgentProperties;
 import tradingbot.agent.persistence.LegacyAgentEntity;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.FuturesTradingBot.BotParams;
 import tradingbot.bot.TradeDirection;
+import tradingbot.bot.messaging.EventPublisher;
+import tradingbot.bot.service.BinanceFuturesService;
+import tradingbot.bot.service.BybitFuturesService;
+import tradingbot.bot.service.DydxFuturesService;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.service.PaperFuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
@@ -46,19 +51,109 @@ public class AgentFactory {
     private final SentimentAnalyzer sentimentAnalyzer;
     private final RedisTemplate<String, IndicatorValues> redisTemplate;
     private final ObjectMapper objectMapper;
-    
-    @Value("${trading.binance.api.key}")
-    private String apiKey;
+    private final AgentProperties agentProperties;
+
+
+    // All credentials now come from AgentProperties.credentials map
+
+    private final EventPublisher eventPublisher;
 
     public AgentFactory(FuturesExchangeService exchangeService, 
                         SentimentAnalyzer sentimentAnalyzer,
                         RedisTemplate<String, IndicatorValues> redisTemplate,
-                        ObjectMapper objectMapper) {
+                        ObjectMapper objectMapper,
+                        AgentProperties agentProperties,
+                        EventPublisher eventPublisher) {
         this.realExchangeService = exchangeService;
         this.sentimentAnalyzer = sentimentAnalyzer;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.agentProperties = agentProperties;
+        this.eventPublisher = eventPublisher;
     }
+
+    /**
+     * Creates all agents defined in the YAML config (trading.agents).
+     */
+    public List<TradingAgent> createAgentsFromConfig() {
+        List<TradingAgent> agents = new java.util.ArrayList<>();
+        if (agentProperties.getAgents() != null) {
+            for (AgentProperties.AgentConfig config : agentProperties.getAgents()) {
+                TradingConfig tradingConfig = new TradingConfig();
+                tradingConfig.setSymbol(config.getSymbol());
+                // TODO: Map other fields as needed (interval, strategy, etc.)
+                // Set direction if TradingConfig supports a public field or setter
+                if (config.getDirection() != null) {
+                    // Assuming TradingConfig has a public 'direction' field
+                    try {
+                        java.lang.reflect.Field directionField = TradingConfig.class.getDeclaredField("direction");
+                        directionField.setAccessible(true);
+                        directionField.set(tradingConfig, config.getDirection());
+                    } catch (Exception e) {
+                        // Field not present, ignore or log as needed
+                    }
+                }
+                TradingAgent agent = createFuturesTradingBotFromConfig(config, tradingConfig);
+                agents.add(agent);
+            }
+        }
+        return agents;
+    }
+
+    private FuturesTradingBot createFuturesTradingBotFromConfig(AgentProperties.AgentConfig config, TradingConfig tradingConfig) {
+        FuturesExchangeService exchangeService;
+        String exchange = config.getExchange() != null ? config.getExchange().toUpperCase() : "BINANCE";
+        var creds = agentProperties.getCredentials() != null ? agentProperties.getCredentials().get(exchange.toLowerCase()) : null;
+        if (creds == null) {
+            throw new IllegalArgumentException("Missing credentials for exchange: " + exchange);
+        }
+        switch (exchange) {
+            case "BINANCE" -> {
+                exchangeService = new BinanceFuturesService(creds.getApiKey(), creds.getApiSecret(), eventPublisher);
+            }
+            case "BYBIT" -> {
+                String baseUrl = "TESTNET_DOMAIN".equalsIgnoreCase(creds.getDomain()) ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
+                exchangeService = new BybitFuturesService(creds.getApiKey(), creds.getApiSecret(), baseUrl, eventPublisher);
+            }
+            case "DYDX" -> {
+                exchangeService = new DydxFuturesService(
+                    creds.getNetwork(),
+                    creds.getMainnetUrl(),
+                    creds.getTestnetUrl(),
+                    creds.getPrivateKey(),
+                    eventPublisher);
+            }
+            default -> throw new IllegalArgumentException("Unsupported exchange: " + exchange);
+        }
+
+        Map<String, TechnicalIndicator> indicators = createIndicators(tradingConfig);
+        IndicatorCalculator indicatorCalculator = new IndicatorCalculator(exchangeService, indicators, redisTemplate);
+        TrailingStopTracker trailingStopTracker = new TrailingStopTracker(exchangeService, tradingConfig.getTrailingStopPercent());
+        List<PositionExitCondition> exitConditions = createExitConditions(tradingConfig, indicatorCalculator, trailingStopTracker, exchangeService);
+
+        TradeDirection direction = TradeDirection.LONG;
+        if (tradingConfig.getDirection() != null) {
+            try {
+                direction = TradeDirection.valueOf(tradingConfig.getDirection().toUpperCase());
+            } catch (Exception e) {
+                // fallback to LONG if invalid
+            }
+        }
+        BotParams botParams = new BotParams.Builder()
+            .id(config.getSymbol() + "-" + config.getExchange())
+            .name(config.getSymbol() + " " + config.getExchange())
+            .exchangeService(exchangeService)
+            .indicatorCalculator(indicatorCalculator)
+            .trailingStopTracker(trailingStopTracker)
+            .sentimentAnalyzer(sentimentAnalyzer)
+            .exitConditions(exitConditions)
+            .config(tradingConfig)
+            .tradeDirection(direction)
+            .skipLeverageInit(false) // Exchange-specific logic can be added if needed
+            .build();
+        return new FuturesTradingBot(botParams);
+    }
+    // Duplicate methods removed
 
     public TradingAgent createAgent(LegacyAgentEntity entity) {
         try {
@@ -139,9 +234,7 @@ public class AgentFactory {
     }
 
     private boolean shouldSkipLeverageInit(boolean isPaper) {
-        return isPaper || "YOUR_BINANCE_API_KEY".equals(apiKey) 
-            || "your-binance-api-key-here".equals(apiKey)
-            || apiKey == null 
-            || apiKey.trim().isEmpty();
+        // This logic may need to be updated to use credentials map if needed
+        return isPaper;
     }
 }

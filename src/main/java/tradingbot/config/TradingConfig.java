@@ -32,6 +32,7 @@ public class TradingConfig implements Serializable {
     private int bbPeriod;
     private double bbStandardDeviation;
     private int interval;
+    private String direction;
 
     public TradingConfig() {
         this(
@@ -73,7 +74,10 @@ public class TradingConfig implements Serializable {
         this.bbPeriod = bbPeriod;
         this.bbStandardDeviation = bbStandardDeviation;
         this.interval = interval;
+        this.direction = null;
     }
+    public String getDirection() { return direction; }
+    public void setDirection(String direction) { this.direction = direction; }
 
     public String getSymbol() { return symbol; }
     public void setSymbol(String symbol) { this.symbol = symbol; }

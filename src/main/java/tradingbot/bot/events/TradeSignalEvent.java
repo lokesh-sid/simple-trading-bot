@@ -9,21 +9,31 @@ import tradingbot.bot.TradeDirection;
  * Published when the bot identifies a buy/sell opportunity.
  */
 public class TradeSignalEvent extends TradingEvent {
-    
+
     private String symbol;
     private TradeDirection signal;
     private double strength;
     private Map<String, Object> indicators;
     private Map<String, Object> metadata;
-    
+    private Double stopLoss;    // Optional - null if not set
+    private Double takeProfit;  // Optional - null if not set
+
     public TradeSignalEvent() {
         super();
     }
-    
+
     public TradeSignalEvent(String botId, String symbol, TradeDirection signal) {
         super(botId, "TRADE_SIGNAL");
         this.symbol = symbol;
         this.signal = signal;
+    }
+
+    public TradeSignalEvent(String botId, String symbol, TradeDirection signal, Double stopLoss, Double takeProfit) {
+        super(botId, "TRADE_SIGNAL");
+        this.symbol = symbol;
+        this.signal = signal;
+        this.stopLoss = stopLoss;
+        this.takeProfit = takeProfit;
     }
     
     // Getters and Setters
@@ -67,12 +77,30 @@ public class TradeSignalEvent extends TradingEvent {
         this.metadata = metadata;
     }
     
+    public Double getStopLoss() {
+        return stopLoss;
+    }
+
+    public void setStopLoss(Double stopLoss) {
+        this.stopLoss = stopLoss;
+    }
+
+    public Double getTakeProfit() {
+        return takeProfit;
+    }
+
+    public void setTakeProfit(Double takeProfit) {
+        this.takeProfit = takeProfit;
+    }
+
     @Override
     public String toString() {
         return "TradeSignalEvent{" +
                 "symbol='" + symbol + '\'' +
                 ", signal=" + signal +
                 ", strength=" + strength +
+                ", stopLoss=" + stopLoss +
+                ", takeProfit=" + takeProfit +
                 ", eventId='" + getEventId() + '\'' +
                 ", occurredAt=" + getOccurredAt() +
                 '}';

@@ -1,0 +1,26 @@
+# Multi-exchange agent configuration for trading bot
+trading:
+  agents:
+    - exchange: BINANCE
+      symbol: BTCUSDT
+      interval: 1m
+      strategy: MACD_RSI
+    - exchange: BYBIT
+      symbol: ETHUSDT
+      interval: 5m
+      strategy: BOLLINGER
+# Add more agents as needed
+
+  credentials:
+    binance:
+      apiKey: YOUR_BINANCE_API_KEY
+      apiSecret: YOUR_BINANCE_API_SECRET
+    bybit:
+      apiKey: YOUR_BYBIT_API_KEY
+      apiSecret: YOUR_BYBIT_API_SECRET
+      domain: MAINNET_DOMAIN
+    dydx:
+      network: testnet
+      mainnetUrl: https://indexer.dydx.trade/v4
+      testnetUrl: https://dydx-testnet.bwarelabs.com/v4
+      privateKey: YOUR_DYDX_PRIVATE_KEY

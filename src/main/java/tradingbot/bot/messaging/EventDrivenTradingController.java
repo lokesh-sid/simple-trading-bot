@@ -69,7 +69,7 @@ public class EventDrivenTradingController {
         @ApiResponse(responseCode = "400", description = "Invalid signal parameters"),
         @ApiResponse(responseCode = "500", description = "Event publishing failed")
     })
-    public ResponseEntity<Map<String, Object>> publishTradeSignal(
+        public ResponseEntity<Map<String, Object>> publishTradeSignal(
             @Parameter(description = "Bot ID", required = true, example = "futures-bot-1")
             @RequestParam String botId,
             @Parameter(description = "Trading symbol", required = true, example = "BTCUSDT") 
@@ -77,28 +77,34 @@ public class EventDrivenTradingController {
             @Parameter(description = "Signal direction", required = true, example = "LONG")
             @RequestParam TradeDirection direction,
             @Parameter(description = "Signal strength (0.0-1.0)", example = "0.75")
-            @RequestParam(defaultValue = "0.5") double strength) {
+            @RequestParam(defaultValue = "0.5") double strength,
+            @Parameter(description = "Stop-loss price (optional)", example = "42000.0")
+            @RequestParam(required = false) Double stopLoss,
+            @Parameter(description = "Take-profit price (optional)", example = "45000.0")
+            @RequestParam(required = false) Double takeProfit) {
         
         try {
-            // Create trade signal event
+            // Create trade signal event with SL/TP
             TradeSignalEvent signalEvent = new TradeSignalEvent(botId, symbol, direction);
             signalEvent.setStrength(strength);
+            signalEvent.setStopLoss(stopLoss);
+            signalEvent.setTakeProfit(takeProfit);
             signalEvent.setMetadata(Map.of(
                 "source", "manual",
                 "confidence", "MEDIUM",
                 "strategy", "demo_signal"
             ));
-            
+
             // Publish the event asynchronously
             eventPublisher.publishTradeSignal(signalEvent)
                 .exceptionally(ex -> {
                     log.error("Failed to publish trade signal: {}", signalEvent.getEventId(), ex);
                     return null;
                 });
-            
+
             // Process the signal (in production this would be handled by Kafka consumers)
             tradeExecutionService.handleTradeSignal(signalEvent);
-            
+
             // Return immediately with event ID (async processing continues in background)
             Map<String, Object> tradeSignalResponse = Map.of(
                 EVENT_ID, signalEvent.getEventId(),
@@ -106,9 +112,9 @@ public class EventDrivenTradingController {
                 MESSAGE, "Trade signal event published and processing started",
                 TIMESTAMP, signalEvent.getOccurredAt()
             );
-            
+
             return ResponseEntity.accepted().body(tradeSignalResponse);
-            
+
         } catch (Exception ex) {
             log.error("Failed to publish trade signal", ex);
             return ResponseEntity.internalServerError().body(Map.of(
