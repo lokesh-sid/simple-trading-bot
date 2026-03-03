@@ -17,10 +17,17 @@ import tradingbot.bot.model.MarketData;
 import tradingbot.domain.market.MarketEvent;
 
 /**
- * Legacy LLM strategy (original implementation)
- * 
- * Uses direct LLM calls without RAG or tool use
+ * Legacy LLM strategy (original implementation).
+ *
+ * <p>Uses direct LLM calls without RAG or tool use. The polling fallback
+ * ({@code getMarketData}) still returns hardcoded stub data and will never
+ * be fixed — use {@link LangChain4jStrategy} instead, which fetches live
+ * market data through autonomous tool calls and includes a full RAG pipeline.
+ *
+ * @deprecated Use {@link LangChain4jStrategy}. This class will be removed
+ *             in a future release. Configure via {@code agent.strategy=langchain4j}.
  */
+@Deprecated(since = "LangChain4j migration", forRemoval = true)
 @Component
 public class SimpleLLMStrategy implements AgentStrategy {
     

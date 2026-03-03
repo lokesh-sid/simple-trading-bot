@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
-import tradingbot.agent.AgenticTradingAgent;
+import tradingbot.agent.ReactiveTradingAgent;
 import tradingbot.agent.TradingAgentFactory;
 import tradingbot.agent.domain.risk.RiskContext;
 import tradingbot.agent.domain.risk.RiskGuard;
@@ -67,7 +67,7 @@ public class LLMTradingAgentFactory implements TradingAgentFactory {
      * called inside this method so callers can dispatch events immediately.
      */
     @Override
-    public AgenticTradingAgent create(TradingConfig config) {
+    public ReactiveTradingAgent create(TradingConfig config) {
         String agentId = "llm-" + config.getSymbol().toLowerCase() + "-01";
         String exchange = "BINANCE"; // default; Phase 3 will derive from TradingConfig
 

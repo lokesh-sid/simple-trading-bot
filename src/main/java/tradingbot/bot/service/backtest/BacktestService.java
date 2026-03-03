@@ -6,7 +6,7 @@ import java.util.logging.Logger;
 
 import org.springframework.stereotype.Service;
 
-import tradingbot.agent.AgenticTradingAgent;
+import tradingbot.agent.ReactiveTradingAgent;
 import tradingbot.agent.TradingAgentFactory;
 import tradingbot.bot.controller.exception.BotOperationException;
 import tradingbot.bot.service.BinanceFuturesService.Candle;
@@ -107,7 +107,7 @@ public class BacktestService {
                 new BacktestExchangeService(latencyMs, slippagePercent, feeRate);
 
         // 2. Create + start agent via factory (DIP — no FuturesTradingBot instantiation here)
-        AgenticTradingAgent agent = agentFactory.create(config);
+        ReactiveTradingAgent agent = agentFactory.create(config);
         LOGGER.info("Agent created: " + agent.getId() + " via " + agentFactory.describe());
 
         try {

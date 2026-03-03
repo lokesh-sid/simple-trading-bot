@@ -11,6 +11,7 @@ import java.util.stream.StreamSupport;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -25,7 +26,7 @@ import jakarta.annotation.PreDestroy;
 import reactor.core.Disposable;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
-import tradingbot.agent.AgenticTradingAgent;
+import tradingbot.agent.ReactiveTradingAgent;
 import tradingbot.agent.application.strategy.AgentStrategy;
 import tradingbot.agent.application.strategy.LangChain4jStrategy;
 import tradingbot.agent.application.strategy.RAGEnhancedStrategy;
@@ -43,23 +44,42 @@ import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
 
 /**
  * AgentOrchestrator - Coordinates the agent's sense-think-act loop
- * 
+ *
  * REFACTORED: Strategy Pattern + Reactive WebSocket Integration
- * 
- * Delegates to strategy implementations:
- * - LangChain4jStrategy: Agentic framework with tool use (default)
- * - RAGEnhancedStrategy: RAG + manual LLM
- * - LegacyLLMStrategy: Original implementation
- * 
- * Configure via: agent.strategy={langchain4j|rag|legacy}
+ *
+ * Delegates to:
+ * - LangChain4jStrategy: Agentic framework with tool use (default and recommended)
+ *
+ * Configure via: {@code agent.strategy=langchain4j}
+ *
+ * <p>The {@code rag} and {@code legacy} strategy names are deprecated. They are still
+ * accepted at runtime through the deprecated constructor to avoid hard failures, but
+ * will be removed in a future release.
  */
 @Service
 public class AgentOrchestrator {
     
     private static final Logger logger = LoggerFactory.getLogger(AgentOrchestrator.class);
-    
-    // Throttling configuration
-    private static final long AGENT_THROTTLE_MS = 5000; // Minimum 5s between runs per agent
+
+    // -------------------------------------------------------------------------
+    // Throttling configuration (externalisable — see application.properties)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Default minimum interval between consecutive runs for any agent.
+     * Override via {@code agent.throttle.default-ms} (default: 5 000 ms).
+     */
+    @Value("${agent.throttle.default-ms:5000}")
+    private long defaultThrottleMs;
+
+    /**
+     * Per-symbol throttle overrides.
+     * Configured as a SpEL map literal, e.g.:
+     * {@code agent.throttle.per-symbol={BTCUSDT:1000, ETHUSDT:3000}}
+     * Symbols not listed fall back to {@code defaultThrottleMs}.
+     */
+    @Value("#{${agent.throttle.per-symbol:{}}}")
+    private Map<String, Long> perSymbolThrottleMs;
     
     private final AgentRepository agentRepository;
     private final AgentStrategy activeStrategy;
@@ -79,14 +99,14 @@ public class AgentOrchestrator {
     // Throttling state: AgentId -> Last Execution Time
     private final Map<AgentId, Instant> lastExecutionTime = new ConcurrentHashMap<>();
 
-    // --- Phase 1.5 / Pre-Phase 2: AgenticTradingAgent event-driven path -------------
+    // --- Phase 1.5 / Pre-Phase 2: ReactiveTradingAgent event-driven path -------------
 
     /**
-     * Reactive agents implementing {@link AgenticTradingAgent}.
+     * Reactive agents implementing {@link ReactiveTradingAgent}.
      * Populated by Spring when concrete implementations are registered as beans.
      * Empty until Phase 2 agent implementations are added.
      */
-    private final List<AgenticTradingAgent> agenticAgents;
+    private final List<ReactiveTradingAgent> agenticAgents;
 
     /**
      * Per-agent bulkhead registry — isolates one misbehaving agent from others.
@@ -101,13 +121,20 @@ public class AgentOrchestrator {
      */
     private final OrderExecutionGateway executionGateway;
 
+    /**
+     * Primary constructor — Spring uses this for dependency injection.
+     *
+     * <p>Only {@link LangChain4jStrategy} is accepted. If {@code agent.strategy}
+     * is set to the deprecated values {@code rag} or {@code legacy} a warning is
+     * emitted and {@code LangChain4jStrategy} is used as fallback, because the
+     * deprecated beans are no longer injected here.
+     */
+    @Autowired
     public AgentOrchestrator(
             AgentRepository agentRepository,
             LangChain4jStrategy langChain4jStrategy,
-            RAGEnhancedStrategy ragEnhancedStrategy,
-            SimpleLLMStrategy legacyLLMStrategy,
             ExchangeWebSocketClient webSocketClient,
-            List<AgenticTradingAgent> agenticAgents,
+            List<ReactiveTradingAgent> agenticAgents,
             BulkheadRegistry bulkheadRegistry,
             @org.springframework.lang.Nullable OrderExecutionGateway executionGateway,
             @Value("${agent.strategy:langchain4j}") String strategyName) {
@@ -117,22 +144,72 @@ public class AgentOrchestrator {
         this.agenticAgents = agenticAgents;
         this.bulkheadRegistry = bulkheadRegistry;
         this.executionGateway = executionGateway;
-        // Create a bounded elastic scheduler for offloading blocking agent logic
         this.agentScheduler = Schedulers.boundedElastic();
-        
-        // Select strategy based on configuration
+
+        String normalized = strategyName.toLowerCase();
+        if ("rag".equals(normalized) || "legacy".equals(normalized)) {
+            logger.warn("Strategy '{}' is deprecated and its bean is no longer injected into this constructor. "
+                    + "Falling back to LangChain4j. Migrate to agent.strategy=langchain4j.", strategyName);
+        } else if (!"langchain4j".equals(normalized) && !"agentic".equals(normalized)) {
+            logger.warn("Unknown strategy '{}', defaulting to LangChain4j.", strategyName);
+        }
+        this.activeStrategy = langChain4jStrategy;
+
+        logger.info("╔════════════════════════════════════════════════════════════════╗");
+        logger.info("║ AgentOrchestrator initialized with: {}                        ",
+                   String.format("%-30s", activeStrategy.getStrategyName()));
+        logger.info("╚════════════════════════════════════════════════════════════════╝");
+    }
+
+    /**
+     * Deprecated constructor retained for callers that explicitly pass
+     * {@link RAGEnhancedStrategy} or {@link SimpleLLMStrategy} beans
+     * (e.g. legacy integration tests).
+     *
+     * @deprecated Inject only {@link LangChain4jStrategy} and use the primary
+     *             constructor. This overload will be removed when the deprecated
+     *             strategy classes are deleted.
+     */
+    @Deprecated(since = "LangChain4j migration", forRemoval = true)
+    @SuppressWarnings("deprecation")
+    public AgentOrchestrator(
+            AgentRepository agentRepository,
+            LangChain4jStrategy langChain4jStrategy,
+            RAGEnhancedStrategy ragEnhancedStrategy,
+            SimpleLLMStrategy legacyLLMStrategy,
+            ExchangeWebSocketClient webSocketClient,
+            List<ReactiveTradingAgent> agenticAgents,
+            BulkheadRegistry bulkheadRegistry,
+            @org.springframework.lang.Nullable OrderExecutionGateway executionGateway,
+            @Value("${agent.strategy:langchain4j}") String strategyName) {
+
+        this.agentRepository = agentRepository;
+        this.webSocketClient = webSocketClient;
+        this.agenticAgents = agenticAgents;
+        this.bulkheadRegistry = bulkheadRegistry;
+        this.executionGateway = executionGateway;
+        this.agentScheduler = Schedulers.boundedElastic();
+
         this.activeStrategy = switch (strategyName.toLowerCase()) {
             case "langchain4j", "agentic" -> langChain4jStrategy;
-            case "rag" -> ragEnhancedStrategy;
-            case "legacy" -> legacyLLMStrategy;
+            case "rag" -> {
+                logger.warn("Strategy 'rag' (RAGEnhancedStrategy) is deprecated and will be removed. "
+                        + "Migrate to agent.strategy=langchain4j which includes a superior RAG pipeline.");
+                yield ragEnhancedStrategy;
+            }
+            case "legacy" -> {
+                logger.warn("Strategy 'legacy' (SimpleLLMStrategy) is deprecated and will be removed. "
+                        + "Migrate to agent.strategy=langchain4j.");
+                yield legacyLLMStrategy;
+            }
             default -> {
                 logger.warn("Unknown strategy: {}, defaulting to LangChain4j", strategyName);
                 yield langChain4jStrategy;
             }
         };
-        
+
         logger.info("╔════════════════════════════════════════════════════════════════╗");
-        logger.info("║ AgentOrchestrator initialized with: {}                        ", 
+        logger.info("║ AgentOrchestrator initialized with: {}                        ",
                    String.format("%-30s", activeStrategy.getStrategyName()));
         logger.info("╚════════════════════════════════════════════════════════════════╝");
     }
@@ -208,7 +285,7 @@ public class AgentOrchestrator {
             // Check throttle
             Instant lastRun = lastExecutionTime.getOrDefault(agentId, Instant.MIN);
             
-            if (now.toEpochMilli() - lastRun.toEpochMilli() > AGENT_THROTTLE_MS) {
+            if (now.toEpochMilli() - lastRun.toEpochMilli() > getThrottleMs(symbol)) {
                 // Update time immediately to prevent double scheduling
                 lastExecutionTime.put(agentId, now);
                 
@@ -250,9 +327,9 @@ public class AgentOrchestrator {
             // Save updated state
             agentRepository.save(agent);
         }, () -> {
-            logger.warn("Agent {} not found during execution, removing from cache", agentId);
-            // Remove from cache if not found
-             symbolToAgentMap.values().forEach(set -> set.remove(agentId));
+            logger.warn("Agent {} not found during execution, evicting from caches", agentId);
+            // Remove stale agent from all in-memory caches so it stops receiving events.
+            evictAgent(agentId);
         });
     }
 
@@ -325,8 +402,8 @@ public class AgentOrchestrator {
             containerFactory = "kafkaListenerContainerFactory")
     public void onKlineClosedEvent(KlineClosedEvent event) {
         if (agenticAgents.isEmpty()) {
-            // No AgenticTradingAgent beans registered yet (normal during Phase 1).
-            logger.trace("[KlineListener] No AgenticTradingAgent beans — skipping dispatch for {}/{}",
+            // No ReactiveTradingAgent beans registered yet (normal during Phase 1).
+            logger.trace("[KlineListener] No ReactiveTradingAgent beans — skipping dispatch for {}/{}",
                     event.exchange(), event.symbol());
             return;
         }
@@ -344,7 +421,7 @@ public class AgentOrchestrator {
      * <p>A bulkhead is created lazily with conservative defaults
      * (10 concurrent calls, 500 ms max wait) if one does not yet exist.
      */
-    private void dispatchWithBulkhead(AgenticTradingAgent agent, KlineClosedEvent event) {
+    private void dispatchWithBulkhead(ReactiveTradingAgent agent, KlineClosedEvent event) {
         String bulkheadName = "agent-" + agent.getId();
         Bulkhead bulkhead = bulkheadRegistry.bulkhead(
                 bulkheadName,
@@ -408,6 +485,36 @@ public class AgentOrchestrator {
         }
     }
     
+    /**
+     * Returns the throttle interval for a given symbol, falling back to the
+     * default if no per-symbol override is configured.
+     */
+    private long getThrottleMs(String symbol) {
+        return perSymbolThrottleMs.getOrDefault(symbol, defaultThrottleMs);
+    }
+
+    // -------------------------------------------------------------------------
+    // Cache management
+    // -------------------------------------------------------------------------
+
+    /**
+     * Evicts a stopped or deleted agent from all in-memory caches.
+     *
+     * <p>Must be called by any service layer method that stops, pauses, or deletes
+     * an agent so that stale entries in {@link #symbolToAgentMap} and
+     * {@link #lastExecutionTime} do not cause the orchestrator to dispatch
+     * market events to a non-running agent.</p>
+     *
+     * @param agentId the agent to evict
+     */
+    public void evictAgent(AgentId agentId) {
+        symbolToAgentMap.forEach((symbol, agentIds) -> agentIds.remove(agentId));
+        symbolToAgentMap.entrySet().removeIf(e -> e.getValue().isEmpty());
+        lastExecutionTime.remove(agentId);
+        logger.info("[Orchestrator] Evicted agent {} from symbolToAgentMap and lastExecutionTime caches",
+                agentId);
+    }
+
     // Repository query methods
     public Agent getAgent(AgentId agentId) {
         return agentRepository.findById(agentId)

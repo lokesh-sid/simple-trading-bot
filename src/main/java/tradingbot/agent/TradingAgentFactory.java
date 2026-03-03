@@ -3,7 +3,7 @@ package tradingbot.agent;
 import tradingbot.config.TradingConfig;
 
 /**
- * TradingAgentFactory — DIP port for creating {@link AgenticTradingAgent} instances.
+ * TradingAgentFactory — DIP port for creating {@link ReactiveTradingAgent} instances.
  *
  * <p>Introducing this interface breaks the direct instantiation of
  * {@code FuturesTradingBot} inside {@code BacktestService} (the most prominent
@@ -29,7 +29,7 @@ import tradingbot.config.TradingConfig;
 public interface TradingAgentFactory {
 
     /**
-     * Creates a new, fully initialised {@link AgenticTradingAgent} for the
+     * Creates a new, fully initialised {@link ReactiveTradingAgent} for the
      * symbol / exchange combination described by {@code config}.
      *
      * <p>The returned agent is in the {@code CREATED} state.  Callers are
@@ -37,10 +37,10 @@ public interface TradingAgentFactory {
      *
      * @param config non-null trading configuration carrying symbol, exchange,
      *               interval, initial capital, and strategy parameters
-     * @return a fresh {@link AgenticTradingAgent} ready to process
+     * @return a fresh {@link ReactiveTradingAgent} ready to process
      *         {@link tradingbot.domain.market.KlineClosedEvent}s
      */
-    AgenticTradingAgent create(TradingConfig config);
+    ReactiveTradingAgent create(TradingConfig config);
 
     /**
      * Human-readable description of this factory — used in logs.

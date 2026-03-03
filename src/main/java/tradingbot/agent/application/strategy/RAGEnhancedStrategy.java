@@ -17,11 +17,20 @@ import tradingbot.bot.model.MarketData;
 import tradingbot.domain.market.MarketEvent;
 
 /**
- * RAG-enhanced LLM strategy
- * 
- * Uses RAG service to retrieve similar historical trades
- * and enhance LLM reasoning with context
+ * RAG-enhanced LLM strategy.
+ *
+ * <p>Retrieves similar historical trades via the RAG service and augments LLM
+ * reasoning with that context. Superseded by {@link LangChain4jStrategy}, which
+ * provides the same RAG retrieval with additional capabilities: configurable
+ * context limits ({@code rag.strategy.context-limit}), cross-symbol memory
+ * retrieval, write-back of new experiences, and autonomous tool-based market
+ * data access. The polling fallback ({@code getMarketData}) in this class
+ * still returns hardcoded stub data and will never be fixed.
+ *
+ * @deprecated Use {@link LangChain4jStrategy}. This class will be removed
+ *             in a future release. Configure via {@code agent.strategy=langchain4j}.
  */
+@Deprecated(since = "LangChain4j migration", forRemoval = true)
 @Component
 public class RAGEnhancedStrategy implements AgentStrategy {
     

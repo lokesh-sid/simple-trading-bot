@@ -6,7 +6,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,8 +18,10 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.util.backoff.FixedBackOff;
 
 /**
  * Kafka configuration for the trading bot event publishing system.
@@ -26,6 +31,8 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
  */
 @Configuration
 public class KafkaConfig {
+
+    private static final Logger logger = LoggerFactory.getLogger(KafkaConfig.class);
 
     @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
     private String bootstrapServers;
@@ -122,8 +129,10 @@ public class KafkaConfig {
         configProps.put(org.springframework.kafka.support.serializer.JsonDeserializer.VALUE_DEFAULT_TYPE, "java.util.Map");
         
         // Consumer configuration
-        configProps.put(ENABLE_AUTO_COMMIT_CONFIG, true);
-        configProps.put(AUTO_COMMIT_INTERVAL_MS_CONFIG, 1000);
+        // IMPORTANT: manual ack mode is set on the container factory below;
+        // disabling auto-commit here prevents offset advancement before the
+        // listener has finished processing (eliminates silent data loss on crash).
+        configProps.put(ENABLE_AUTO_COMMIT_CONFIG, false);
         configProps.put(SESSION_TIMEOUT_MS_CONFIG, 30000);
         configProps.put(MAX_POLL_RECORDS_CONFIG, 500);
         
@@ -142,18 +151,46 @@ public class KafkaConfig {
             new ConcurrentKafkaListenerContainerFactory<>();
         
         factory.setConsumerFactory(consumerFactory());
-        
+
         // Configure concurrency (number of consumer threads per topic)
         factory.setConcurrency(3);
-        
-        // Configure error handling with Dead Letter Queue (DLQ)
-        // Retry 3 times with 1 second backoff, then send to DLT
-        DefaultErrorHandler errorHandler = new DefaultErrorHandler(
-                new org.springframework.kafka.listener.DeadLetterPublishingRecoverer(kafkaTemplate),
-                new org.springframework.util.backoff.FixedBackOff(1000L, 3));
-        
+
+        // Manual acknowledgement — offset only advances after successful processing.
+        // Combined with ENABLE_AUTO_COMMIT_CONFIG=false this prevents data loss on crash.
+        factory.getContainerProperties().setAckMode(
+                org.springframework.kafka.listener.ContainerProperties.AckMode.RECORD);
+
+        // Dead Letter Topic recoverer.
+        // Default routing: {topic}.DLT on the same partition so ordering is preserved.
+        // e.g. kline-closed.BTCUSDT  →  kline-closed.BTCUSDT.DLT
+        // Override routing to add .DLT suffix explicitly (matches default, but is explicit).
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
+                kafkaTemplate,
+                (record, ex) -> {
+                    logger.error(
+                            "[DLQ] Routing failed record to DLT. topic={} partition={} offset={} " +
+                            "key={} cause={}: {}",
+                            record.topic(), record.partition(), record.offset(),
+                            record.key(),
+                            ex.getClass().getSimpleName(), ex.getMessage());
+                    return new TopicPartition(record.topic() + ".DLT", record.partition());
+                });
+
+        // Retry 3 times with 1-second fixed backoff before routing to DLT.
+        // Non-retryable exceptions (e.g. deserialization failures, illegal state)
+        // bypass retries and are sent directly to the DLT.
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3));
+
+        // Exceptions that should NOT be retried — send straight to DLT.
+        errorHandler.addNotRetryableExceptions(
+                org.apache.kafka.common.errors.SerializationException.class,
+                org.springframework.kafka.support.serializer.DeserializationException.class,
+                IllegalArgumentException.class,
+                IllegalStateException.class,
+                NullPointerException.class);
+
         factory.setCommonErrorHandler(errorHandler);
-        
+
         return factory;
     }
 }

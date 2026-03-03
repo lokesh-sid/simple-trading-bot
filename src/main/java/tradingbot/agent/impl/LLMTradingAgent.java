@@ -20,7 +20,7 @@ import org.ta4j.core.indicators.helpers.ClosePriceIndicator;
 
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
-import tradingbot.agent.AgenticTradingAgent;
+import tradingbot.agent.ReactiveTradingAgent;
 import tradingbot.agent.domain.model.AgentDecision;
 import tradingbot.agent.domain.model.AgentDecision.Action;
 import tradingbot.agent.domain.model.AgentGoal;
@@ -34,7 +34,7 @@ import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.domain.market.KlineClosedEvent;
 
 /**
- * LLMTradingAgent — first concrete {@link AgenticTradingAgent}.
+ * LLMTradingAgent — first concrete {@link ReactiveTradingAgent}.
  *
  * <p>Combines <b>ta4j</b> technical analysis (MACD + RSI) with an
  * {@link LLMProvider} reasoning call to produce an {@link AgentDecision}
@@ -55,13 +55,13 @@ import tradingbot.domain.market.KlineClosedEvent;
  * <ul>
  *   <li><b>DIP</b>: depends on {@link LLMProvider} not {@code GrokClient} or
  *       {@code CachedGrokService} directly.</li>
- *   <li><b>ISP</b>: implements {@link AgenticTradingAgent} — does <em>not</em>
+ *   <li><b>ISP</b>: implements {@link ReactiveTradingAgent} — does <em>not</em>
  *       touch {@code FuturesTradingBot} or {@code IndicatorCalculator}.</li>
  *   <li><b>SRP</b>: this class is responsible only for signal generation; order
  *       routing is handled by the caller ({@code BacktestAgentExecutionService}).</li>
  * </ul>
  */
-public class LLMTradingAgent implements AgenticTradingAgent {
+public class LLMTradingAgent implements ReactiveTradingAgent {
 
     private static final Logger log = LoggerFactory.getLogger(LLMTradingAgent.class);
 
@@ -165,7 +165,7 @@ public class LLMTradingAgent implements AgenticTradingAgent {
         status.compareAndSet(AgentStatus.PAUSED, AgentStatus.ACTIVE);
     }
 
-    // ── AgenticTradingAgent ────────────────────────────────────────────────────
+    // ── ReactiveTradingAgent ─────────────────────────────────────────────────────
 
     @Override
     public String getSymbol()   { return symbol; }

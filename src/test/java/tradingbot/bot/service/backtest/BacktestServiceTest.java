@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import tradingbot.agent.AgenticTradingAgent;
+import tradingbot.agent.ReactiveTradingAgent;
 import tradingbot.agent.TradingAgentFactory;
 import tradingbot.bot.service.BinanceFuturesService.Candle;
 import tradingbot.bot.service.backtest.BacktestAgentExecutionService.ExecutionResult;
@@ -28,7 +28,7 @@ class BacktestServiceTest {
     @Mock private BacktestAgentExecutionService executionService;
     @Mock private BacktestMetricsCalculator metricsCalculator;
     @Mock private BacktestRunRegistry runRegistry;
-    @Mock private AgenticTradingAgent mockAgent;
+    @Mock private ReactiveTradingAgent mockAgent;
 
     private BacktestService backtestService;
 

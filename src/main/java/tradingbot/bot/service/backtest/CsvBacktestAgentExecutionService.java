@@ -9,7 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import tradingbot.agent.AgenticTradingAgent;
+import tradingbot.agent.ReactiveTradingAgent;
 import tradingbot.agent.domain.model.AgentDecision;
 import tradingbot.agent.impl.execution.BacktestOrderGateway;
 import tradingbot.bot.service.BinanceFuturesService.Candle;
@@ -17,7 +17,7 @@ import tradingbot.config.TradingConfig;
 import tradingbot.domain.market.KlineClosedEvent;
 
 /**
- * CsvBacktestAgentExecutionService — drives an {@link AgenticTradingAgent}
+ * CsvBacktestAgentExecutionService — drives an {@link ReactiveTradingAgent}
  * through a list of historical {@link Candle}s and records simulated fills.
  *
  * <h3>Replay loop</h3>
@@ -49,7 +49,7 @@ public class CsvBacktestAgentExecutionService implements BacktestAgentExecutionS
             LoggerFactory.getLogger(CsvBacktestAgentExecutionService.class);
 
     @Override
-    public ExecutionResult execute(AgenticTradingAgent agent,
+    public ExecutionResult execute(ReactiveTradingAgent agent,
                                    List<Candle> history,
                                    TradingConfig config,
                                    BacktestExchangeService exchange) {

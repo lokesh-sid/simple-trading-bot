@@ -1,6 +1,7 @@
 package tradingbot.agent.service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Component;
 import dev.langchain4j.agent.tool.Tool;
 import tradingbot.agent.domain.model.Order;
 import tradingbot.agent.domain.model.TradeDirection;
+import tradingbot.agent.domain.model.TradeOutcome;
+import tradingbot.agent.infrastructure.persistence.PositionEntity;
 import tradingbot.bot.service.FuturesExchangeService;
 
 /**
@@ -31,6 +34,8 @@ public class TradingTools {
     
     private final FuturesExchangeService exchangeService;
     private final OrderPlacementService orderPlacementService;
+    private final PositionMonitoringService positionMonitoringService;
+    private final RAGService ragService;
     
     @Value("${rag.order.dry-run:true}")
     private boolean dryRun;
@@ -40,9 +45,13 @@ public class TradingTools {
     
     public TradingTools(
             FuturesExchangeService exchangeService,
-            OrderPlacementService orderPlacementService) {
+            OrderPlacementService orderPlacementService,
+            PositionMonitoringService positionMonitoringService,
+            RAGService ragService) {
         this.exchangeService = exchangeService;
         this.orderPlacementService = orderPlacementService;
+        this.positionMonitoringService = positionMonitoringService;
+        this.ragService = ragService;
     }
     
     /**
@@ -354,6 +363,96 @@ public class TradingTools {
             logger.warn("Could not check trading conditions: {}", e.getMessage());
             // Default to true for crypto (24/7 markets)
             return true;
+        }
+    }
+
+    // ── Risk, Position, and Learning Tools ────────────────────────────────────
+
+    /**
+     * Evaluate risk for a proposed new trade entry.
+     * Checks that the position size does not exceed the configured maximum percentage
+     * of the available account balance.
+     */
+    @Tool("Evaluate risk for a proposed trade. Returns APPROVE or BLOCK with reason. positionSizeUsdt is the USDT value of the trade.")
+    public String evaluateRisk(String symbol, double positionSizeUsdt) {
+        logger.info("Tool called: evaluateRisk - {} positionSizeUsdt={}", symbol, positionSizeUsdt);
+        try {
+            if (positionSizeUsdt <= 0) {
+                return "BLOCK: Position size must be positive.";
+            }
+            double balance = exchangeService.getMarginBalance();
+            if (balance <= 0) {
+                return "BLOCK: Unable to retrieve account balance — cannot evaluate risk.";
+            }
+            double maxAllowed = balance * (maxPositionSizePercent / 100.0);
+            if (positionSizeUsdt > maxAllowed) {
+                return String.format(
+                    "BLOCK: Position size $%.2f exceeds max allowed $%.2f (%.0f%% of $%.2f balance). Reduce to $%.2f or less.",
+                    positionSizeUsdt, maxAllowed, maxPositionSizePercent, balance, maxAllowed);
+            }
+            return String.format(
+                "APPROVE: Position size $%.2f is within risk limits (%.0f%% of $%.2f balance). Max allowed: $%.2f.",
+                positionSizeUsdt, maxPositionSizePercent, balance, maxAllowed);
+        } catch (Exception e) {
+            logger.error("Error evaluating risk for {}: {}", symbol, e.getMessage());
+            return "BLOCK: Risk evaluation failed — " + e.getMessage();
+        }
+    }
+
+    /**
+     * Return all currently open positions for the given agent as a formatted string.
+     */
+    @Tool("Get all currently open positions for an agent. Returns symbol, side, entry price, quantity, and unrealised P&L.")
+    public String getOpenPositions(String agentId) {
+        logger.info("Tool called: getOpenPositions agentId={}", agentId);
+        try {
+            List<PositionEntity> positions = positionMonitoringService.getOpenPositions(agentId);
+            if (positions.isEmpty()) {
+                return "No open positions for agent " + agentId + ".";
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("Open positions for agent ").append(agentId).append(":\n");
+            for (PositionEntity p : positions) {
+                sb.append(String.format("  - %s %s | entry=%.4f | qty=%.6f | unrealisedPnL=$%.2f%n",
+                    p.getDirection(), p.getSymbol(),
+                    p.getEntryPrice(), p.getQuantity(),
+                    p.getLastUnrealizedPnl()));
+            }
+            return sb.toString().trim();
+        } catch (Exception e) {
+            logger.error("Error fetching open positions for {}: {}", agentId, e.getMessage());
+            return "ERROR: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Record the final outcome of a completed trade in the RAG memory store.
+     * outcome must be one of: WIN (or PROFIT), LOSS, BREAKEVEN.
+     */
+    @Tool("Record the final outcome of a completed trade for future learning. outcome must be WIN, LOSS, or BREAKEVEN.")
+    public void recordTradeOutcome(String symbol, String outcome, double profitPercent, String lessonLearned) {
+        logger.info("Tool called: recordTradeOutcome - {} outcome={} profit={}%", symbol, outcome, profitPercent);
+        try {
+            // Normalise caller-friendly 'WIN' to the enum value 'PROFIT'
+            String normalised = "WIN".equalsIgnoreCase(outcome) ? "PROFIT" : outcome.toUpperCase();
+            TradeOutcome tradeOutcome = TradeOutcome.valueOf(normalised);
+            ragService.storeTradeMemory(
+                "tool_direct",                            // agentId — direct LLM invocation
+                symbol,
+                "LLM tool call: " + normalised + " on " + symbol,
+                TradeDirection.LONG,                      // direction unknown at this call site
+                0.0,                                      // entryPrice — not available here
+                null,                                     // exitPrice  — not available here
+                tradeOutcome,
+                profitPercent,
+                lessonLearned,
+                null                                      // networkFee
+            );
+            logger.info("Trade outcome recorded for {}: {} ({:+.2f}%)", symbol, normalised, profitPercent);
+        } catch (IllegalArgumentException e) {
+            logger.error("Invalid outcome value '{}' — must be WIN, LOSS, or BREAKEVEN", outcome);
+        } catch (Exception e) {
+            logger.error("Error recording trade outcome for {}: {}", symbol, e.getMessage());
         }
     }
 }

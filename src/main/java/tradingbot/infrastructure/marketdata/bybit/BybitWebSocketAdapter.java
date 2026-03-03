@@ -2,6 +2,7 @@ package tradingbot.infrastructure.marketdata.bybit;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import com.bybit.api.client.service.BybitApiClientFactory;
 import com.bybit.api.client.websocket.httpclient.WebsocketStreamClient;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -27,96 +29,118 @@ import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
 /**
  * Reactive WebSocket client for Bybit V5 (Linear) using official SDK wrapper.
  * Uses Sinks.many().replay().limit(1000) for hot observable sharing.
+ *
+ * <p>Message parsing uses Jackson data-binding ({@link BybitEnvelope},
+ * {@link BybitTrade}, {@link BybitOrderBook}) to eliminate manual JsonNode
+ * traversal. Control frames (op=subscribe/pong/auth) are logged and discarded.
  */
 @Service
 public class BybitWebSocketAdapter implements ExchangeWebSocketClient {
 
     private static final Logger log = LoggerFactory.getLogger(BybitWebSocketAdapter.class);
-    
-    private final Map<String, Sinks.Many<StreamMarketDataEvent>> tradeStreams = new ConcurrentHashMap<>();
+
+    private final Map<String, Sinks.Many<StreamMarketDataEvent>> tradeStreams  = new ConcurrentHashMap<>();
     private final Map<String, Sinks.Many<StreamMarketDataEvent>> tickerStreams = new ConcurrentHashMap<>();
-    
+
     private WebsocketStreamClient wsClient;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Value("${exchange.bybit.use-testnet:false}")
-    private boolean useTestnet;
+    /** Spring-managed ObjectMapper — includes JavaTimeModule and custom modules. */
+    private final ObjectMapper objectMapper;
+    private final boolean useTestnet;
 
-    public BybitWebSocketAdapter() {
+    public BybitWebSocketAdapter(
+            ObjectMapper objectMapper,
+            @Value("${exchange.bybit.use-testnet:false}") boolean useTestnet) {
+        this.objectMapper = objectMapper;
+        this.useTestnet   = useTestnet;
     }
 
     @PostConstruct
     public void init() {
         log.info("Initializing Bybit WebSocket Client [testnet={}]", useTestnet);
-        if (useTestnet) {
-            // Base URL is set by the factory flag usually
-            this.wsClient = BybitApiClientFactory.newInstance("BybitLinear", true).newWebsocketClient();
-        } else {
-             this.wsClient = BybitApiClientFactory.newInstance("BybitLinear", false).newWebsocketClient();
-        }
-        
+        this.wsClient = BybitApiClientFactory
+                .newInstance("BybitLinear", useTestnet)
+                .newWebsocketClient();
         this.wsClient.setMessageHandler(this::handleMessage);
     }
 
+    // -------------------------------------------------------------------------
+    // Message handling
+    // -------------------------------------------------------------------------
+
     private void handleMessage(String message) {
         try {
-            JsonNode root = objectMapper.readTree(message);
-            if (!root.has("topic") || !root.has("data")) {
+            BybitEnvelope envelope = objectMapper.readValue(message, BybitEnvelope.class);
+
+            // Control frames (subscribe confirm, pong, auth) — no topic field
+            if (envelope.topic() == null) {
+                if (envelope.op() != null) {
+                    log.debug("Bybit control frame [op={}] success={}", envelope.op(), envelope.success());
+                    if (Boolean.FALSE.equals(envelope.success())) {
+                        log.warn("Bybit subscription/auth failed: {}", message);
+                    }
+                }
                 return;
             }
 
-            String topic = root.get("topic").asText();
-            JsonNode data = root.get("data");
-            long ts = root.has("ts") ? root.get("ts").asLong() : System.currentTimeMillis();
-            
-            if (topic.startsWith("publicTrade.")) {
-                String symbol = topic.split("\\.")[1]; 
+            if (envelope.data() == null) return;
+
+            String[] parts = envelope.topic().split("\\.");
+            if (parts.length < 2) {
+                log.warn("Unexpected Bybit topic format: {}", envelope.topic());
+                return;
+            }
+
+            // Symbol is always the last segment: publicTrade.BTCUSDT / orderbook.1.BTCUSDT
+            String symbol = parts[parts.length - 1];
+            long   ts     = envelope.ts() != null ? envelope.ts() : System.currentTimeMillis();
+
+            if (envelope.ts() == null) {
+                log.warn("Missing ts in Bybit message for topic {}", envelope.topic());
+            }
+
+            if (envelope.topic().startsWith("publicTrade.")) {
                 Sinks.Many<StreamMarketDataEvent> sink = tradeStreams.get(symbol);
                 if (sink != null) {
-                   parseTrades(data, symbol, ts, sink, message);
+                    BybitTrade[] trades = objectMapper.treeToValue(envelope.data(), BybitTrade[].class);
+                    parseTrades(trades, symbol, ts, sink);
                 }
-            } else if (topic.startsWith("orderbook.")) {
-                String symbol = topic.split("\\.")[2]; 
+            } else if (envelope.topic().startsWith("orderbook.")) {
                 Sinks.Many<StreamMarketDataEvent> sink = tickerStreams.get(symbol);
                 if (sink != null) {
-                    parseOrderBook(data, symbol, ts, sink, message);
+                    BybitOrderBook book = objectMapper.treeToValue(envelope.data(), BybitOrderBook.class);
+                    parseOrderBook(book, symbol, ts, sink);
                 }
             }
 
         } catch (Exception e) {
-            log.error("Error handling Bybit WS message", e);
+            log.error("Error handling Bybit WS message: {}", message, e);
         }
     }
-    
-    private void parseTrades(JsonNode data, String symbol, long ts, Sinks.Many<StreamMarketDataEvent> sink, String raw) {
-        if (data.isArray()) {
-            for (JsonNode trade : data) {
-                StreamMarketDataEvent event = new StreamMarketDataEvent(
+
+    private void parseTrades(BybitTrade[] trades, String symbol, long ts,
+                              Sinks.Many<StreamMarketDataEvent> sink) {
+        for (BybitTrade trade : trades) {
+            long eventTime = trade.time() != null ? trade.time() : ts;
+            StreamMarketDataEvent event = new StreamMarketDataEvent(
                     "BYBIT_LINEAR",
                     symbol,
                     EventType.TRADE,
-                    new BigDecimal(trade.get("p").asText()),
-                    new BigDecimal(trade.get("v").asText()),
-                    Instant.ofEpochMilli(trade.has("T") ? trade.get("T").asLong() : ts),
-                    raw
-                );
-                sink.tryEmitNext(event);
-            }
+                    trade.price(),
+                    trade.volume(),
+                    Instant.ofEpochMilli(eventTime),
+                    log.isDebugEnabled() ? trade.toString() : null   // raw only in debug
+            );
+            emitSafely(sink, symbol, event);
         }
     }
 
-    private void parseOrderBook(JsonNode data, String symbol, long ts, Sinks.Many<StreamMarketDataEvent> sink, String raw) {
-        BigDecimal bestAsk = BigDecimal.ZERO;
-        if (data.has("a") && data.get("a").isArray() && data.get("a").size() > 0) {
-            bestAsk = new BigDecimal(data.get("a").get(0).get(0).asText());
-        }
-        BigDecimal bestBid = BigDecimal.ZERO;
-        if (data.has("b") && data.get("b").isArray() && data.get("b").size() > 0) {
-            bestBid = new BigDecimal(data.get("b").get(0).get(0).asText());
-        }
+    private void parseOrderBook(BybitOrderBook book, String symbol, long ts,
+                                 Sinks.Many<StreamMarketDataEvent> sink) {
+        BigDecimal bestAsk = extractFirst(book.asks());
+        BigDecimal bestBid = extractFirst(book.bids());
 
         if (bestAsk.signum() > 0) {
-            // price = ask; both sides preserved in payload for direction-aware fills
             StreamMarketDataEvent event = new StreamMarketDataEvent(
                     "BYBIT_LINEAR",
                     symbol,
@@ -126,16 +150,48 @@ public class BybitWebSocketAdapter implements ExchangeWebSocketClient {
                     Instant.ofEpochMilli(ts),
                     new BookTickerPayload(bestBid, bestAsk)
             );
-            sink.tryEmitNext(event);
+            emitSafely(sink, symbol, event);
         }
     }
+
+    /**
+     * Emits an event and logs a warning if the sink is in a terminal/full state.
+     * Removes the sink from the map on terminal failure so the next
+     * {@link #streamTrades}/{@link #streamBookTicker} call re-subscribes cleanly.
+     */
+    private void emitSafely(Sinks.Many<StreamMarketDataEvent> sink,
+                             String symbol,
+                             StreamMarketDataEvent event) {
+        Sinks.EmitResult result = sink.tryEmitNext(event);
+        if (result.isFailure() && result != Sinks.EmitResult.FAIL_ZERO_SUBSCRIBER) {
+            log.warn("Failed to emit event for symbol {} — result={}", symbol, result);
+            if (result == Sinks.EmitResult.FAIL_TERMINATED) {
+                tradeStreams.remove(symbol);
+                tickerStreams.remove(symbol);
+            }
+        }
+    }
+
+    /** Safely extracts the first price from a Bybit asks/bids list-of-lists. */
+    private BigDecimal extractFirst(List<List<String>> levels) {
+        if (levels != null && !levels.isEmpty()) {
+            List<String> best = levels.get(0);
+            if (best != null && !best.isEmpty()) {
+                return new BigDecimal(best.get(0));
+            }
+        }
+        return BigDecimal.ZERO;
+    }
+
+    // -------------------------------------------------------------------------
+    // Public stream API
+    // -------------------------------------------------------------------------
 
     @Override
     public Flux<StreamMarketDataEvent> streamTrades(String symbol) {
         return tradeStreams.computeIfAbsent(symbol, s -> {
             Sinks.Many<StreamMarketDataEvent> sink = Sinks.many().replay().limit(1000);
-            // Pass subscription args and operation
-            wsClient.getPublicChannelStream(java.util.List.of("publicTrade." + s), "subscribe");
+            wsClient.getPublicChannelStream(List.of("publicTrade." + s), "subscribe");
             return sink;
         }).asFlux();
     }
@@ -143,16 +199,48 @@ public class BybitWebSocketAdapter implements ExchangeWebSocketClient {
     @Override
     public Flux<StreamMarketDataEvent> streamBookTicker(String symbol) {
         return tickerStreams.computeIfAbsent(symbol, s -> {
-             Sinks.Many<StreamMarketDataEvent> sink = Sinks.many().replay().limit(1000);
-             wsClient.getPublicChannelStream(java.util.List.of("orderbook.1." + s), "subscribe");
-             return sink;
+            Sinks.Many<StreamMarketDataEvent> sink = Sinks.many().replay().limit(1000);
+            wsClient.getPublicChannelStream(List.of("orderbook.1." + s), "subscribe");
+            return sink;
         }).asFlux();
     }
-    
+
     @PreDestroy
     public void cleanup() {
-        // SDK manages its own WS connection lifecycle; no explicit close needed here.
-        // If the SDK adds a close() method in future versions it should be called here.
         log.info("BybitWebSocketAdapter shutting down");
+        // SDK manages its own WS connection lifecycle.
+        // Call wsClient.close() here if the SDK adds it in a future version.
     }
+
+    // -------------------------------------------------------------------------
+    // Jackson DTOs — private, scoped to this adapter
+    // -------------------------------------------------------------------------
+
+    /** Outer envelope for every Bybit V5 WebSocket message. */
+    private record BybitEnvelope(
+            String   topic,
+            String   op,
+            Boolean  success,
+            Long     ts,
+            JsonNode data        // kept as JsonNode for topic-specific routing
+    ) {}
+
+    /**
+     * Single trade entry from a {@code publicTrade.*} message.
+     * Field names match Bybit V5 compressed keys.
+     */
+    private record BybitTrade(
+            @JsonProperty("p") BigDecimal price,
+            @JsonProperty("v") BigDecimal volume,
+            @JsonProperty("T") Long       time
+    ) {}
+
+    /**
+     * Orderbook snapshot/delta payload from an {@code orderbook.*} message.
+     * Each level is {@code [price, size]} as strings.
+     */
+    private record BybitOrderBook(
+            @JsonProperty("a") List<List<String>> asks,
+            @JsonProperty("b") List<List<String>> bids
+    ) {}
 }

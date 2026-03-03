@@ -6,7 +6,7 @@ import tradingbot.agent.domain.model.AgentStatus;
 import tradingbot.domain.market.KlineClosedEvent;
 
 /**
- * AgenticTradingAgent — the reactive, event-driven trading agent contract.
+ * ReactiveTradingAgent — the reactive, event-driven trading agent contract.
  *
  * <p>This is a <em>sub-interface</em> of {@link TradingAgent}.  By keeping the
  * contract separate we achieve the following SOLID properties:
@@ -18,7 +18,7 @@ import tradingbot.domain.market.KlineClosedEvent;
  *       loop need to depend on this richer type.</li>
  *   <li><b>OCP</b>: {@link tradingbot.bot.FuturesTradingBot} is untouched;
  *       new agent implementations simply implement this interface.</li>
- *   <li><b>LSP</b>: anything implementing {@code AgenticTradingAgent} is
+ *   <li><b>LSP</b>: anything implementing {@code ReactiveTradingAgent} is
  *       guaranteed to also be a valid {@link TradingAgent} — substitutability
  *       is enforced by the type hierarchy.</li>
  *   <li><b>DIP</b>: {@code AgentOrchestrator} depends on this abstraction, not
@@ -35,7 +35,7 @@ import tradingbot.domain.market.KlineClosedEvent;
  *   <li>{@link #getStatus()} must be thread-safe (idempotent read).</li>
  * </ul>
  */
-public interface AgenticTradingAgent extends TradingAgent {
+public interface ReactiveTradingAgent extends TradingAgent {
 
     /**
      * Returns the trading pair symbol this agent is configured for,

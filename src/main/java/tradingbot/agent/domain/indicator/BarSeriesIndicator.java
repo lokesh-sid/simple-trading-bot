@@ -10,7 +10,7 @@ import org.ta4j.core.num.Num;
  * <p>Unlike the older {@link tradingbot.bot.strategy.indicator.TechnicalIndicator}
  * (which rebuilds a {@code BarSeries} from a full {@code List<Candle>} on every
  * call), this interface works with the <em>shared, incrementally-updated</em>
- * {@link BarSeries} that a {@link tradingbot.agent.AgenticTradingAgent} maintains.
+ * {@link BarSeries} that a {@link tradingbot.agent.ReactiveTradingAgent} maintains.
  *
  * <h3>Why a new interface?</h3>
  * <ul>

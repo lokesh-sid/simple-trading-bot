@@ -44,6 +44,18 @@ public class LangChain4jConfig {
     
     @Value("${llm.max-tokens:2000}")
     private int maxTokens;
+
+    /**
+     * Maximum number of messages retained in the sliding-window chat memory per agent.
+     *
+     * <p>Default is 50. Each LangChain4j tool invocation consumes 2 messages (call + result),
+     * so a 5-tool analysis cycle needs at least 10 messages just for tooling — the remaining
+     * slots carry prior conversation context. Raise this value if agents lose context mid-cycle.
+     *
+     * <p>Configure via: {@code llm.memory.max-messages=50}
+     */
+    @Value("${llm.memory.max-messages:50}")
+    private int maxMemoryMessages;
     
     /**
      * Create the ChatLanguageModel for LLM interaction
@@ -75,7 +87,7 @@ public class LangChain4jConfig {
     public dev.langchain4j.memory.chat.ChatMemoryProvider chatMemoryProvider(dev.langchain4j.store.memory.chat.ChatMemoryStore chatMemoryStore) {
         return memoryId -> MessageWindowChatMemory.builder()
                 .id(memoryId)
-                .maxMessages(10)
+                .maxMessages(maxMemoryMessages)
                 .chatMemoryStore(chatMemoryStore)
                 .build();
     }
