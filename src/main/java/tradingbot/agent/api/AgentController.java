@@ -51,10 +51,12 @@ public class AgentController {
     
     private final AgentService agentService;
     private final AgentMapper agentMapper;
+    private final tradingbot.agent.application.PerformanceTrackingService performanceService;
     
-    public AgentController(AgentService agentService, AgentMapper agentMapper) {
+    public AgentController(AgentService agentService, AgentMapper agentMapper, tradingbot.agent.application.PerformanceTrackingService performanceService) {
         this.agentService = agentService;
         this.agentMapper = agentMapper;
+        this.performanceService = performanceService;
     }
     
     /**
@@ -124,6 +126,23 @@ public class AgentController {
             @PathVariable @ValidBotId String id) {
         Agent agent = agentService.getAgent(new AgentId(id));
         return ResponseEntity.ok(agentMapper.toResponse(agent));
+    }
+
+    /**
+     * Get agent performance
+     */
+    @GetMapping("/{id}/performance")
+    @Operation(summary = "Get agent performance metrics",
+               description = "Retrieves performance statistics for a specific agent")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Performance metrics retrieved successfully"),
+        @ApiResponse(responseCode = "404", description = "Agent not found")
+    })
+    public ResponseEntity<PerformanceResponse> getAgentPerformance(
+            @Parameter(description = "Unique agent identifier (UUID format)")
+            @PathVariable @ValidBotId String id) {
+        PerformanceResponse response = performanceService.getPerformance(id);
+        return ResponseEntity.ok(response);
     }
     
     /**

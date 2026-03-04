@@ -128,6 +128,12 @@ public class OrderEntity {
     public String getFailureReason() { return failureReason; }
     public void setFailureReason(String failureReason) { this.failureReason = failureReason; }
     
+    @Column(name = "realized_pnl")
+    private Double realizedPnl;
+    
+    public Double getRealizedPnl() { return realizedPnl; }
+    public void setRealizedPnl(Double realizedPnl) { this.realizedPnl = realizedPnl; }
+    
     // Enums
     public enum Direction {
         LONG, SHORT

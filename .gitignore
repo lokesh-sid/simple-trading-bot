@@ -49,3 +49,10 @@ gateway/nohup.out
 build_log*.txt
 nohup.out
 nohup.out
+add-imports.sh
+.gitignore
+.gitignore
+add-repo.sh
+test-edit.sh
+update-constructors.sh
+AGENTIC_AI_TODO.md

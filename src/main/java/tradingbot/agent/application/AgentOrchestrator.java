@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -34,9 +35,12 @@ import tradingbot.agent.application.strategy.SimpleLLMStrategy;
 import tradingbot.agent.domain.execution.ExecutionResult;
 import tradingbot.agent.domain.execution.OrderExecutionGateway;
 import tradingbot.agent.domain.model.Agent;
+import tradingbot.agent.domain.model.AgentDecision.Action;
 import tradingbot.agent.domain.model.AgentId;
 import tradingbot.agent.domain.model.AgentStatus;
 import tradingbot.agent.domain.repository.AgentRepository;
+import tradingbot.agent.infrastructure.persistence.OrderEntity;
+import tradingbot.agent.infrastructure.repository.OrderRepository;
 import tradingbot.domain.market.KlineClosedEvent;
 import tradingbot.domain.market.MarketEvent;
 import tradingbot.domain.market.StreamMarketDataEvent;
@@ -120,6 +124,8 @@ public class AgentOrchestrator {
      * Nullable — when absent, decisions are only logged (pre-P1 behaviour).
      */
     private final OrderExecutionGateway executionGateway;
+    private final OrderRepository orderRepository;
+    private final PerformanceTrackingService performanceTrackingService;
 
     /**
      * Primary constructor — Spring uses this for dependency injection.
@@ -137,6 +143,8 @@ public class AgentOrchestrator {
             List<ReactiveTradingAgent> agenticAgents,
             BulkheadRegistry bulkheadRegistry,
             @org.springframework.lang.Nullable OrderExecutionGateway executionGateway,
+            OrderRepository orderRepository,
+            PerformanceTrackingService performanceTrackingService,
             @Value("${agent.strategy:langchain4j}") String strategyName) {
 
         this.agentRepository = agentRepository;
@@ -144,6 +152,8 @@ public class AgentOrchestrator {
         this.agenticAgents = agenticAgents;
         this.bulkheadRegistry = bulkheadRegistry;
         this.executionGateway = executionGateway;
+        this.orderRepository = orderRepository;
+        this.performanceTrackingService = performanceTrackingService;
         this.agentScheduler = Schedulers.boundedElastic();
 
         String normalized = strategyName.toLowerCase();
@@ -181,6 +191,8 @@ public class AgentOrchestrator {
             List<ReactiveTradingAgent> agenticAgents,
             BulkheadRegistry bulkheadRegistry,
             @org.springframework.lang.Nullable OrderExecutionGateway executionGateway,
+            OrderRepository orderRepository,
+            PerformanceTrackingService performanceTrackingService,
             @Value("${agent.strategy:langchain4j}") String strategyName) {
 
         this.agentRepository = agentRepository;
@@ -188,6 +200,8 @@ public class AgentOrchestrator {
         this.agenticAgents = agenticAgents;
         this.bulkheadRegistry = bulkheadRegistry;
         this.executionGateway = executionGateway;
+        this.orderRepository = orderRepository;
+        this.performanceTrackingService = performanceTrackingService;
         this.agentScheduler = Schedulers.boundedElastic();
 
         this.activeStrategy = switch (strategyName.toLowerCase()) {
@@ -450,6 +464,33 @@ public class AgentOrchestrator {
                                             decision, event.symbol(), price);
                                     logger.info("[AgenticAgent] {} execution: {} success={} fill={}",
                                             agent.getId(), result.action(), result.success(), result.fillPrice());
+
+                                    // P2: Persist the order history to the database
+                                    try {
+                                        OrderEntity entity = new OrderEntity();
+                                        entity.setId(UUID.randomUUID().toString());
+                                        entity.setAgentId(agent.getId());
+                                        entity.setSymbol(event.symbol());
+                                        entity.setDirection(decision.action() == Action.BUY ? OrderEntity.Direction.LONG : OrderEntity.Direction.SHORT);
+                                        entity.setPrice(price);
+                                        entity.setQuantity(result.fillQuantity() > 0 ? result.fillQuantity() : (decision.quantity() != null ? decision.quantity() : 1.0));
+                                        entity.setCreatedAt(Instant.now());
+                                        if (result.success() && result.action() != ExecutionResult.ExecutionAction.NOOP) {
+                                            entity.setStatus(OrderEntity.Status.EXECUTED);
+                                            entity.setExecutedAt(Instant.now());
+                                            entity.setExchangeOrderId(result.exchangeOrderId());
+                                            entity.setRealizedPnl(result.realizedPnl());
+                                        } else {
+                                            entity.setStatus(OrderEntity.Status.FAILED);
+                                            entity.setFailureReason(result.reason());
+                                        }
+                                        orderRepository.save(entity);
+                                        
+                                        // P3: Track performance metrics
+                                        performanceTrackingService.recordExecution(agent.getId(), result);
+                                    } catch (Exception dbEx) {
+                                        logger.error("[AgenticAgent] {} failed to persist order history or performance: {}", agent.getId(), dbEx.getMessage(), dbEx);
+                                    }
                                 } catch (Exception exGw) {
                                     logger.error("[AgenticAgent] {} gateway error: {}",
                                             agent.getId(), exGw.getMessage(), exGw);
