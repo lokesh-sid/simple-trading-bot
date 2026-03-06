@@ -16,8 +16,10 @@ spec:
       - name: simple-trading-bot
         image: simple-trading-bot:latest
         ports:
-        - containerPort: 8080
+        - containerPort: 8081
         env:
+        - name: SERVER_PORT
+          value: "8081"
         - name: SPRING_DATA_REDIS_HOST
           value: redis
         - name: SPRING_DATA_REDIS_PORT
@@ -38,8 +40,14 @@ spec:
           value: trading.market-data
         - name: TRADING_KAFKA_TOPICS_BOT_STATUS
           value: trading.bot-status
-        - name: exchange
-          value: "binance" # or bybit
+        - name: TRADING_EXECUTION_MODE
+          value: paper
+        - name: TRADING_EXCHANGE_PROVIDER
+          value: paper
+        - name: TRADING_BYBIT_DOMAIN
+          value: TESTNET_DOMAIN
+        - name: TRADING_LIVE_ENABLED
+          value: "false"
 ---
 apiVersion: apps/v1
 kind: Deployment

@@ -6,8 +6,6 @@ import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 import tradingbot.agent.domain.execution.ExecutionResult;
 import tradingbot.agent.domain.execution.ExecutionResult.ExecutionAction;
@@ -36,8 +34,6 @@ import tradingbot.bot.service.OrderResult;
  * which serializes calls per agent, but the maps support concurrent access
  * from multiple agents.
  */
-@Component
-@ConditionalOnProperty(name = "trading.execution.mode", havingValue = "live")
 public class LiveOrderGateway implements OrderExecutionGateway {
 
     private static final Logger log = LoggerFactory.getLogger(LiveOrderGateway.class);

@@ -126,6 +126,7 @@ public class AgentOrchestrator {
     private final OrderExecutionGateway executionGateway;
     private final OrderRepository orderRepository;
     private final PerformanceTrackingService performanceTrackingService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     /**
      * Primary constructor — Spring uses this for dependency injection.
@@ -145,6 +146,7 @@ public class AgentOrchestrator {
             @org.springframework.lang.Nullable OrderExecutionGateway executionGateway,
             OrderRepository orderRepository,
             PerformanceTrackingService performanceTrackingService,
+            org.springframework.context.ApplicationEventPublisher eventPublisher,
             @Value("${agent.strategy:langchain4j}") String strategyName) {
 
         this.agentRepository = agentRepository;
@@ -154,6 +156,7 @@ public class AgentOrchestrator {
         this.executionGateway = executionGateway;
         this.orderRepository = orderRepository;
         this.performanceTrackingService = performanceTrackingService;
+        this.eventPublisher = eventPublisher;
         this.agentScheduler = Schedulers.boundedElastic();
 
         String normalized = strategyName.toLowerCase();
@@ -202,6 +205,7 @@ public class AgentOrchestrator {
         this.executionGateway = executionGateway;
         this.orderRepository = orderRepository;
         this.performanceTrackingService = performanceTrackingService;
+        this.eventPublisher = null; // deprecated constructor — reflection events disabled
         this.agentScheduler = Schedulers.boundedElastic();
 
         this.activeStrategy = switch (strategyName.toLowerCase()) {
@@ -488,6 +492,34 @@ public class AgentOrchestrator {
                                         
                                         // P3: Track performance metrics
                                         performanceTrackingService.recordExecution(agent.getId(), result);
+
+                                        // P4: Publish async self-reflection event for exit trades
+                                        if (result.success() && (
+                                                result.action() == ExecutionResult.ExecutionAction.EXIT_LONG ||
+                                                result.action() == ExecutionResult.ExecutionAction.EXIT_SHORT)) {
+                                            double exitPrice = result.fillPrice();
+                                            double pnlPercent = result.realizedPnl();
+                                            // Approximate entry price: exit / (1 + pnl%)
+                                            double impliedEntry = pnlPercent != 0
+                                                    ? exitPrice / (1.0 + pnlPercent / 100.0)
+                                                    : exitPrice;
+                                            tradingbot.agent.infrastructure.persistence.TradeMemoryEntity.Direction memDir =
+                                                    result.action() == ExecutionResult.ExecutionAction.EXIT_LONG
+                                                    ? tradingbot.agent.infrastructure.persistence.TradeMemoryEntity.Direction.LONG
+                                                    : tradingbot.agent.infrastructure.persistence.TradeMemoryEntity.Direction.SHORT;
+                                            if (eventPublisher != null) {
+                                                eventPublisher.publishEvent(new tradingbot.agent.application.event.TradeCompletedEvent(
+                                                        agent.getId(),
+                                                        event.symbol(),
+                                                        memDir,
+                                                        impliedEntry,
+                                                        exitPrice,
+                                                        pnlPercent,
+                                                        decision.reasoning()
+                                                ));
+                                                logger.info("[P4] TradeCompletedEvent published for agent {} on {}", agent.getId(), event.symbol());
+                                            }
+                                        }
                                     } catch (Exception dbEx) {
                                         logger.error("[AgenticAgent] {} failed to persist order history or performance: {}", agent.getId(), dbEx.getMessage(), dbEx);
                                     }

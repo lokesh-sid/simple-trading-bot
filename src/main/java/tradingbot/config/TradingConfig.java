@@ -2,6 +2,12 @@ package tradingbot.config;
 
 import java.io.Serializable;
 
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+
 public class TradingConfig implements Serializable {
     
     private static final long serialVersionUID = 1L;
@@ -19,19 +25,56 @@ public class TradingConfig implements Serializable {
     private static final double DEFAULT_BB_STD = 2.0;
     private static final int DEFAULT_INTERVAL = 900;
 
+    @NotBlank(message = "Symbol must not be blank")
     private String symbol;
+
+    @DecimalMin(value = "0.0001", message = "Trade amount must be at least 0.0001")
+    @DecimalMax(value = "100.0", message = "Trade amount cannot exceed 100.0")
     private double tradeAmount;
+
+    @Min(value = 1, message = "Leverage must be at least 1")
+    @Max(value = 125, message = "Leverage cannot exceed 125")
     private int leverage;
+
+    @DecimalMin(value = "0.1", message = "Trailing stop percent must be at least 0.1")
+    @DecimalMax(value = "50.0", message = "Trailing stop percent cannot exceed 50.0")
     private double trailingStopPercent;
+
+    @Min(value = 2, message = "RSI lookback period must be at least 2")
+    @Max(value = 500, message = "RSI lookback period cannot exceed 500")
     private int lookbackPeriodRsi;
+
+    @DecimalMin(value = "1.0", message = "RSI oversold threshold must be at least 1.0")
+    @DecimalMax(value = "49.0", message = "RSI oversold threshold cannot exceed 49.0")
     private double rsiOversoldThreshold;
+
+    @DecimalMin(value = "51.0", message = "RSI overbought threshold must be at least 51.0")
+    @DecimalMax(value = "99.0", message = "RSI overbought threshold cannot exceed 99.0")
     private double rsiOverboughtThreshold;
+
+    @Min(value = 2, message = "MACD fast period must be at least 2")
+    @Max(value = 200, message = "MACD fast period cannot exceed 200")
     private int macdFastPeriod;
+
+    @Min(value = 2, message = "MACD slow period must be at least 2")
+    @Max(value = 500, message = "MACD slow period cannot exceed 500")
     private int macdSlowPeriod;
+
+    @Min(value = 1, message = "MACD signal period must be at least 1")
+    @Max(value = 50, message = "MACD signal period cannot exceed 50")
     private int macdSignalPeriod;
+
+    @Min(value = 2, message = "Bollinger Bands period must be at least 2")
+    @Max(value = 200, message = "Bollinger Bands period cannot exceed 200")
     private int bbPeriod;
+
+    @DecimalMin(value = "0.5", message = "Bollinger Bands standard deviation must be at least 0.5")
+    @DecimalMax(value = "5.0", message = "Bollinger Bands standard deviation cannot exceed 5.0")
     private double bbStandardDeviation;
+
+    @Min(value = 60, message = "Interval must be at least 60 seconds")
     private int interval;
+
     private String direction;
 
     public TradingConfig() {

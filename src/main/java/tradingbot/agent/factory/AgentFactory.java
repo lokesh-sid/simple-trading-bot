@@ -177,7 +177,7 @@ public class AgentFactory {
     }
 
     private FuturesTradingBot createFuturesTradingBot(LegacyAgentEntity entity, TradingConfig config) {
-        boolean isPaper = "FUTURES_PAPER".equalsIgnoreCase(entity.getType());
+        boolean isPaper = entity.isPaperMode();
         // For integration tests, if realExchangeService is a mock, use it instead of creating new PaperService
         // This allows Mockito behavior to persist
         FuturesExchangeService exchangeService;

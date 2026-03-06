@@ -10,6 +10,7 @@ import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.service.AiServices;
+import tradingbot.agent.service.TradeReflectionService;
 import tradingbot.agent.service.TradingAgentService;
 import tradingbot.agent.service.TradingTools;
 
@@ -111,6 +112,20 @@ public class LangChain4jConfig {
             .chatLanguageModel(chatLanguageModel)
             .chatMemoryProvider(chatMemoryProvider)
             .tools(tradingTools)
+            .build();
+    }
+
+    /**
+     * Create the TradeReflectionService - a lightweight, stateless LLM service
+     * used exclusively for post-trade self-reflection.
+     *
+     * No chat memory or tools are attached — it performs a single focused call
+     * to generate a "lesson learned" string from a completed trade's outcome.
+     */
+    @Bean
+    public TradeReflectionService tradeReflectionService(ChatLanguageModel chatLanguageModel) {
+        return AiServices.builder(TradeReflectionService.class)
+            .chatLanguageModel(chatLanguageModel)
             .build();
     }
 }

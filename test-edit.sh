@@ -1,0 +1,1 @@
+sed -i '' -e 's/private final OrderExecutionGateway executionGateway;/private final OrderExecutionGateway executionGateway;\n    private final TradeExecutionRepository tradeExecutionRepository;/g' src/main/java/tradingbot/agent/application/AgentOrchestrator.java

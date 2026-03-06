@@ -17,6 +17,8 @@ import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.domain.model.TradeMemory;
 import tradingbot.agent.domain.model.TradeOutcome;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
+import tradingbot.agent.infrastructure.persistence.TradeMemoryEntity;
+import tradingbot.agent.infrastructure.repository.TradeMemoryRepository;
 
 /**
  * RAGService - Orchestrates the Retrieval-Augmented Generation pipeline
@@ -37,7 +39,8 @@ public class RAGService {
     private final MemoryStoreService memoryStore;
     private final ContextBuilder contextBuilder;
     private final LLMProvider llmProvider;
-    
+    private final TradeMemoryRepository tradeMemoryRepository;
+
     @Value("${rag.retrieval.top-k:5}")
     private int retrievalTopK;
     
@@ -51,11 +54,13 @@ public class RAGService {
             EmbeddingService embeddingService,
             MemoryStoreService memoryStore,
             ContextBuilder contextBuilder,
-            LLMProvider llmProvider) {
+            LLMProvider llmProvider,
+            TradeMemoryRepository tradeMemoryRepository) {
         this.embeddingService = embeddingService;
         this.memoryStore = memoryStore;
         this.contextBuilder = contextBuilder;
         this.llmProvider = llmProvider;
+        this.tradeMemoryRepository = tradeMemoryRepository;
     }
     
     /**
@@ -307,5 +312,121 @@ public class RAGService {
      */
     public boolean isHealthy() {
         return memoryStore.isHealthy();
+    }
+
+    /**
+     * Update a PENDING trade memory with the real outcome and LLM-generated lesson.
+     *
+     * Strategy:
+     * 1. Find the most recent PENDING record for this agent+symbol in PostgreSQL.
+     * 2. Delete the old embedding from the vector store (stale PENDING entry).
+     * 3. Re-embed the updated scenario (includes real outcome + lesson).
+     * 4. Store a new vector entry with the final state.
+     * 5. Update the SQL metadata record.
+     *
+     * If no PENDING record is found, a brand-new memory is created instead.
+     *
+     * @param agentId       Agent that made the trade
+     * @param symbol        Trading pair (e.g. BTCUSDT)
+     * @param direction     LONG or SHORT
+     * @param entryPrice    Actual fill price
+     * @param exitPrice     Price at which position was closed
+     * @param outcome       PROFIT / LOSS / BREAKEVEN
+     * @param profitPercent Realized PnL as a percentage
+     * @param lessonLearned LLM-generated reflection sentence
+     */
+    public void updateTradeReflection(
+            String agentId,
+            String symbol,
+            TradeMemoryEntity.Direction direction,
+            double entryPrice,
+            double exitPrice,
+            TradeMemoryEntity.Outcome outcome,
+            double profitPercent,
+            String lessonLearned) {
+
+        try {
+            logger.info("Updating trade reflection for agent {} on {} — outcome: {}",
+                    agentId, symbol, outcome);
+
+            // 1. Find the most recent PENDING SQL record
+            var pendingRecords = tradeMemoryRepository.findPendingByAgentIdAndSymbol(agentId, symbol);
+
+            // 2. Delete old vector entry if one existed
+            if (!pendingRecords.isEmpty()) {
+                TradeMemoryEntity pending = pendingRecords.get(0);
+                try {
+                    memoryStore.delete(pending.getId());
+                    logger.debug("Deleted stale PENDING vector entry {}", pending.getId());
+                } catch (Exception ex) {
+                    logger.warn("Could not delete pending vector entry {}: {}", pending.getId(), ex.getMessage());
+                }
+
+                // 3. Update SQL record in-place
+                pending.setEntryPrice(entryPrice);
+                pending.setExitPrice(exitPrice);
+                pending.setOutcome(outcome);
+                pending.setProfitPercent(profitPercent);
+                pending.setLessonLearned(lessonLearned);
+                tradeMemoryRepository.save(pending);
+                logger.debug("Updated SQL trade memory record {}", pending.getId());
+
+                // 4. Re-embed + re-store the updated entry as a new vector
+                String updatedScenario = String.format(
+                    "%s %s trade — entry $%.2f, exit $%.2f, PnL %.2f%%. Lesson: %s",
+                    symbol, direction.name(), entryPrice, exitPrice, profitPercent, lessonLearned);
+                double[] newEmbedding = embeddingService.embed(updatedScenario);
+
+                TradeOutcome tradeOutcome = mapEntityOutcomeToModel(outcome);
+                TradeDirection tradeDirection = direction == TradeMemoryEntity.Direction.LONG
+                        ? TradeDirection.LONG : TradeDirection.SHORT;
+
+                TradeMemory updated = TradeMemory.builder()
+                    .id(pending.getId())
+                    .agentId(agentId)
+                    .symbol(symbol)
+                    .scenarioDescription(updatedScenario)
+                    .direction(tradeDirection)
+                    .entryPrice(entryPrice)
+                    .exitPrice(exitPrice)
+                    .outcome(tradeOutcome)
+                    .profitPercent(profitPercent)
+                    .lessonLearned(lessonLearned)
+                    .timestamp(pending.getTimestamp())
+                    .embedding(newEmbedding)
+                    .build();
+
+                memoryStore.store(updated);
+                logger.info("Re-stored updated trade memory {} with outcome {}", pending.getId(), outcome);
+
+            } else {
+                // No PENDING record — store as a fresh memory
+                logger.warn("No PENDING memory found for agent {} on {}. Storing as new entry.", agentId, symbol);
+                TradeOutcome tradeOutcome = mapEntityOutcomeToModel(outcome);
+                TradeDirection tradeDirection = direction == TradeMemoryEntity.Direction.LONG
+                        ? TradeDirection.LONG : TradeDirection.SHORT;
+                storeTradeMemory(agentId, symbol,
+                        String.format("%s %s completed trade", symbol, direction),
+                        tradeDirection, entryPrice, exitPrice, tradeOutcome,
+                        profitPercent, lessonLearned, null);
+            }
+
+        } catch (Exception e) {
+            logger.error("Failed to update trade reflection for agent {} on {}: {}", agentId, symbol, e.getMessage(), e);
+            // Non-fatal: memory update failure must not disrupt the trading engine
+        }
+    }
+
+    /**
+     * Map persistence-layer Outcome enum to the domain-model TradeOutcome enum.
+     */
+    private TradeOutcome mapEntityOutcomeToModel(TradeMemoryEntity.Outcome outcome) {
+        return switch (outcome) {
+            case PROFIT -> TradeOutcome.PROFIT;
+            case LOSS -> TradeOutcome.LOSS;
+            case BREAKEVEN -> TradeOutcome.BREAKEVEN;
+            case CANCELLED -> TradeOutcome.CANCELLED;
+            default -> TradeOutcome.PENDING;
+        };
     }
 }

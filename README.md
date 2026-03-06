@@ -3,6 +3,8 @@
 
 A Spring Boot-based automated trading bot that combines **Agentic AI (LLMs)** with traditional quantitative strategies for cryptocurrency futures markets.
 
+**Safe defaults are enabled out of the box**: the backend listens on **8081**, the default exchange provider is **paper**, autonomous order placement stays in **dry-run**, and **mainnet trading is disabled** until explicitly enabled.
+
 ## 🚀 Key Features
 
 ### 🧠 Agentic AI Core
@@ -43,28 +45,29 @@ A Spring Boot-based automated trading bot that combines **Agentic AI (LLMs)** wi
 
 ---
 
-## ⚡ Quick Start (Testnet)
+## ⚡ Quick Start (Safe Local Mode)
 
-The project is pre-configured for **Bybit Testnet**.
+The default runtime is intentionally conservative:
+
+- `server.port=8081`
+- `trading.execution.mode=paper`
+- `trading.exchange.provider=paper`
+- `rag.order.dry-run=true`
+- `trading.live.enabled=false`
 
 ### 1. Prerequisites
 - Java 21 LTS
 - Docker & Docker Compose (for Kafka, Redis, Postgres)
-- A Bybit Testnet Account (Ensure "One-Way Mode" is enabled)
 
 ### 2. Configuration
-Edit `src/main/resources/application.properties`:
+Copy `.env.example` to `.env` (or export the same environment variables in your shell):
 
 ```properties
-# Select Bybit as the provider
-trading.exchange.provider=bybit
-
-# Enable Testnet
-trading.bybit.domain=TESTNET_DOMAIN
-
-# Credentials
-trading.bybit.api.key=YOUR_TESTNET_KEY
-trading.bybit.api.secret=YOUR_TESTNET_SECRET
+SERVER_PORT=8081
+TRADING_EXECUTION_MODE=paper
+TRADING_EXCHANGE_PROVIDER=paper
+TRADING_LIVE_ENABLED=false
+TRADING_BYBIT_DOMAIN=TESTNET_DOMAIN
 ```
 
 ### 3. Run Dependencies
@@ -76,6 +79,41 @@ docker-compose up -d
 ```bash
 ./gradlew bootRun
 ```
+
+### 5. Access the Backend
+
+- OpenAPI / Swagger UI: `http://localhost:8081/swagger-ui.html`
+- Backend bot API base path: `/api/v1/bots`
+- Gateway-style routes are also available under `/gateway/api/bots/**`
+
+### Bybit Testnet Execution (Explicit, Non-Mainnet)
+
+To execute against **Bybit Testnet** instead of paper mode, switch the execution mode and provider explicitly:
+
+```properties
+SPRING_PROFILES_ACTIVE=live
+TRADING_EXECUTION_MODE=live
+TRADING_EXCHANGE_PROVIDER=bybit
+TRADING_BYBIT_DOMAIN=TESTNET_DOMAIN
+TRADING_BYBIT_API_KEY=YOUR_TESTNET_KEY
+TRADING_BYBIT_API_SECRET=YOUR_TESTNET_SECRET
+```
+
+### Mainnet Execution (Explicit Opt-In Only)
+
+Mainnet execution requires **all** of the following:
+
+```properties
+SPRING_PROFILES_ACTIVE=prod,live
+TRADING_EXECUTION_MODE=live
+TRADING_EXCHANGE_PROVIDER=binance   # or bybit
+TRADING_BYBIT_DOMAIN=MAINNET_DOMAIN # only when provider=bybit
+TRADING_LIVE_ENABLED=true
+TRADING_BINANCE_API_KEY=...
+TRADING_BINANCE_API_SECRET=...
+```
+
+If `TRADING_LIVE_ENABLED=true` is not set, mainnet providers are rejected during startup.
 
 ---
 
@@ -118,7 +156,7 @@ graph TB
 
     %% Presentation Layer
     subgraph "Presentation Layer<br/>REST API Gateway"
-        CONTROLLER[TradingBotController<br/>/api/simple-trading-bot/*]
+        CONTROLLER[TradingBotController<br/>/api/v1/bots/*]
         DTO[Request/Response DTOs<br/>Type-Safe Contracts]
         VALIDATION[Jakarta Validation<br/>Input Validation]
         EXCEPTIONS[Global Exception Handler<br/>Error Responses]
@@ -143,7 +181,7 @@ graph TB
     subgraph "Infrastructure Layer<br/>External Systems"
         KAFKA[(Apache Kafka<br/>Event Streaming)]
         REDIS[(Redis Cache<br/>Market Data)]
-        EXCHANGE[Binance API<br/>Cryptocurrency Exchange]
+        EXCHANGE[Exchange Adapter<br/>Paper / Bybit / Binance]
         DATABASE[(PostgreSQL<br/>Trade History)]
     end
 
@@ -202,7 +240,7 @@ graph TB
 #### 🚀 **Application Layer**
 - **Trading Agents**: `FuturesTradingBot` implementing `TradingAgent` interface
 - **Business Services**: Trade execution, risk assessment, technical analysis
-- **Exchange Integration**: Live trading (Binance) and paper trading modes
+- **Exchange Integration**: Paper-first defaults with explicit Bybit / Binance opt-in
 - **Strategy Components**: Indicators, sentiment analysis, trailing stops
 
 #### 🎯 **Domain Layer**
@@ -214,7 +252,7 @@ graph TB
 #### 🔧 **Infrastructure Layer**
 - **Event Streaming**: Apache Kafka with type-safe `EventWrapper`
 - **Caching**: Redis for market data and technical indicators
-- **External APIs**: Binance Futures API with rate limiting and circuit breakers
+- **External APIs**: Multi-exchange adapters with rate limiting and circuit breakers
 - **Persistence**: PostgreSQL for trade history and audit trails
 
 ### Key Architectural Patterns
@@ -259,10 +297,33 @@ The application is fully containerized.
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `trading.exchange.provider` | `binance` | Exchange to use (`bybit`, `binance`, `dydx`, `paper`) |
-| `trading.bybit.domain` | `MAINNET_DOMAIN` | Set to `TESTNET_DOMAIN` for testing |
+| `server.port` | `8081` | Backend HTTP port |
+| `trading.execution.mode` | `paper` | Execution gateway mode (`paper`, `live`) |
+| `trading.exchange.provider` | `paper` | Exchange adapter (`paper`, `bybit`, `binance`) |
+| `trading.bybit.domain` | `TESTNET_DOMAIN` | Bybit environment (`TESTNET_DOMAIN`, `MAINNET_DOMAIN`) |
+| `trading.live.enabled` | `false` | Required before any mainnet exchange access is allowed |
+| `rag.order.dry-run` | `true` | Logs AI-generated orders without sending them to an exchange |
+| `rag.order.max-position-size-percent` | `10` | Hard cap for LLM-driven position size as % of account balance |
+| `rag.order.default-leverage` | `1` | Safe default leverage for automated order placement |
 | `rag.enabled` | `true` | Enable Agentic AI features |
 | `rag.embedding.provider` | `openai` | Embedding provider (`openai`, `grok`, `local`) |
+
+## 🛡 Hard Risk Limits & Restart Behavior
+
+Current hard safety controls that are enabled in code:
+
+- **Paper-first default**: new bots are created in paper mode unless explicitly started otherwise.
+- **Dry-run AI execution**: `rag.order.dry-run=true` by default.
+- **Position-size cap**: `rag.order.max-position-size-percent=10` limits LLM-driven orders to 10% of balance.
+- **Default leverage**: `rag.order.default-leverage=1`.
+- **Live gateway guardrails**: the live execution gateway enforces a minimum margin balance and automatically places bracket exits (2% stop-loss / 5% take-profit defaults).
+- **Mainnet lock**: mainnet providers are blocked unless `trading.live.enabled=true` is explicitly set.
+
+Restart behavior today:
+
+- Bot definitions are persisted and reloaded from the database on startup.
+- Bots previously marked `RUNNING` are restarted automatically by `AgentManager`.
+- **Important:** exchange-side position reconciliation is still manual/partial. After any unclean shutdown, verify open exchange positions before re-enabling non-paper execution.
 
 ## 🤝 Contributing
 
@@ -272,100 +333,117 @@ The application is fully containerized.
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## 🛠 Deployment
 
-This starts the tradingbot and Redis services.      
-Access the bot at http://localhost:8080.   
-Set exchange with -e exchange=binance in docker-compose.yml or environment.
+### Docker Support
 
-#### Kubernetes Setup
-
-Apply Kubernetes manifests:
-```bash
-    kubectl apply -f redis-deployment.yaml
-    kubectl apply -f redis-service.yaml
-    kubectl apply -f deployment.yaml
-    kubectl apply -f service.yaml 
-```
-
-
-Access the service (use LoadBalancer or port-forward for minikube):     
+The bundled `docker-compose.yml` starts the backend with safe defaults and exposes the backend on `http://localhost:8081`.
 
 ```bash
-    kubectl port-forward service/simple-trading-bot 8080:8080.    
-```      
-
-Access at http://localhost:8080.  
-
-
-### Usage
-
-Start Bot (Long/Short, Live/Paper):
-```http
-POST /api/simple-trading-bot/start?direction=LONG&paper=true
-POST /api/simple-trading-bot/start?direction=SHORT&paper=false
+docker-compose up -d
 ```
 
-Stop Bot:
-```http
-POST /api/simple-trading-bot/stop
+### Kubernetes Setup
+
+Apply the included manifests:
+
+```bash
+kubectl apply -f redis-deployment.yaml
+kubectl apply -f redis-service.yaml
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
 ```
 
-Get Status:
-```http
-GET /api/simple-trading-bot/status
+Port-forward the backend service:
+
+```bash
+kubectl port-forward service/simple-trading-bot 8081:8081
 ```
 
-Update Config:
+### AWS Deployment
+
+- **ECS**: use `aws-ecs-task-definition.json`.
+- **Config**: provide secrets via AWS Secrets Manager / Parameter Store.
+- **Default**: the task definition now starts in paper mode; mainnet settings must be supplied explicitly.
+
+## ▶️ Usage
+
+Create a bot:
+
 ```http
-POST /api/simple-trading-bot/configure
-Body: {"symbol":"BTCUSDT","tradeAmount":0.001,...}
+POST /api/v1/bots
 ```
 
-Set Leverage:
+Start a bot in the safe default mode:
+
 ```http
-POST /api/simple-trading-bot/leverage?leverage=5
+POST /api/v1/bots/{botId}/start
+Content-Type: application/json
+
+{
+    "direction": "LONG",
+    "paper": true
+}
 ```
 
-Enable/Disable Sentiment:
+Start a bot against an external exchange (only after explicit opt-in):
+
 ```http
-POST /api/simple-trading-bot/sentiment?enable=true
+POST /api/v1/bots/{botId}/start
+Content-Type: application/json
+
+{
+    "direction": "LONG",
+    "paper": false
+}
 ```
 
-### Testing
-  Run unit tests:
-  ```bash
-      ./gradlew test
-   ```
+Other common endpoints:
 
-   For continuous testing:
-   ```bash
-      ./gradlew test --continuous
-   ```
+```http
+PUT  /api/v1/bots/{botId}/stop
+GET  /api/v1/bots/{botId}/status
+POST /api/v1/bots/{botId}/configure
+POST /api/v1/bots/{botId}/leverage
+POST /api/v1/bots/{botId}/sentiment
+GET  /api/v1/bots
+DELETE /api/v1/bots/{botId}
+```
 
-### Redis Setup
+## 🧪 Testing
 
-1. Install Redis (e.g., sudo apt install redis-server on Ubuntu).    
-2. Start Redis: redis-server.    
-3. Configure spring.data.redis.host and port in application.properties.
+Run backend tests:
 
+```bash
+./gradlew test
+```
 
-### Paper Trading
+Run gateway tests:
 
-To safely test strategies, start the bot in paper mode (`paper=true`). All trades and margin are simulated in memory. No real funds are used or at risk.
+```bash
+./gradlew -p gateway test
+```
 
-### Extending Indicators
+For direct HTTP coverage, use the scripts in `api-tests/`.
 
-Add new technical indicators by implementing the `TechnicalIndicator` interface and registering them in the `IndicatorCalculator` via code or configuration. The bot will automatically compute and use all registered indicators.
+## 🧾 Paper Trading
 
-### Testability
+Paper mode simulates fills, margin, and position changes entirely in memory. It is the default and should remain your first stop for strategy validation.
 
-All dependencies are injected via constructors, making it easy to mock services and indicators for unit testing.
+## 🔌 Extending Indicators
+
+Add new technical indicators by implementing the `TechnicalIndicator` interface and registering them in `IndicatorCalculator`.
+
+## 🧪 Testability
+
+Dependencies are constructor-injected, which keeps unit testing and service mocking straightforward.
 
 ---
 
-Disclaimer    
-This is for educational purposes only. Leveraged trading is risky and may result in total loss of capital.    
-Test on Binance Futures Testnet. Not financial advice.   
+## Disclaimer
 
-Documentation    
-See docs/LongTradingBotPRD.md for detailed requirements and agent architecture.
+This project is for educational purposes only. Leveraged trading can result in total loss of capital. Validate strategies in paper mode or exchange testnet environments before considering any live deployment.
+
+## Additional Documentation
+
+See `docs/FuturesTradingBotPRD.md` for the requirements baseline and agent architecture details.

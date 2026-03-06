@@ -1,0 +1,2 @@
+sed -i '' -e 's|@org.springframework.lang.Nullable OrderExecutionGateway executionGateway,|@org.springframework.lang.Nullable OrderExecutionGateway executionGateway,\n            TradeExecutionRepository tradeExecutionRepository,|g' src/main/java/tradingbot/agent/application/AgentOrchestrator.java
+sed -i '' -e 's/this.executionGateway = executionGateway;/this.executionGateway = executionGateway;\n        this.tradeExecutionRepository = tradeExecutionRepository;/g' src/main/java/tradingbot/agent/application/AgentOrchestrator.java

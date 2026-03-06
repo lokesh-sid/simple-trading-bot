@@ -10,20 +10,20 @@ import tradingbot.bot.TradeDirection;
 public class BotStartRequest {
     
     @NotNull(message = "Trading direction is required")
-    @Schema(description = "Trading direction (LONG or SHORT)", example = "LONG", required = true)
+    @Schema(description = "Trading direction (LONG or SHORT)", example = "LONG", requiredMode = Schema.RequiredMode.REQUIRED)
     @JsonProperty("direction")
     private TradeDirection direction;
     
     @NotNull(message = "Paper trading flag is required")
-    @Schema(description = "Enable paper trading mode", example = "false", defaultValue = "false", required = true)
+    @Schema(description = "Enable paper trading mode", example = "true", defaultValue = "true", requiredMode = Schema.RequiredMode.REQUIRED)
     @JsonProperty("paper")
-    private Boolean paper = false;
+    private Boolean paper = true;
     
     public BotStartRequest() {}
     
     public BotStartRequest(TradeDirection direction, Boolean paper) {
         this.direction = direction;
-        this.paper = paper != null ? paper : false;
+        this.paper = paper != null ? paper : true;
     }
     
     public TradeDirection getDirection() {

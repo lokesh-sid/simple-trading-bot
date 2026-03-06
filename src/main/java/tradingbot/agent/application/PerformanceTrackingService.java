@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import tradingbot.agent.api.PerformanceResponse;
+import tradingbot.agent.api.dto.PerformanceMapper;
 import tradingbot.agent.domain.execution.ExecutionResult;
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentId;
@@ -22,10 +23,15 @@ public class PerformanceTrackingService {
 
     private final AgentPerformanceRepository performanceRepository;
     private final AgentRepository agentRepository;
+    private final PerformanceMapper performanceMapper;
 
-    public PerformanceTrackingService(AgentPerformanceRepository performanceRepository, AgentRepository agentRepository) {
+    public PerformanceTrackingService(
+            AgentPerformanceRepository performanceRepository, 
+            AgentRepository agentRepository,
+            PerformanceMapper performanceMapper) {
         this.performanceRepository = performanceRepository;
         this.agentRepository = agentRepository;
+        this.performanceMapper = performanceMapper;
     }
 
     @Transactional
@@ -106,20 +112,6 @@ public class PerformanceTrackingService {
         AgentPerformanceEntity perf = performanceRepository.findById(agentIdStr)
             .orElseGet(() -> new AgentPerformanceEntity(agentIdStr, agent.getCapital()));
 
-        return new PerformanceResponse(
-            perf.getAgentId(),
-            perf.getTotalTrades(),
-            perf.getWinningTrades(),
-            perf.getLosingTrades(),
-            perf.getTotalPnl(),
-            perf.getWinRate(),
-            perf.getMaxDrawdown(),
-            perf.getPeakCapital(),
-            perf.getCurrentCapital(),
-            perf.getAverageWin(),
-            perf.getAverageLoss(),
-            perf.getSharpeRatio(),
-            perf.getLastUpdated() != null ? perf.getLastUpdated() : Instant.now()
-        );
+        return performanceMapper.toResponse(perf);
     }
 }

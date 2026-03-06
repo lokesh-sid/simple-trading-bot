@@ -12,7 +12,7 @@ import tradingbot.bot.TradeDirection;
 public class BotStateUpdateRequest {
     
     @NotNull(message = "Status is required")
-    @Schema(description = "Target bot status (RUNNING, STOPPED, PAUSED)", example = "RUNNING", required = true)
+    @Schema(description = "Target bot status (RUNNING, STOPPED, PAUSED)", example = "RUNNING", requiredMode = Schema.RequiredMode.REQUIRED)
     @JsonProperty("status")
     private BotStatus status;
     
@@ -21,9 +21,9 @@ public class BotStateUpdateRequest {
     private TradeDirection direction;
     
     @NotNull(message = "Paper mode flag is required")
-    @Schema(description = "Enable paper trading", example = "false", required = true)
+    @Schema(description = "Enable paper trading", example = "true", defaultValue = "true", requiredMode = Schema.RequiredMode.REQUIRED)
     @JsonProperty("paperMode")
-    private Boolean paperMode;
+    private Boolean paperMode = true;
     
     @Size(max = 500, message = "Reason must not exceed 500 characters")
     @Schema(description = "Reason for state change", example = "User initiated stop")
@@ -35,7 +35,7 @@ public class BotStateUpdateRequest {
     public BotStateUpdateRequest(BotStatus status, TradeDirection direction, Boolean paperMode, String reason) {
         this.status = status;
         this.direction = direction;
-        this.paperMode = paperMode;
+        this.paperMode = paperMode != null ? paperMode : true;
         this.reason = reason;
     }
     

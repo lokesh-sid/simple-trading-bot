@@ -1,0 +1,21 @@
+### Run Backtest
+POST http://localhost:8080/api/v1/backtest
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="backtest_data.csv"
+Content-Type: text/csv
+
+< ../backtest_data.csv
+
+--WebAppBoundary
+Content-Disposition: form-data; name="config"
+Content-Type: application/json
+
+{
+    "symbol": "BTCUSDT",
+    "tradeAmount": 0.001,
+    "leverage": 3,
+    "trailingStopPercent": 1.0
+}
+--WebAppBoundary--

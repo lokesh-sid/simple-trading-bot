@@ -20,65 +20,75 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import tradingbot.agent.TradingAgent;
 import tradingbot.agent.manager.AgentManager;
-import tradingbot.agent.persistence.LegacyAgentEntity;
 import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.bot.FuturesTradingBot;
+import tradingbot.bot.TradeDirection;
 import tradingbot.bot.controller.dto.request.BotStateUpdateRequest;
 import tradingbot.bot.controller.dto.request.BotStateUpdateRequest.BotStatus;
 import tradingbot.bot.controller.dto.response.BotStateResponse;
 import tradingbot.bot.controller.dto.response.ErrorResponse;
-import tradingbot.bot.controller.exception.BotAlreadyRunningException;
-import tradingbot.bot.controller.exception.BotNotFoundException;
 import tradingbot.bot.controller.exception.ConflictException;
+import tradingbot.bot.controller.validation.BotOperationPolicy;
+import tradingbot.bot.controller.validation.BotRequestValidator;
+import tradingbot.bot.service.BotStateService;
+import tradingbot.config.TradingSafetyService;
 
 /**
  * Bot State Controller - Manages bot state transitions
- * 
- * RESTful state management with PUT /api/v1/bots/{botId}/state
- * Replaces action endpoints (start, stop) with state resource
+ *
+ * Responsibilities (HTTP only):
+ *  - Route GET /api/v1/bots/{botId}/state  → current state
+ *  - Route PUT /api/v1/bots/{botId}/state  → state transition
+ *
+ * NOT responsible for:
+ *  - Agent resolution or type-checking  (BotRequestValidator)
+ *  - Business state rules               (BotOperationPolicy)
+ *  - Safety guardrails                  (TradingSafetyService)
+ *  - Paper-mode resolution              (BotRequestValidator)
  */
 @RestController
 @RequestMapping("/api/v1/bots/{botId}/state")
 @Tag(name = "Bot State Management", description = "Manage bot state transitions (start, stop, pause)")
 public class BotStateController {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(BotStateController.class);
-    
-    private final AgentManager agentManager;
+
     private final AgentRepository agentRepository;
-    
-    public BotStateController(AgentManager agentManager, AgentRepository agentRepository) {
-        this.agentManager = agentManager;
+    private final TradingSafetyService tradingSafetyService;
+    private final BotRequestValidator botRequestValidator;
+    private final BotOperationPolicy botOperationPolicy;
+    private final BotStateService botStateService;
+
+    public BotStateController(
+            AgentManager agentManager,
+            AgentRepository agentRepository,
+            TradingSafetyService tradingSafetyService,
+            BotRequestValidator botRequestValidator,
+            BotOperationPolicy botOperationPolicy,
+            BotStateService botStateService) {
         this.agentRepository = agentRepository;
+        this.tradingSafetyService = tradingSafetyService;
+        this.botRequestValidator = botRequestValidator;
+        this.botOperationPolicy = botOperationPolicy;
+        this.botStateService = botStateService;
     }
-    
+
     @GetMapping
-    @Operation(summary = "Get current bot state", 
+    @Operation(summary = "Get current bot state",
                description = "Returns the current state of the specified bot")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "State retrieved successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = BotStateResponse.class))),
+                    content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = BotStateResponse.class))),
         @ApiResponse(responseCode = "404", description = "Bot not found",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+                    content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<BotStateResponse> getCurrentState(@PathVariable String botId) {
-        TradingAgent agent = agentManager.getAgent(botId);
-        if (agent == null) {
-             if (!agentRepository.existsById(botId)) {
-                 throw new BotNotFoundException(botId);
-             }
-             // If in DB but not loaded, try to refresh/load
-             agentManager.refreshAgent(botId);
-             agent = agentManager.getAgent(botId);
-             if (agent == null) {
-                 throw new BotNotFoundException(botId);
-             }
-        }
-        
-        FuturesTradingBot bot = (FuturesTradingBot) agent;
-        
+        // ✅ Single delegating call — no manual resolution, no instanceof, no cast
+        FuturesTradingBot bot = botRequestValidator.resolveAgentAs(botId, FuturesTradingBot.class);
+
         BotStateResponse response = new BotStateResponse();
         response.setBotId(botId);
         response.setStatus(bot.isRunning() ? BotStatus.RUNNING : BotStatus.STOPPED);
@@ -86,140 +96,109 @@ public class BotStateController {
         response.setPositionStatus(bot.getPositionStatus());
         response.setEntryPrice(bot.getEntryPrice());
         response.setTimestamp(Instant.now());
-        
-        // Get entity for additional info
+
         agentRepository.findById(botId).ifPresent(entity -> {
-            response.setPaperMode("FUTURES_PAPER".equalsIgnoreCase(entity.getType()));
+            response.setPaperMode(entity.isPaperMode());
             if (entity.getDirection() != null) {
-                response.setDirection(tradingbot.bot.TradeDirection.valueOf(entity.getDirection()));
+                response.setDirection(TradeDirection.valueOf(entity.getDirection()));
             }
         });
-        
+
         return ResponseEntity.ok(response);
     }
-    
+
     @PutMapping
-    @Operation(summary = "Update bot state", 
-               description = "Update bot state (start, stop, or pause the bot)")
+    @Operation(summary = "Update bot state",
+               description = "Update bot state — start (RUNNING), stop (STOPPED), or pause (PAUSED)")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "State updated successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = BotStateResponse.class))),
+                    content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = BotStateResponse.class))),
         @ApiResponse(responseCode = "400", description = "Invalid request",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+                    content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "404", description = "Bot not found",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "409", description = "Bot already in requested state",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class)))
+                    content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "409", description = "Bot already in requested state or transition not allowed",
+                    content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<BotStateResponse> updateState(
             @Parameter(description = "Bot identifier") @PathVariable String botId,
             @Valid @RequestBody BotStateUpdateRequest request) {
-        
-        TradingAgent agent = agentManager.getAgent(botId);
-        if (agent == null) {
-             if (!agentRepository.existsById(botId)) {
-                 throw new BotNotFoundException(botId);
-             }
-             agentManager.refreshAgent(botId);
-             agent = agentManager.getAgent(botId);
-        }
-        
-        FuturesTradingBot currentBot = (FuturesTradingBot) agent;
+
+        // ✅ Single delegating call — replaces 12 lines of manual resolution
+        FuturesTradingBot currentBot = botRequestValidator.resolveAgentAs(botId, FuturesTradingBot.class);
         BotStatus currentStatus = currentBot.isRunning() ? BotStatus.RUNNING : BotStatus.STOPPED;
-        
-        // Check if already in requested state
+
         if (currentStatus == request.getStatus()) {
             throw new ConflictException("Bot is already in " + request.getStatus() + " state");
         }
-        
+
         BotStateResponse response = new BotStateResponse();
         response.setBotId(botId);
         response.setPreviousStatus(currentStatus);
         response.setTimestamp(Instant.now());
-        
+
+        // ✅ Java 14+ arrow switch — no fall-through risk
         switch (request.getStatus()) {
-            case RUNNING:
-                startBot(botId, currentBot, request, response);
-                break;
-            case STOPPED:
-                stopBot(botId, currentBot, request, response);
-                break;
-            case PAUSED:
-                pauseBot(botId, currentBot, request, response);
-                break;
+            case RUNNING -> startBot(botId, currentBot, request, response);
+            case STOPPED -> stopBot(botId, currentBot, request, response);
+            case PAUSED  -> pauseBot(botId, currentBot, request, response);
         }
-        
+
         return ResponseEntity.ok(response);
     }
-    
-    private void startBot(String botId, FuturesTradingBot currentBot, BotStateUpdateRequest request, BotStateResponse response) {
-        if (currentBot.isRunning()) {
-            throw new BotAlreadyRunningException();
-        }
-        
-        // Update entity
-        agentRepository.findById(botId).ifPresent(entity -> {
-            entity.setDirection(request.getDirection().toString());
-            entity.setType(Boolean.TRUE.equals(request.getPaperMode()) ? "FUTURES_PAPER" : "FUTURES");
-            entity.setUpdatedAt(Instant.now());
-            agentRepository.save(entity);
-        });
-        
-        // Refresh and start
-        agentManager.refreshAgent(botId);
-        agentManager.startAgent(botId);
-        
-        FuturesTradingBot newBot = (FuturesTradingBot) agentManager.getAgent(botId);
-        
+
+    // ------------------------------------------------------------------
+    // Private state transition handlers
+    // ------------------------------------------------------------------
+
+    private void startBot(String botId, FuturesTradingBot currentBot,
+                          BotStateUpdateRequest request, BotStateResponse response) {
+        botOperationPolicy.assertCanStart(currentBot, botId);
+
+        boolean resolvedPaperMode = botRequestValidator.resolvePaperMode(botId, request.getPaperMode());
+        tradingSafetyService.validateBotStartMode(resolvedPaperMode);
+
+        // ✅ Service coordinates runtime + DB atomically
+        botStateService.startBot(botId, resolvedPaperMode, request.getDirection());
+
+        // ✅ Controller resolves the refreshed bot using its own validator
+        FuturesTradingBot newBot = botRequestValidator.resolveAgentAs(botId, FuturesTradingBot.class);
+
         response.setStatus(BotStatus.RUNNING);
         response.setDirection(request.getDirection());
-        response.setPaperMode(request.getPaperMode());
+        response.setPaperMode(resolvedPaperMode);
         response.setSymbol(newBot.getConfig().getSymbol());
-        response.setMessage("Bot started successfully" + (request.getReason() != null ? ": " + request.getReason() : ""));
-        
-        logger.info("Bot {} started in {} mode ({})", botId, request.getDirection(), 
-            Boolean.TRUE.equals(request.getPaperMode()) ? "paper" : "live");
+        response.setMessage("Bot started successfully"
+                + (request.getReason() != null ? ": " + request.getReason() : ""));
     }
-    
-    private void stopBot(String botId, FuturesTradingBot bot, BotStateUpdateRequest request, BotStateResponse response) {
+
+    private void stopBot(String botId, FuturesTradingBot bot,
+                         BotStateUpdateRequest request, BotStateResponse response) {
+        botOperationPolicy.assertCanStop(bot, botId);
         String finalPositionStatus = bot.getPositionStatus();
-        agentManager.stopAgent(botId);
-        
-        // Update entity
-        agentRepository.findById(botId).ifPresent(entity -> {
-            entity.setStatus(LegacyAgentEntity.AgentStatus.STOPPED);
-            entity.setUpdatedAt(Instant.now());
-            agentRepository.save(entity);
-        });
-        
+
+        // ✅ One call — runtime + DB coordinated atomically in BotStateService
+        botStateService.stopBot(botId);
+
         response.setStatus(BotStatus.STOPPED);
         response.setPositionStatus(finalPositionStatus);
-        response.setMessage("Bot stopped successfully" + (request.getReason() != null ? ": " + request.getReason() : ""));
-        
-        logger.info("Bot {} stopped", botId);
+        response.setMessage("Bot stopped successfully"
+                + (request.getReason() != null ? ": " + request.getReason() : ""));
     }
-    
-    private void pauseBot(String botId, FuturesTradingBot bot, BotStateUpdateRequest request, BotStateResponse response) {
-        // Pausing is similar to stopping but maintains position
-        if (!bot.isRunning()) {
-            throw new ConflictException("Cannot pause a stopped bot");
-        }
-        
-        agentManager.stopAgent(botId);
-        
-        // Update entity
-        agentRepository.findById(botId).ifPresent(entity -> {
-            // Maybe add PAUSED status to LegacyAgentEntity?
-            // For now use STOPPED but log reason?
-            // Or just STOPPED.
-            entity.setStatus(LegacyAgentEntity.AgentStatus.STOPPED);
-            entity.setUpdatedAt(Instant.now());
-            agentRepository.save(entity);
-        });
-        
+
+    private void pauseBot(String botId, FuturesTradingBot bot,
+                          BotStateUpdateRequest request, BotStateResponse response) {
+        botOperationPolicy.assertCanPause(bot, botId);
+
+        // ✅ One call — runtime + DB coordinated atomically in BotStateService
+        botStateService.pauseBot(botId);
+
         response.setStatus(BotStatus.PAUSED);
-        response.setMessage("Bot paused successfully" + (request.getReason() != null ? ": " + request.getReason() : ""));
-        
-        logger.info("Bot {} paused", botId);
+        response.setMessage("Bot paused successfully"
+                + (request.getReason() != null ? ": " + request.getReason() : ""));
     }
 }

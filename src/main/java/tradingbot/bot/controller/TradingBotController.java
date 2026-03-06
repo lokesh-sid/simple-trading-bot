@@ -31,11 +31,16 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import tradingbot.agent.TradingAgent;
 import tradingbot.agent.manager.AgentManager;
 import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.agent.persistence.LegacyAgentEntity;
 import tradingbot.bot.FuturesTradingBot;
+import tradingbot.bot.capability.LeverageConfigurable;
+import tradingbot.bot.capability.SentimentAware;
 import tradingbot.bot.controller.dto.request.BotStartRequest;
 import tradingbot.bot.controller.dto.request.LeverageUpdateRequest;
 import tradingbot.bot.controller.dto.request.SentimentUpdateRequest;
@@ -50,10 +55,12 @@ import tradingbot.bot.controller.dto.response.ErrorResponse;
 import tradingbot.bot.controller.dto.response.LeverageUpdateResponse;
 import tradingbot.bot.controller.dto.response.PaginationInfo;
 import tradingbot.bot.controller.dto.response.SentimentUpdateResponse;
-import tradingbot.bot.controller.exception.BotAlreadyRunningException;
 import tradingbot.bot.controller.exception.BotNotFoundException;
+import tradingbot.bot.controller.validation.BotOperationPolicy;
+import tradingbot.bot.controller.validation.BotRequestValidator;
 import tradingbot.bot.controller.validation.ValidBotId;
 import tradingbot.config.TradingConfig;
+import tradingbot.config.TradingSafetyService;
 
 /**
  * Trading Bot Controller - Manages multiple trading bot instances
@@ -82,11 +89,23 @@ public class TradingBotController {
     private final AgentManager agentManager;
     private final AgentRepository agentRepository;
     private final ObjectMapper objectMapper;
+    private final TradingSafetyService tradingSafetyService;
+    private final BotRequestValidator botRequestValidator;
+    private final BotOperationPolicy botOperationPolicy;
 
-    public TradingBotController(AgentManager agentManager, AgentRepository agentRepository, ObjectMapper objectMapper) {
+    public TradingBotController(
+            AgentManager agentManager,
+            AgentRepository agentRepository,
+            ObjectMapper objectMapper,
+            TradingSafetyService tradingSafetyService,
+            BotRequestValidator botRequestValidator,
+            BotOperationPolicy botOperationPolicy) {
         this.agentManager = agentManager;
         this.agentRepository = agentRepository;
         this.objectMapper = objectMapper;
+        this.tradingSafetyService = tradingSafetyService;
+        this.botRequestValidator = botRequestValidator;
+        this.botOperationPolicy = botOperationPolicy;
     }
     
     // Recovery logic is now handled by AgentManager on startup
@@ -109,7 +128,7 @@ public class TradingBotController {
         LegacyAgentEntity entity = new LegacyAgentEntity();
         entity.setId(botId);
         entity.setName("Bot-" + botId.substring(0, 8));
-        entity.setType("FUTURES");
+        entity.setType(LegacyAgentEntity.AgentType.FUTURES_PAPER.name());
         entity.setSymbol(config.getSymbol());
         entity.setStatus(LegacyAgentEntity.AgentStatus.CREATED);
         entity.setDirection("LONG");
@@ -152,16 +171,21 @@ public class TradingBotController {
         
         LegacyAgentEntity entity = agentRepository.findById(botId)
             .orElseThrow(() -> new BotNotFoundException(botId));
-        
-        // Check if bot is already running
-        TradingAgent currentAgent = agentManager.getAgent(botId);
-        if (currentAgent != null && currentAgent.isRunning()) {
-            throw new BotAlreadyRunningException();
-        }
+
+        // Policy: reject if already running
+        botOperationPolicy.assertCanStart(agentManager.getAgent(botId), botId);
+
+        // Resolve effective paper mode (request value takes priority; falls back to stored type)
+        boolean paperMode = botRequestValidator.resolvePaperMode(botId, request.isPaper());
+
+        // Safety guardrail: reject live mode if system is not configured for it
+        tradingSafetyService.validateBotStartMode(paperMode);
         
         // Update entity
         entity.setDirection(request.getDirection().toString());
-        entity.setType(request.isPaper() ? "FUTURES_PAPER" : "FUTURES");
+        entity.setType(paperMode
+                ? LegacyAgentEntity.AgentType.FUTURES_PAPER.name()
+                : LegacyAgentEntity.AgentType.FUTURES.name());
         entity.setUpdatedAt(java.time.Instant.now());
         agentRepository.save(entity);
         
@@ -169,7 +193,7 @@ public class TradingBotController {
         agentManager.refreshAgent(botId);
         agentManager.startAgent(botId);
         
-        FuturesTradingBot bot = (FuturesTradingBot) agentManager.getAgent(botId);
+        FuturesTradingBot bot = botRequestValidator.resolveAgentAs(botId, FuturesTradingBot.class);
         
         // Create status response with data
         BotStatusResponse statusResponse = new BotStatusResponse();
@@ -181,7 +205,7 @@ public class TradingBotController {
         statusResponse.setSentimentEnabled(bot.isSentimentEnabled());
         statusResponse.setStatusMessage(bot.getStatus());
         
-        String mode = request.isPaper() ? "paper" : "live";
+        String mode = paperMode ? "paper" : "live";
         String message = "Trading bot " + botId + " started in " + request.getDirection() + " mode (" + mode + ")";
         
         BotStartResponse response = new BotStartResponse(
@@ -251,12 +275,7 @@ public class TradingBotController {
             @Parameter(description = "Unique bot identifier (UUID format)") 
             @PathVariable @ValidBotId String botId) {
         
-        TradingAgent agent = agentManager.getAgent(botId);
-        if (agent == null) {
-            throw new BotNotFoundException(botId);
-        }
-        
-        FuturesTradingBot bot = (FuturesTradingBot) agent;
+        FuturesTradingBot bot = botRequestValidator.resolveAgentAs(botId, FuturesTradingBot.class);
         BotStatusResponse response = new BotStatusResponse();
         
         response.setRunning(bot.isRunning());
@@ -290,6 +309,9 @@ public class TradingBotController {
         
         LegacyAgentEntity entity = agentRepository.findById(botId)
             .orElseThrow(() -> new BotNotFoundException(botId));
+
+        // Policy: configuration changes require the bot to be stopped
+        botOperationPolicy.assertCanReconfigure(agentManager.getAgent(botId), botId);
             
         try {
             // Update DB
@@ -336,12 +358,13 @@ public class TradingBotController {
             @PathVariable @ValidBotId String botId,
             @Valid @RequestBody LeverageUpdateRequest request) {
         
-        TradingAgent agent = agentManager.getAgent(botId);
-        if (agent == null) {
-            throw new BotNotFoundException(botId);
+        // Resolve via capability interface — works for any future bot type that supports leverage
+        LeverageConfigurable bot = botRequestValidator.resolveAgentAs(botId, LeverageConfigurable.class);
+
+        // Policy: reject leverage change while bot has an open position
+        if (bot instanceof FuturesTradingBot) {
+            botOperationPolicy.assertCanUpdateLeverage((FuturesTradingBot) bot, botId);
         }
-        
-        FuturesTradingBot bot = (FuturesTradingBot) agent;
         double previousLeverage = bot.getCurrentLeverage();
         bot.setDynamicLeverage(request.getLeverage().intValue());
         
@@ -385,12 +408,8 @@ public class TradingBotController {
             @Valid @RequestBody SentimentUpdateRequest request) {
         
         boolean enable = request.getEnable();
-        TradingAgent agent = agentManager.getAgent(botId);
-        if (agent == null) {
-            throw new BotNotFoundException(botId);
-        }
-        
-        FuturesTradingBot bot = (FuturesTradingBot) agent;
+        // Resolve via capability interface — works for any future bot type that supports sentiment
+        SentimentAware bot = botRequestValidator.resolveAgentAs(botId, SentimentAware.class);
         boolean previousStatus = bot.isSentimentEnabled();
         bot.enableSentimentAnalysis(enable);
         
@@ -421,22 +440,21 @@ public class TradingBotController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<BotListResponse> listBots(
+            @Pattern(regexp = "^(?i)(RUNNING|STOPPED|ERROR)$", message = "Status must be RUNNING, STOPPED, or ERROR")
             @RequestParam(required = false) @Parameter(description = "Filter by bot status (RUNNING, STOPPED, ERROR)") String status,
             @RequestParam(required = false) @Parameter(description = "Filter by paper trading mode (true/false)") Boolean paper,
+            @Pattern(regexp = "^(?i)(LONG|SHORT)$", message = "Direction must be LONG or SHORT")
             @RequestParam(required = false) @Parameter(description = "Filter by trade direction (LONG, SHORT)") String direction,
             @RequestParam(required = false) @Parameter(description = "Search in botId or symbol") String search,
+            @Min(value = 0, message = "Page number cannot be less than 0")
             @RequestParam(defaultValue = "0") @Parameter(description = "Page number (0-indexed)") int page,
+            @Min(value = 1, message = "Size must be at least 1")
+            @Max(value = 100, message = "Size cannot exceed 100")
             @RequestParam(defaultValue = "20") @Parameter(description = "Page size (1-100)") int size,
-            @RequestParam(defaultValue = "createdAt") @Parameter(description = "Sort field (botId, createdAt, status)") String sortBy,
+            @Pattern(regexp = "^(?i)(botId|createdAt|status|symbol)$", message = "Sort field must be botId, createdAt, status, or symbol")
+            @RequestParam(defaultValue = "createdAt") @Parameter(description = "Sort field (botId, createdAt, status, symbol)") String sortBy,
+            @Pattern(regexp = "^(?i)(ASC|DESC)$", message = "Sort order must be ASC or DESC")
             @RequestParam(defaultValue = "DESC") @Parameter(description = "Sort order (ASC, DESC)") String sortOrder) {
-
-        // Validate pagination parameters
-        if (page < 0) {
-            page = 0;
-        }
-        if (size <= 0 || size > 100) {
-            size = 20; // Default page size
-        }
 
         // Get all entities
         List<LegacyAgentEntity> allAgents = agentRepository.findAll();
@@ -497,8 +515,7 @@ public class TradingBotController {
 
         // Filter by paper trading mode
         if (paper != null) {
-            boolean isPaper = "FUTURES_PAPER".equalsIgnoreCase(agent.getType());
-            if (isPaper != paper) {
+            if (agent.isPaperMode() != paper) {
                 return false;
             }
         }
@@ -594,10 +611,6 @@ public class TradingBotController {
      * Public accessor for BotStateController and other controllers
      */
     public FuturesTradingBot getTradingBot(String botId) {
-        TradingAgent agent = agentManager.getAgent(botId);
-        if (agent == null) {
-            throw new BotNotFoundException(botId);
-        }
-        return (FuturesTradingBot) agent;
+        return botRequestValidator.resolveAgentAs(botId, FuturesTradingBot.class);
     }
 }

@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail on tracked local artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          disallowed="$(git ls-files | grep -E '(^\.env$|(^|/)\.DS_Store$|^application\.pid$|(^|/)(build|target|bin|logs|frontend/node_modules|gateway/build|gateway/\.gradle|\.gradle)/|(^|/).+\.log$|(^|/)build_log[^/]*\.txt$)' || true)"
+
+          if [[ -n "$disallowed" ]]; then
+            echo "Tracked local or generated artifacts detected:"
+            echo "$disallowed"
+            exit 1
+          fi
+
+  backend-test:
+    runs-on: ubuntu-latest
+    needs: hygiene
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run backend tests
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          TRADING_EXECUTION_MODE: paper
+          TRADING_EXCHANGE_PROVIDER: paper
+          TRADING_BYBIT_DOMAIN: TESTNET_DOMAIN
+          TRADING_LIVE_ENABLED: 'false'
+        run: ./gradlew test --no-daemon
+
+  gateway-test:
+    runs-on: ubuntu-latest
+    needs: hygiene
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run gateway tests
+        run: ./gradlew -p gateway test --no-daemon

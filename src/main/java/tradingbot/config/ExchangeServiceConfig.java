@@ -1,5 +1,7 @@
 package tradingbot.config;
 
+import java.util.Locale;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,7 +28,7 @@ public class ExchangeServiceConfig {
     @Value("${trading.binance.api.secret:YOUR_BINANCE_API_SECRET}")
     private String binanceApiSecret;
 
-    @Value("${trading.exchange.provider:binance}")
+    @Value("${trading.exchange.provider:paper}")
     private String provider;
 
     @Value("${trading.bybit.api.key:}")
@@ -35,8 +37,14 @@ public class ExchangeServiceConfig {
     @Value("${trading.bybit.api.secret:}")
     private String bybitApiSecret;
 
-    @Value("${trading.bybit.domain:MAINNET_DOMAIN}")
+    @Value("${trading.bybit.domain:TESTNET_DOMAIN}")
     private String bybitDomain;
+
+    private final TradingSafetyService tradingSafetyService;
+
+    public ExchangeServiceConfig(TradingSafetyService tradingSafetyService) {
+        this.tradingSafetyService = tradingSafetyService;
+    }
 
     /**
      * Primary exchange service bean with rate limiting.
@@ -45,7 +53,11 @@ public class ExchangeServiceConfig {
     @Bean
     @Primary
     FuturesExchangeService futuresExchangeService(EventPublisher eventPublisher) {
-        return switch (provider.toLowerCase()) {
+        String normalizedProvider = provider == null ? "" : provider.trim().toLowerCase(Locale.ROOT);
+
+        tradingSafetyService.validateConfiguredExchangeAccess();
+
+        return switch (normalizedProvider) {
             case "paper" -> new PaperFuturesExchangeService();
             case "bybit" -> {
                 String baseUrl = TESTNET_DOMAIN_VALUE.equals(bybitDomain)
@@ -59,7 +71,7 @@ public class ExchangeServiceConfig {
             // TODO [Phase 3]: Add dYdX v4, OKX, Gate.io via XChange adapter
             default -> throw new IllegalArgumentException(
                 "Unknown exchange provider: " + provider
-                + ". Valid values: binance, bybit, paper");
+                + ". Valid values: paper, bybit, binance");
         };
     }
 }

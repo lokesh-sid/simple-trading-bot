@@ -84,4 +84,17 @@ public interface TradeMemoryRepository extends JpaRepository<TradeMemoryEntity, 
      * Count experiences by outcome for an agent
      */
     long countByAgentIdAndOutcome(String agentId, TradeMemoryEntity.Outcome outcome);
+
+    /**
+     * Find all PENDING memories for an agent on a specific symbol.
+     * Used by the reflection pipeline to locate the pre-trade record that
+     * should be updated once the real trade outcome is known.
+     */
+    @Query("SELECT m FROM TradeMemoryEntity m WHERE m.agentId = :agentId " +
+           "AND m.symbol = :symbol AND m.outcome = 'PENDING' " +
+           "ORDER BY m.timestamp DESC")
+    List<TradeMemoryEntity> findPendingByAgentIdAndSymbol(
+        @Param("agentId") String agentId,
+        @Param("symbol") String symbol
+    );
 }

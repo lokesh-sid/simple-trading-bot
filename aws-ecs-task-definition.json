@@ -10,13 +10,18 @@
       "essential": true,
       "portMappings": [
         {
-          "containerPort": 8080,
-          "hostPort": 8080,
+          "containerPort": 8081,
+          "hostPort": 8081,
           "protocol": "tcp"
         }
       ],
       "environment": [
-        { "name": "JAVA_OPTS", "value": "-Xmx512m" }
+        { "name": "JAVA_OPTS", "value": "-Xmx512m" },
+        { "name": "SERVER_PORT", "value": "8081" },
+        { "name": "TRADING_EXECUTION_MODE", "value": "paper" },
+        { "name": "TRADING_EXCHANGE_PROVIDER", "value": "paper" },
+        { "name": "TRADING_BYBIT_DOMAIN", "value": "TESTNET_DOMAIN" },
+        { "name": "TRADING_LIVE_ENABLED", "value": "false" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",

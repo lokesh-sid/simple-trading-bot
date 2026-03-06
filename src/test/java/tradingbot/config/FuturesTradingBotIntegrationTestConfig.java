@@ -41,6 +41,7 @@ import tradingbot.agent.manager.AgentManager;
 import tradingbot.agent.persistence.LegacyAgentEntity;
 import tradingbot.agent.service.OrderPlacementService;
 import tradingbot.agent.service.RAGService;
+import tradingbot.agent.service.TradeReflectionService;
 import tradingbot.agent.service.TradingAgentService;
 import tradingbot.agent.service.TradingTools;
 import tradingbot.bot.FuturesTradingBot;
@@ -97,6 +98,11 @@ public class FuturesTradingBotIntegrationTestConfig {
     @Bean
     public tradingbot.agent.config.AgentProperties agentProperties() {
         return new tradingbot.agent.config.AgentProperties();
+    }
+
+    @Bean
+    public TradingSafetyService tradingSafetyService() {
+        return new TradingSafetyService("paper", "paper", "TESTNET_DOMAIN", false);
     }
 
     @Bean
@@ -251,6 +257,11 @@ public class FuturesTradingBotIntegrationTestConfig {
     @Bean
     public RAGService ragService() {
         return Mockito.mock(RAGService.class);
+    }
+
+    @Bean
+    public TradeReflectionService tradeReflectionService() {
+        return Mockito.mock(TradeReflectionService.class);
     }
 
     @Bean

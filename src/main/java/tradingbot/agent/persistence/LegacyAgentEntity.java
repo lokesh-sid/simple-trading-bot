@@ -20,8 +20,31 @@ public class LegacyAgentEntity {
     @Column(nullable = false)
     private String name;
 
+    /**
+     * Canonical set of agent types. Using an enum here eliminates raw-string
+     * comparisons scattered across the codebase and lets the compiler catch typos.
+     */
+    public enum AgentType {
+        FUTURES,
+        FUTURES_PAPER;
+
+        public boolean isPaper() {
+            return this == FUTURES_PAPER;
+        }
+
+        /** Tolerant parse: falls back to FUTURES_PAPER on unknown values (safe default). */
+        public static AgentType fromString(String value) {
+            if (value == null) return FUTURES_PAPER;
+            try {
+                return AgentType.valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return FUTURES_PAPER;
+            }
+        }
+    }
+
     @Column(nullable = false)
-    private String type; // e.g., "FUTURES", "SPOT"
+    private String type; // stored as AgentType name, e.g. "FUTURES_PAPER"
 
     @Column(nullable = false)
     private String symbol;
@@ -49,6 +72,7 @@ public class LegacyAgentEntity {
         CREATED,
         RUNNING,
         STOPPED,
+        PAUSED,
         ERROR,
         DISABLED
     }
@@ -76,6 +100,12 @@ public class LegacyAgentEntity {
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
+
+    /** Returns the strongly-typed AgentType, never null (safe fallback to FUTURES_PAPER). */
+    public AgentType getAgentType() { return AgentType.fromString(type); }
+
+    /** Convenience predicate used in lieu of raw "FUTURES_PAPER".equalsIgnoreCase(entity.getType()). */
+    public boolean isPaperMode() { return getAgentType().isPaper(); }
 
     public String getSymbol() { return symbol; }
     public void setSymbol(String symbol) { this.symbol = symbol; }

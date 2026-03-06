@@ -11,6 +11,8 @@ import jakarta.validation.Validator;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import tradingbot.agent.TradingAgent;
+import tradingbot.bot.capability.LeverageConfigurable;
+import tradingbot.bot.capability.SentimentAware;
 import tradingbot.bot.events.MarketDataEvent;
 import tradingbot.bot.model.MarketData;
 import tradingbot.bot.service.FuturesExchangeService;
@@ -21,7 +23,7 @@ import tradingbot.bot.strategy.exit.PositionExitCondition;
 import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 import tradingbot.config.TradingConfig;
 
-public class FuturesTradingBot implements TradingAgent {
+public class FuturesTradingBot implements TradingAgent, LeverageConfigurable, SentimentAware {
     private final Logger logger = Logger.getLogger(FuturesTradingBot.class.getName());
     private static final int CHECK_INTERVAL_SECONDS = 900; // 15 minutes
 

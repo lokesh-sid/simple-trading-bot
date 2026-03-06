@@ -1,58 +1,143 @@
-# IDE and OS files
-.vscode/
-.idea/
-*.iml
-*.iws
-*.ipr
+# OS and editor files
 .DS_Store
 Thumbs.db
+.idea/
+*.iml
+*.ipr
+*.iws
 
-# Build directories
+# Local VS Code state
+.vscode/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Java / Gradle / Maven outputs
+.gradle/
 build/
 target/
 out/
 bin/
-api-tests/
-
-# class files
 *.class
 
-# Gradle files
-.gradle/
-gradle-app.setting
-!gradle-wrapper.jar
-!gradle-wrapper.properties
+# Nested module outputs
+gateway/.gradle/
+gateway/build/
 
-# Maven files (legacy)
-.mvn/
-mvnw
-mvnw.cmd
+# Node / frontend outputs
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.vite-temp/
 
-# Log files
+# Logs and runtime state
 logs/
 *.log
-
-# Application specific
-application-local.properties
-.env
-*.md
-.gitignore
-build.gradle
-bin/presentation/Architecture-API-Presentation.html
-bin/presentation/architecture-diagram.png
-bin/presentation/Presentation.pptx
-bin/presentation/simple_trading_architecture.pptx
-bin/presentation/Simple-Trading-Bot-Presentation.html
-
-
-gateway/nohup.out
 build_log*.txt
+*.pid
 nohup.out
-nohup.out
-add-imports.sh
+
+# Temporary files
+tmp/
+*.tmp
+*.swp
+*.swo
+.github/appmod/code-migration/progress.md
+.github/appmod/code-migration/summary.md
+.github/prompts/plan-akkaMultiAssetPortfolioArchitecture.prompt.md
+.github/prompts/plan-claudeSubAgents.prompt.md
+.github/prompts/plan-comprehensiveE2eTests.prompt.md
+.github/prompts/plan-detailedIntegrationSteps.prompt.md
+.github/prompts/plan-enterpriseJavaTradingPlatformUpgrade.prompt.md
+.github/prompts/plan-migrateToLangchain4jAgentFramework.prompt.md
+.github/prompts/plan-modernizeAgentArchitectureProductionReadiness.prompt.md
+.github/prompts/plan-productionReadinessAudit.prompt.md
+.github/prompts/plan-tieredTradingSystemArchitecture.prompt.md
+GATEWAY_AUTH_ANALYSIS.md
+GRPC_INTEGRATION_TEST_FIX.md
 .gitignore
-.gitignore
-add-repo.sh
-test-edit.sh
-update-constructors.sh
+LANGCHAIN4J_IMPLEMENTATION_COMPLETE.md
+LANGCHAIN4J_MIGRATION_GUIDE.md
+LOGIN_RESPONSE_BEST_PRACTICES_ANALYSIS.md
+LOGIN_RESPONSE_OAUTH2_UPGRADE.md
+P0_IMPLEMENTATION_SUMMARY.md
+QUICK_REFERENCE.md
+QUICK_START.md
+RAG_EMBEDDING_PROVIDERS.md
+RAG_INTEGRATION_SUMMARY.md
+RAG_ROBUSTNESS_FIX.md
+BEFORE_VS_AFTER_COMPARISON.md
+BINANCE_API_INTEGRATION.md
+CCXT_INTEGRATION_TEST_FINDINGS.md
+AGENTIC_AI_IMPLEMENTATION_SUMMARY.md
 AGENTIC_AI_TODO.md
+STRATEGY_PATTERN_IMPLEMENTATION.md
+TEST_SCRIPTS_README.md
+.gitignore
+.gitignore
+WILDCARD_REMOVAL_SUMMARY.md
+WILDCARD_REMOVAL_SUMMARY.md
+SECURITY_IMPROVEMENTS.md
+WILDCARD_REMOVAL_SUMMARY.md
+docs/diagrams/1_agent_system_architecture.md
+docs/diagrams/2_agent_data_flow.md
+docs/diagrams/3_backtest_sequence.md
+docs/diagrams/4_live_kafka_sequence.md
+docs/diagrams/5_live_market_data_sequence.md
+docs/diagrams/FULL_SYSTEM_DIAGRAM.md
+docs/AGENT_SYSTEM_ARCHITECTURE.md
+docs/API_CHANGES.md
+docs/API_GATEWAY_DATA_FLOW.md
+docs/API_GATEWAY_IMPLEMENTATION_SUMMARY.md
+docs/API_GATEWAY_SEQUENCE_DIAGRAM.md
+docs/API_TEST_RESOURCES_SUMMARY.md
+docs/API_TESTING_QUICK_REFERENCE.md
+docs/ARCHITECTURE_SIMPLIFICATION.md
+docs/AUTHENTICATION_IMPLEMENTATION_COMPLETE.md
+docs/AUTHENTICATION_QUICK_REFERENCE.md
+docs/BOT_PACKAGE_UML.md
+docs/COMPLETABLE_FUTURE_BEST_PRACTICES.md
+docs/DATABASE_SETUP.md
+docs/DOMAIN_EVENTS_ADDENDUM.md
+docs/DOMAIN_EVENTS_COMPLETE_ORIGINAL.md
+docs/DOMAIN_EVENTS_DESIGN.md
+docs/DOMAIN_EVENTS_INDEX.md
+docs/DOMAIN_EVENTS_PRD.md
+docs/DOMAIN_EVENTS_QUICK_REFERENCE.md
+docs/DOMAIN_EVENTS_UPDATE_SUMMARY.md
+docs/GATEWAY_ARCHITECTURE_DIAGRAM.md
+docs/GATEWAY_MULTI_BOT_UPDATE_SUMMARY.md
+docs/GATEWAY_SPRING_IMPROVEMENTS.md
+docs/GRADLE_MIGRATION.md
+docs/GRPC_TEST_COVERAGE.md
+docs/HIGH_LEVEL_ARCHITECTURE_DIAGRAM.md
+docs/high-level-architecture.md
+docs/JAVA_21_UPGRADE_SUMMARY.md
+docs/JWT_AUTHENTICATION_SETUP.md
+docs/KAFKA_IMPLEMENTATION_COMPLETE.md
+docs/KAFKA_IMPLEMENTATION.md
+docs/KAFKA_VS_REDIS_STREAMS.md
+docs/LAYERED_SYSTEM_ARCHITECTURE.md
+docs/LOGIN_RESPONSE_ERROR_HANDLING.md
+docs/lokesh-sid: upgrade java runtime to the .md
+docs/MESSAGE_QUEUE_IMPLEMENTATION.md
+docs/MESSAGE_QUEUE_INTEGRATION_SUMMARY.md
+docs/MIGRATION_COMPLETE.md
+docs/MULTI_BOT_REFACTORING_SUMMARY.md
+docs/OAUTH2_RFC6749_COMPLIANCE.md
+docs/POSTGRESQL_INTEGRATION_SUMMARY.md
+docs/PRESENTATION_UPDATES.md
+docs/PROJECT_STATUS_SUMMARY.md
+docs/RATE_LIMITING_GUIDE.md
+docs/REDIS_BOT_CACHING_COMPLETE.md
+docs/REDIS_BOT_CACHING_IMPLEMENTATION.md
+docs/resilience.md
+docs/SPRING_VALIDATION_IMPLEMENTATION.md
+docs/SWAGGER_IMPLEMENTATION_SUMMARY.md
+docs/TRADING_BOT_CLASS_DIAGRAM.md

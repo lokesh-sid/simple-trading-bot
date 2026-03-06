@@ -2,12 +2,14 @@ services:
   simple-trading-bot:
     build: .
     ports:
-      - "8080:8080"
+      - "8081:8081"
     depends_on:
       - postgres
       - redis
       - kafka
     environment:
+      - SERVER_PORT=8081
+      - SPRING_PROFILES_ACTIVE=prod
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/trading_bot
       - SPRING_DATASOURCE_USERNAME=tradingbot
       - SPRING_DATASOURCE_PASSWORD=tradingbot123
@@ -21,7 +23,10 @@ services:
       - TRADING_KAFKA_TOPICS_RISK_EVENTS=trading.risk
       - TRADING_KAFKA_TOPICS_MARKET_DATA=trading.market-data
       - TRADING_KAFKA_TOPICS_BOT_STATUS=trading.bot-status
-      - exchange=binance # or bybit
+      - TRADING_EXECUTION_MODE=paper
+      - TRADING_EXCHANGE_PROVIDER=paper
+      - TRADING_BYBIT_DOMAIN=TESTNET_DOMAIN
+      - TRADING_LIVE_ENABLED=false
     networks:
       - trading-network
 

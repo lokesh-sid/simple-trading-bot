@@ -1,368 +1,175 @@
 package tradingbot.bot.controller.exception;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
 import jakarta.validation.ConstraintViolationException;
+import tradingbot.agent.application.AgentNotFoundException;
 import tradingbot.bot.controller.dto.response.ErrorResponse;
 
 /**
- * Global exception handler for all REST controllers.
- * Provides consistent error responses following RFC 7807 Problem Details standard.
+ * Global exception handler — maps all domain and validation exceptions
+ * to consistent HTTP responses.
+ *
+ * Mapping contract:
+ *  BotNotFoundException            → 404
+ *  IllegalArgumentException        → 400  (wrong type / bad input)
+ *  ConstraintViolationException    → 400  (Jakarta @Min, @Max, @Pattern)
+ *  MethodArgumentNotValidException → 400  (@Valid on @RequestBody)
+ *  IllegalStateException           → 409  (state conflict)
+ *  ConflictException               → 409  (explicit conflict)
+ *  UnsupportedOperationException   → 422  (capability not supported)
+ *  Exception (catch-all)           → 500  (unexpected)
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-    private static final String ERROR_TYPE_BASE = "https://api.tradingbot.com/errors/";
-    
-    /**
-     * Handle validation errors from @Valid annotation on request bodies.
-     */
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationErrors(
-            MethodArgumentNotValidException ex,
-            WebRequest request) {
-        
-        Map<String, List<String>> fieldErrors = new HashMap<>();
-        ex.getBindingResult().getFieldErrors().forEach(error -> 
-            fieldErrors.computeIfAbsent(error.getField(), k -> new java.util.ArrayList<>())
-                .add(error.getDefaultMessage() != null ? error.getDefaultMessage() : "Invalid value")
-        );
-        
-        String requestPath = getRequestPath(request);
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "validation-failed")
-            .title("Validation Failed")
-            .httpStatus(HttpStatus.BAD_REQUEST.value())
-            .detail("Request validation failed. Please check field errors.")
-            .instance(requestPath)
-            .timestamp(System.currentTimeMillis())
-            .fieldErrors(fieldErrors)
-            .build();
-        
-        if (log.isWarnEnabled()) {
-            log.warn("Validation failed for request {}: {}", requestPath, fieldErrors);
-        }
-        
-        return ResponseEntity.badRequest().body(errorResponse);
+
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    // ------------------------------------------------------------------
+    // 404 — Resource not found
+    // ------------------------------------------------------------------
+
+    @ExceptionHandler(BotNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleBotNotFound(
+            BotNotFoundException ex, WebRequest request) {
+        ErrorResponse error = buildWithTitle(HttpStatus.NOT_FOUND, "Bot Not Found", ex.getMessage(), request);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
-    
+
+    @ExceptionHandler(AgentNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleAgentNotFound(
+            AgentNotFoundException ex, WebRequest request) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), request);
+    }
+
+    // ------------------------------------------------------------------
+    // 400 — Bad request (input validation)
+    // ------------------------------------------------------------------
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(
+            IllegalArgumentException ex, WebRequest request) {
+        logger.warn("Bad request: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
     /**
-     * Handle constraint violations from @Validated on method parameters.
+     * Jakarta @Min, @Max, @Pattern on @RequestParam / @PathVariable
+     * Triggered because the class is annotated with @Validated.
      */
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraintViolation(
-            ConstraintViolationException ex,
-            WebRequest request) {
-        
-        Map<String, List<String>> violations = new HashMap<>();
-        ex.getConstraintViolations().forEach(violation -> 
-            violations.computeIfAbsent(violation.getPropertyPath().toString(), k -> new java.util.ArrayList<>())
-                .add(violation.getMessage())
+            ConstraintViolationException ex, WebRequest request) {
+        String detail = ex.getConstraintViolations().stream()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .collect(Collectors.joining(", "));
+        logger.warn("Constraint violation: {}", detail);
+        ErrorResponse error = buildWithTitle(HttpStatus.BAD_REQUEST, "Constraint Violation", detail, request);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    /**
+     * Jakarta @Valid on @RequestBody
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException ex, WebRequest request) {
+        // Collect field-level errors into a map
+        Map<String, List<String>> fieldErrors = new HashMap<>();
+        ex.getBindingResult().getFieldErrors().forEach(e ->
+            fieldErrors.computeIfAbsent(e.getField(), k -> new ArrayList<>())
+                       .add(e.getDefaultMessage())
         );
-        
-        String requestPath = getRequestPath(request);
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "constraint-violation")
-            .httpStatus(HttpStatus.BAD_REQUEST.value())
-            .title("Constraint Violation")
-            .detail("Request parameter constraints violated.")
-            .instance(requestPath)
-            .timestamp(System.currentTimeMillis())
-            .fieldErrors(violations)
-            .build();
-        
-        if (log.isWarnEnabled()) {
-            log.warn("Constraint violation for request {}: {}", requestPath, violations);
-        }
-        
-        return ResponseEntity.badRequest().body(errorResponse);
+        String detail = ex.getBindingResult().getFieldErrors().stream()
+                .map(e -> e.getField() + ": " + e.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+        logger.warn("Validation failed: {}", detail);
+        ErrorResponse error = buildWithTitle(HttpStatus.BAD_REQUEST, "Validation Failed", detail, request);
+        error.setFieldErrors(fieldErrors);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
-    
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
-            HttpMessageNotReadableException ex,
-            WebRequest request) {
-        
-        String requestPath = getRequestPath(request);
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "invalid-request-body")
-            .httpStatus(HttpStatus.BAD_REQUEST.value())
-            .title("Invalid Request Body")
-            .detail("Request body is missing or malformed.")
-            .instance(requestPath)
-            .timestamp(System.currentTimeMillis())
-            .build();
-            
-        return ResponseEntity.badRequest().body(errorResponse);
-    }
-    
+
+    // ------------------------------------------------------------------
+    // 409 — Conflict (state transition not allowed)
+    // ------------------------------------------------------------------
+
     /**
-     * Handle BotNotFoundException - 404 Not Found
+     * Thrown by BotOperationPolicy when the bot is in the wrong runtime state.
+     * e.g. trying to start an already running bot.
      */
-    @ExceptionHandler(BotNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleBotNotFound(
-            BotNotFoundException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "bot-not-found")
-            .title("Bot Not Found")
-            .httpStatus(HttpStatus.NOT_FOUND.value())
-            .detail(ex.getMessage())
-            .instance(getRequestPath(request))
-            .timestamp(System.currentTimeMillis())
-            .build();
-        
-        log.warn("Bot not found: {}", ex.getMessage());
-        
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalState(
+            IllegalStateException ex, WebRequest request) {
+        logger.warn("State conflict: {}", ex.getMessage());
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
-    
-    /**
-     * Handle BotAlreadyRunningException - 409 Conflict
-     */
-    @ExceptionHandler(BotAlreadyRunningException.class)
-    public ResponseEntity<ErrorResponse> handleBotAlreadyRunning(
-            BotAlreadyRunningException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "bot-already-running")
-            .title("Bot Already Running")
-            .httpStatus(HttpStatus.CONFLICT.value())
-            .detail(ex.getMessage())
-            .instance(getRequestPath(request))
-            .timestamp(System.currentTimeMillis())
-            .build();
-        
-        log.warn("Bot already running: {}", ex.getMessage());
-        
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
-    }
-    
-    /**
-     * Handle ConflictException - 409 Conflict
-     */
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ErrorResponse> handleConflict(
-            ConflictException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "conflict")
-            .title("Resource Conflict")
-            .httpStatus(HttpStatus.CONFLICT.value())
-            .detail(ex.getMessage())
-            .instance(getRequestPath(request))
-            .timestamp(System.currentTimeMillis())
-            .build();
-        
-        log.warn("Resource conflict: {}", ex.getMessage());
-        
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
-    }
-    
-    /**
-     * Handle InvalidBotConfigurationException - 422 Unprocessable Entity
-     */
-    @ExceptionHandler(InvalidBotConfigurationException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidBotConfiguration(
-            InvalidBotConfigurationException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "invalid-bot-configuration")
-            .title("Invalid Bot Configuration")
-            .httpStatus(HttpStatus.UNPROCESSABLE_ENTITY.value())
-            .detail(ex.getMessage())
-            .instance(getRequestPath(request))
-            .timestamp(System.currentTimeMillis())
-            .build();
-        
-        log.warn("Invalid bot configuration: {}", ex.getMessage());
-        
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(errorResponse);
-    }
-    
-    /**
-     * Handle InvalidTradingOperationException - 400 Bad Request
-     */
-    @ExceptionHandler(InvalidTradingOperationException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidTradingOperation(
-            InvalidTradingOperationException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "invalid-trading-operation")
-            .title("Invalid Trading Operation")
-            .httpStatus(HttpStatus.BAD_REQUEST.value())
-            .detail(ex.getMessage())
-            .instance(getRequestPath(request))
-            .timestamp(System.currentTimeMillis())
-            .build();
-        
-        log.warn("Invalid trading operation: {}", ex.getMessage());
-        
-        return ResponseEntity.badRequest().body(errorResponse);
-    }
-    
-    /**
-     * Handle LeverageLimitExceededException - 400 Bad Request
-     */
-    @ExceptionHandler(LeverageLimitExceededException.class)
-    public ResponseEntity<ErrorResponse> handleLeverageLimitExceeded(
-            LeverageLimitExceededException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "leverage-limit-exceeded")
-            .title("Leverage Limit Exceeded")
-            .httpStatus(HttpStatus.BAD_REQUEST.value())
-            .detail(ex.getMessage())
-            .instance(getRequestPath(request))
-            .timestamp(System.currentTimeMillis())
-            .build();
-        
-        log.warn("Leverage limit exceeded: {}", ex.getMessage());
-        
-        return ResponseEntity.badRequest().body(errorResponse);
-    }
-    
-    /**
-     * Handle InvalidBotStateException - 409 Conflict
-     */
-    @ExceptionHandler(InvalidBotStateException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidBotState(
-            InvalidBotStateException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "invalid-bot-state")
-            .title("Invalid Bot State")
-            .httpStatus(HttpStatus.CONFLICT.value())
-            .detail(ex.getMessage())
-            .instance(getRequestPath(request))
-            .timestamp(System.currentTimeMillis())
-            .build();
-        
-        log.warn("Invalid bot state: {}", ex.getMessage());
-        
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
-    }
-    
-    /**
-     * Handle IllegalArgumentException - 400 Bad Request
-     */
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgument(
-            IllegalArgumentException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "invalid-argument")
-            .title("Invalid Argument")
-            .httpStatus(HttpStatus.BAD_REQUEST.value())
-            .detail(ex.getMessage())
-            .instance(getRequestPath(request))
-            .timestamp(System.currentTimeMillis())
-            .build();
-        
-        log.warn("Invalid argument: {}", ex.getMessage());
-        
-        return ResponseEntity.badRequest().body(errorResponse);
-    }
-    
-    /**
-     * Handle AgentNotFoundException - 404 Not Found
-     */
-    @ExceptionHandler(tradingbot.agent.application.AgentNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleAgentNotFound(
-            tradingbot.agent.application.AgentNotFoundException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "agent-not-found")
-            .title("Agent Not Found")
-            .httpStatus(HttpStatus.NOT_FOUND.value())
-            .detail(ex.getMessage())
-            .instance(getRequestPath(request))
-            .timestamp(System.currentTimeMillis())
-            .build();
-        
-        if (log.isWarnEnabled()) {
-            log.warn("Agent not found: {}", ex.getMessage());
-        }
-        
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+            ConflictException ex, WebRequest request) {
+        logger.warn("Conflict: {}", ex.getMessage());
+        return build(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
-    /**
-     * Handle AgentAlreadyExistsException - 409 Conflict
-     */
-    @ExceptionHandler(tradingbot.agent.application.AgentAlreadyExistsException.class)
-    public ResponseEntity<ErrorResponse> handleAgentAlreadyExists(
-            tradingbot.agent.application.AgentAlreadyExistsException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "agent-already-exists")
-            .title("Agent Already Exists")
-            .httpStatus(HttpStatus.CONFLICT.value())
-            .detail(ex.getMessage())
-            .instance(getRequestPath(request))
-            .timestamp(System.currentTimeMillis())
-            .build();
-        
-        if (log.isWarnEnabled()) {
-            log.warn("Agent already exists: {}", ex.getMessage());
-        }
-        
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
-    }
+    // ------------------------------------------------------------------
+    // 422 — Unprocessable (capability not supported by this bot type)
+    // ------------------------------------------------------------------
 
     /**
-     * Handle all other exceptions - 500 Internal Server Error
+     * Thrown by BotRequestValidator.resolveAgentAs() when the bot
+     * does not implement the requested capability interface.
+     * e.g. requesting leverage update on a spot bot.
      */
+    @ExceptionHandler(UnsupportedOperationException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedOperation(
+            UnsupportedOperationException ex, WebRequest request) {
+        logger.warn("Unsupported operation: {}", ex.getMessage());
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request);
+    }
+
+    // ------------------------------------------------------------------
+    // 500 — Unexpected
+    // ------------------------------------------------------------------
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(
-            Exception ex,
-            WebRequest request) {
-        
-        String requestPath = getRequestPath(request);
-        
-        ErrorResponse errorResponse = ErrorResponse.builder()
-            .type(ERROR_TYPE_BASE + "internal-server-error")
-            .title("Internal Server Error")
-            .httpStatus(HttpStatus.INTERNAL_SERVER_ERROR.value())
-            .detail("An unexpected error occurred. Please try again later.")
-            .instance(requestPath)
-            .timestamp(System.currentTimeMillis())
-            .build();
-        
-        if (log.isErrorEnabled()) {
-            log.error("Unexpected error occurred for request {}", requestPath, ex);
-        }
-        
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+    public ResponseEntity<ErrorResponse> handleUnexpected(
+            Exception ex, WebRequest request) {
+        logger.error("Unexpected error", ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected error occurred. Please contact support.", request);
     }
-    
-    private String getRequestPath(WebRequest request) {
-        return request.getDescription(false).replace("uri=", "");
+
+    // ------------------------------------------------------------------
+    // Builders
+    // ------------------------------------------------------------------
+
+    private ResponseEntity<ErrorResponse> build(
+            HttpStatus status, String message, WebRequest request) {
+        return ResponseEntity.status(status).body(
+                buildWithTitle(status, status.getReasonPhrase(), message, request));
+    }
+
+    private ErrorResponse buildWithTitle(
+            HttpStatus status, String title, String detail, WebRequest request) {
+        ErrorResponse error = new ErrorResponse();
+        error.setHttpStatus(status.value());
+        error.setTitle(title);
+        error.setDetail(detail);
+        error.setInstance(request.getDescription(false).replace("uri=", ""));
+        error.setTimestamp(System.currentTimeMillis());
+        return error;
     }
 }
