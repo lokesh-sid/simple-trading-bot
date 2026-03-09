@@ -43,7 +43,6 @@ import reactor.core.publisher.Flux;
 import tradingbot.agent.application.AgentOrchestrator;
 import tradingbot.agent.application.PerformanceTrackingService;
 import tradingbot.agent.application.strategy.LangChain4jStrategy;
-import tradingbot.agent.domain.execution.OrderExecutionGateway;
 import tradingbot.agent.domain.repository.AgentRepository;
 import tradingbot.agent.infrastructure.repository.OrderRepository;
 import tradingbot.domain.market.KlineClosedEvent;
@@ -62,6 +61,15 @@ import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
  */
 @Testcontainers
 @SpringJUnitConfig(classes = KlineClosedEventKafkaIntegrationTest.TestConfig.class)
+@org.springframework.test.context.TestPropertySource(properties = {
+        // Provide a non-empty SpEL map so AgentOrchestrator's
+        // @Value("#{${agent.throttle.per-symbol:{}}}") evaluates to Map<String,Long>
+        // rather than the empty list that bare '{}' produces in SpEL.
+        "agent.throttle.per-symbol={BTCUSDT: 5000}",
+        "agent.throttle.default-ms=5000",
+        "websocket.enabled=false",
+        "agent.strategy=langchain4j"
+})
 @DisplayName("KlineClosedEvent Kafka Integration Test")
 class KlineClosedEventKafkaIntegrationTest {
 
@@ -233,7 +241,7 @@ class KlineClosedEventKafkaIntegrationTest {
                     exchangeWebSocketClient,
                     emptyAgents,
                     bulkheadRegistry,
-                    (OrderExecutionGateway) null,
+                    null,
                     orderRepository,
                     performanceTrackingService,
                     applicationEventPublisher,
