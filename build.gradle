@@ -128,6 +128,10 @@ dependencies {
     testImplementation 'org.testcontainers:testcontainers'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:kafka'
+    testImplementation 'org.testcontainers:postgresql'
+
+    // Prometheus metrics registry (exposes /actuator/prometheus scrape endpoint)
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 }
 
 configurations.all {
