@@ -168,7 +168,8 @@ public class BinanceWebSocketClient {
         if (k == null) {
             return;
         }
-        if (!k.get("x").asBoolean()) {
+        JsonNode xNode = k.get("x");
+        if (xNode == null || !xNode.asBoolean()) {
             // Candle not yet closed — ignore in-progress updates
             return;
         }

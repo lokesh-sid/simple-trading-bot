@@ -153,6 +153,24 @@ class BinanceWebSocketClientTest {
     }
 
     private static String openKlineJson(String symbol, String interval) {
-        return closedKlineJson(symbol, interval).replace("\"x\": true", "\"x\": false");
+        return """
+                {
+                  "e": "kline",
+                  "E": 1700000060000,
+                  "s": "%s",
+                  "k": {
+                    "t": 1700000000000,
+                    "T": 1700000059999,
+                    "s": "%s",
+                    "i": "%s",
+                    "o": "29000.00",
+                    "h": "29500.00",
+                    "l": "28900.00",
+                    "c": "29400.00",
+                    "v": "100.5",
+                    "x": false
+                  }
+                }
+                """.formatted(symbol, symbol, interval);
     }
 }
