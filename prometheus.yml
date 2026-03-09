@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'simple-trading-bot'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['simple-trading-bot:8081']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance

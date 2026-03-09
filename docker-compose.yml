@@ -95,6 +95,24 @@ services:
     networks:
       - trading-network
 
+  # Prometheus – scrapes metrics from /actuator/prometheus
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: trading-bot-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    depends_on:
+      - simple-trading-bot
+    networks:
+      - trading-network
+
 networks:
   trading-network:
     driver: bridge
