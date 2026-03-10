@@ -1,8 +1,9 @@
 package tradingbot;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.*;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -32,6 +33,7 @@ import tradingbot.config.ContainerIntegrationTestConfig;
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
 )
 @ActiveProfiles("container-test")
+@Tag("requires-docker")
 @DisplayName("Testcontainers + Micrometer E2E Integration Test")
 class PrometheusContainerIntegrationTest extends AbstractContainerIntegrationTest {
 

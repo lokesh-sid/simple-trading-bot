@@ -46,6 +46,7 @@ import tradingbot.agent.service.TradingAgentService;
 import tradingbot.agent.service.TradingTools;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.controller.dto.BotState;
+import tradingbot.bot.metrics.TradingMetrics;
 import tradingbot.bot.persistence.entity.TradingEventEntity;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.service.PaperFuturesExchangeService;
@@ -282,5 +283,10 @@ public class FuturesTradingBotIntegrationTestConfig {
     @Bean
     public GatewayService gatewayService() {
         return Mockito.mock(GatewayService.class);
+    }
+
+    @Bean
+    public TradingMetrics tradingMetrics() {
+        return Mockito.mock(TradingMetrics.class);
     }
 }

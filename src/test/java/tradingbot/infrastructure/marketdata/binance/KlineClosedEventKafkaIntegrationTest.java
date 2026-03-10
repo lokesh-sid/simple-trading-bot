@@ -1,9 +1,7 @@
 package tradingbot.infrastructure.marketdata.binance;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -15,6 +13,7 @@ import java.util.Map;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,9 +32,9 @@ import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
-import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import io.github.resilience4j.bulkhead.BulkheadRegistry;
@@ -45,10 +44,10 @@ import tradingbot.agent.application.PerformanceTrackingService;
 import tradingbot.agent.application.strategy.LangChain4jStrategy;
 import tradingbot.agent.domain.repository.AgentRepository;
 import tradingbot.agent.infrastructure.repository.OrderRepository;
+import tradingbot.bot.metrics.TradingMetrics;
 import tradingbot.domain.market.KlineClosedEvent;
 import tradingbot.domain.market.StreamMarketDataEvent;
 import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
-
 /**
  * Integration test verifying the end-to-end Kafka plumbing for
  * {@link KlineClosedEvent}.
@@ -59,6 +58,7 @@ import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
  * {@link AgentOrchestrator#onKlineClosedEvent} is invoked by the live
  * Kafka listener container.
  */
+@Tag("requires-docker")
 @Testcontainers
 @SpringJUnitConfig(classes = KlineClosedEventKafkaIntegrationTest.TestConfig.class)
 @org.springframework.test.context.TestPropertySource(properties = {
@@ -74,8 +74,8 @@ import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
 class KlineClosedEventKafkaIntegrationTest {
 
     @Container
-    static final KafkaContainer KAFKA =
-            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.4.0"));
+    static final ConfluentKafkaContainer KAFKA =
+            new ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.4.0"));
 
     @DynamicPropertySource
     static void kafkaBootstrapServers(DynamicPropertyRegistry registry) {
@@ -217,6 +217,11 @@ class KlineClosedEventKafkaIntegrationTest {
             return mock(ApplicationEventPublisher.class);
         }
 
+        @Bean
+        TradingMetrics tradingMetrics() {
+            return mock(TradingMetrics.class);
+        }
+
         /**
          * The real {@link AgentOrchestrator} wrapped in a Mockito spy so that
          * the test can verify {@link AgentOrchestrator#onKlineClosedEvent} is
@@ -231,7 +236,8 @@ class KlineClosedEventKafkaIntegrationTest {
                 BulkheadRegistry bulkheadRegistry,
                 OrderRepository orderRepository,
                 PerformanceTrackingService performanceTrackingService,
-                ApplicationEventPublisher applicationEventPublisher) {
+                ApplicationEventPublisher applicationEventPublisher,
+                TradingMetrics tradingMetrics) {
 
             List<tradingbot.agent.ReactiveTradingAgent> emptyAgents = Collections.emptyList();
 
@@ -245,6 +251,7 @@ class KlineClosedEventKafkaIntegrationTest {
                     orderRepository,
                     performanceTrackingService,
                     applicationEventPublisher,
+                    tradingMetrics,
                     "langchain4j");
 
             return Mockito.spy(real);

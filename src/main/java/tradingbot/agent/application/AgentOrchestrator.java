@@ -41,6 +41,7 @@ import tradingbot.agent.domain.model.AgentStatus;
 import tradingbot.agent.domain.repository.AgentRepository;
 import tradingbot.agent.infrastructure.persistence.OrderEntity;
 import tradingbot.agent.infrastructure.repository.OrderRepository;
+import tradingbot.bot.metrics.TradingMetrics;
 import tradingbot.domain.market.KlineClosedEvent;
 import tradingbot.domain.market.MarketEvent;
 import tradingbot.domain.market.StreamMarketDataEvent;
@@ -127,6 +128,7 @@ public class AgentOrchestrator {
     private final OrderRepository orderRepository;
     private final PerformanceTrackingService performanceTrackingService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final TradingMetrics tradingMetrics;
 
     /**
      * Primary constructor — Spring uses this for dependency injection.
@@ -147,6 +149,7 @@ public class AgentOrchestrator {
             OrderRepository orderRepository,
             PerformanceTrackingService performanceTrackingService,
             org.springframework.context.ApplicationEventPublisher eventPublisher,
+            TradingMetrics tradingMetrics,
             @Value("${agent.strategy:langchain4j}") String strategyName) {
 
         this.agentRepository = agentRepository;
@@ -157,6 +160,7 @@ public class AgentOrchestrator {
         this.orderRepository = orderRepository;
         this.performanceTrackingService = performanceTrackingService;
         this.eventPublisher = eventPublisher;
+        this.tradingMetrics = tradingMetrics;
         this.agentScheduler = Schedulers.boundedElastic();
 
         String normalized = strategyName.toLowerCase();
@@ -206,6 +210,7 @@ public class AgentOrchestrator {
         this.orderRepository = orderRepository;
         this.performanceTrackingService = performanceTrackingService;
         this.eventPublisher = null; // deprecated constructor — reflection events disabled
+        this.tradingMetrics = null; // deprecated constructor — metrics disabled
         this.agentScheduler = Schedulers.boundedElastic();
 
         this.activeStrategy = switch (strategyName.toLowerCase()) {
@@ -464,8 +469,11 @@ public class AgentOrchestrator {
                             if (executionGateway != null && decision.isEntry()) {
                                 try {
                                     double price = event.close().doubleValue();
-                                    ExecutionResult result = executionGateway.execute(
-                                            decision, event.symbol(), price);
+                                    String direction = decision.action() == Action.BUY ? "LONG" : "SHORT";
+                                    ExecutionResult result = tradingMetrics != null
+                                            ? tradingMetrics.orderPlacementTimer(event.symbol(), direction)
+                                                    .recordCallable(() -> executionGateway.execute(decision, event.symbol(), price))
+                                            : executionGateway.execute(decision, event.symbol(), price);
                                     logger.info("[AgenticAgent] {} execution: {} success={} fill={}",
                                             agent.getId(), result.action(), result.success(), result.fillPrice());
 
@@ -488,6 +496,13 @@ public class AgentOrchestrator {
                                                          .executedAt(Instant.now())
                                                          .exchangeOrderId(result.exchangeOrderId())
                                                          .realizedPnl(result.realizedPnl());
+                                            // Record Micrometer entry metric
+                                            if (tradingMetrics != null && (
+                                                    result.action() == ExecutionResult.ExecutionAction.ENTER_LONG
+                                                    || result.action() == ExecutionResult.ExecutionAction.ENTER_SHORT)) {
+                                                tradingMetrics.recordOrderEntered(event.symbol(),
+                                                        result.action() == ExecutionResult.ExecutionAction.ENTER_LONG ? "LONG" : "SHORT");
+                                            }
                                         } else {
                                             entityBuilder.status(OrderEntity.Status.FAILED)
                                                          .failureReason(result.reason());
@@ -503,6 +518,11 @@ public class AgentOrchestrator {
                                         if (result.success() && (
                                                 result.action() == ExecutionResult.ExecutionAction.EXIT_LONG ||
                                                 result.action() == ExecutionResult.ExecutionAction.EXIT_SHORT)) {
+                                            // Record Micrometer exit metric
+                                            if (tradingMetrics != null) {
+                                                tradingMetrics.recordOrderExited(event.symbol(),
+                                                        result.action() == ExecutionResult.ExecutionAction.EXIT_LONG ? "LONG" : "SHORT");
+                                            }
                                             double exitPrice = result.fillPrice();
                                             double pnlPercent = result.realizedPnl();
                                             // Approximate entry price: exit / (1 + pnl%)
