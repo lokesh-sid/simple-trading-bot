@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -31,6 +32,7 @@ import tradingbot.bot.events.BotStatusEvent;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.messaging.EventTopic;
 import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.bot.service.SentimentService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 import tradingbot.bot.strategy.calculator.IndicatorCalculator;
 import tradingbot.bot.strategy.exit.LiquidationRiskExit;
@@ -128,8 +130,9 @@ public class SimpleTradingBotApplication {
     */
 
     @Bean
-    SentimentAnalyzer sentimentAnalyzer(RestTemplate restTemplate) {
-        return new SentimentAnalyzer(restTemplate);
+    SentimentAnalyzer sentimentAnalyzer(
+            @Autowired(required = false) SentimentService sentimentService) {
+        return new SentimentAnalyzer(sentimentService);
     }
 
     @Bean

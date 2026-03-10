@@ -1,10 +1,6 @@
 package tradingbot.agent.infrastructure.llm;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -15,7 +11,6 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -30,84 +25,79 @@ import tradingbot.agent.domain.model.Reasoning;
 import tradingbot.agent.domain.model.ReasoningContext;
 
 /**
- * CachedGrokService — A caching decorator for GrokClient.
+ * PaperLLMProvider — a Redis-backed caching decorator around {@link GrokClient}.
  *
- * Activated ONLY when 'agent.llm.cache.enabled=true' (set this in backtest profile).
- * This prevents real Grok API calls during backtests, saving costs and enabling
- * fully reproducible, high-speed replay.
+ * <p>Designed for backtest replay scenarios where real LLM API calls are undesirable
+ * (cost, latency, non-determinism).  When a prompt has been seen before the cached
+ * {@link Reasoning} is returned immediately; on a cache miss the delegate provider
+ * is called and the result stored with a configurable TTL (default 24 hours).
  *
- * Cache strategy (two-level):
- *   L1 — Redis: fast lookup, shared across JVM runs, configurable TTL.
- *   L2 — File system: survives Redis restarts, useful for offline backtests.
+ * <h3>Difference from {@link CachedGrokService}</h3>
+ * {@link CachedGrokService} keys the cache on individual market-context fields (symbol,
+ * price, trend, …).  {@code PaperLLMProvider} keys on the <em>full rendered prompt
+ * string</em> produced by {@link PromptTemplates#buildReasoningPrompt}, so it is
+ * sensitive to any prompt change — making it useful for prompt-engineering iterations
+ * during backtest.
  *
- * Cache key: SHA-256( symbol + price + trend + sentiment + volume + goal )
- * The key is deterministic — same market conditions always yield the same cached response.
- * iterationCount and timestamp are intentionally excluded from the key.
+ * <h3>Activation</h3>
+ * Enabled when {@code paper.llm.enabled=true} (set automatically in
+ * {@code application-backtest.properties}).  Annotated {@link Primary} so it takes
+ * precedence over other {@link LLMProvider} beans when active.
+ *
+ * <h3>Offline mode</h3>
+ * When no {@link GrokClient} bean is present (e.g. {@code agent.llm.grok.enabled=false})
+ * the provider falls back to deterministic synthetic reasoning rather than calling
+ * a real API.
  */
 @Primary
 @Component
-@ConditionalOnProperty(name = "agent.llm.cache.enabled", havingValue = "true")
-@ConditionalOnMissingBean(PaperLLMProvider.class)
-public class CachedGrokService implements LLMProvider {
+@ConditionalOnProperty(name = "paper.llm.enabled", havingValue = "true", matchIfMissing = false)
+public class PaperLLMProvider implements LLMProvider {
 
-    private static final Logger logger = LoggerFactory.getLogger(CachedGrokService.class);
-    private static final String REDIS_KEY_PREFIX = "llm:cache:";
+    private static final Logger logger = LoggerFactory.getLogger(PaperLLMProvider.class);
+    static final String REDIS_KEY_PREFIX = "paper:llm:";
+    static final long DEFAULT_TTL_HOURS = 24L;
 
-    private final GrokClient delegate;   // nullable — absent when grok is disabled (offline backtest)
+    private final GrokClient delegate;   // nullable — absent when Grok is disabled
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
-    private final Path fileCacheDir;
-    private final long redisTtlHours;
+    private final long ttlHours;
 
-    public CachedGrokService(
+    public PaperLLMProvider(
             Optional<GrokClient> delegate,
             RedisTemplate<String, String> redisTemplate,
-            @Value("${agent.llm.cache.file-dir:${java.io.tmpdir}/trading-bot-llm-cache}") String fileCacheDir,
-            @Value("${agent.llm.cache.redis-ttl-hours:720}") long redisTtlHours) {
+            @Value("${paper.llm.cache.ttl-hours:" + DEFAULT_TTL_HOURS + "}") long ttlHours) {
         this.delegate = delegate.orElse(null);
         this.redisTemplate = redisTemplate;
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-        this.fileCacheDir = Paths.get(fileCacheDir);
-        this.redisTtlHours = redisTtlHours;
-        ensureFileCacheDir();
+        this.ttlHours = ttlHours;
     }
 
     @Override
     public Reasoning generateReasoning(ReasoningContext context) {
-        String cacheKey = buildCacheKey(context);
+        String prompt = PromptTemplates.buildReasoningPrompt(context);
+        String cacheKey = buildCacheKey(prompt);
 
-        // --- L1: Redis cache ---
-        Reasoning fromRedis = readFromRedis(cacheKey);
-        if (fromRedis != null) {
-            logger.debug("[LLM Cache HIT - Redis] key={}", cacheKey);
-            return fromRedis;
+        // --- Cache HIT ---
+        Reasoning cached = readFromRedis(cacheKey);
+        if (cached != null) {
+            logger.debug("[PaperLLM Cache HIT] key={}, symbol={}", cacheKey, context.getTradingSymbol());
+            return cached;
         }
 
-        // --- L2: File cache ---
-        Reasoning fromFile = readFromFile(cacheKey);
-        if (fromFile != null) {
-            logger.debug("[LLM Cache HIT - File] key={}", cacheKey);
-            // Backfill Redis so subsequent calls are faster
-            writeToRedis(cacheKey, fromFile);
-            return fromFile;
-        }
-
-        // --- Cache MISS: call real Grok API (or offline synthetic fallback) ---
+        // --- Cache MISS: delegate or synthesize, then store ---
         Reasoning reasoning;
         if (delegate != null && delegate.isEnabled()) {
-            logger.info("[LLM Cache MISS] Calling real Grok API. key={}, symbol={}, price={}",
+            logger.info("[PaperLLM Cache MISS] Calling Grok delegate. key={}, symbol={}, price={}",
                     cacheKey, context.getTradingSymbol(), context.getPerception().getCurrentPrice());
             reasoning = delegate.generateReasoning(context);
         } else {
-            logger.info("[LLM Cache MISS - Offline] Generating synthetic reasoning. key={}, symbol={}, price={}",
+            logger.info("[PaperLLM Cache MISS - Offline] Generating synthetic reasoning. key={}, symbol={}, price={}",
                     cacheKey, context.getTradingSymbol(), context.getPerception().getCurrentPrice());
             reasoning = syntheticReasoning(context);
         }
 
-        // Store in both caches
         writeToRedis(cacheKey, reasoning);
-        writeToFile(cacheKey, reasoning);
-
         return reasoning;
     }
 
@@ -118,18 +108,17 @@ public class CachedGrokService implements LLMProvider {
 
     @Override
     public String getProviderName() {
-        return "CachedGrok (wraps: " + (delegate != null ? delegate.getProviderName() : "synthetic-offline") + ")";
+        return "PaperLLM (wraps: " + (delegate != null ? delegate.getProviderName() : "synthetic-offline") + ")";
     }
 
     // -------------------------------------------------------------------------
-    // Offline Synthetic Reasoning (used when Grok API is disabled/unavailable)
+    // Synthetic reasoning (offline fallback)
     // -------------------------------------------------------------------------
 
     /**
-     * Generates a deterministic synthetic Reasoning when no real LLM is available.
-     * Logic: UPTREND → BUY (75%), DOWNTREND → SELL (70%), else HOLD (60%).
-     * This populates the file cache on first run so subsequent backtest iterations
-     * with the same market context are served instantly from L2 cache.
+     * Returns a deterministic {@link Reasoning} based solely on the current trend
+     * when no real LLM delegate is configured.  Results are cached in Redis so
+     * identical market contexts are always served from cache on subsequent calls.
      */
     private Reasoning syntheticReasoning(ReasoningContext context) {
         String trend = context.getPerception().getTrend();
@@ -166,42 +155,26 @@ public class CachedGrokService implements LLMProvider {
     }
 
     // -------------------------------------------------------------------------
-    // Cache Key
+    // Cache key
     // -------------------------------------------------------------------------
 
     /**
-     * Build a deterministic SHA-256 cache key from the market context fields.
-     * Excludes iterationCount and timestamp — same market state = same cache key.
+     * Builds a deterministic SHA-256 cache key from the fully rendered prompt.
+     * Same prompt text always produces the same key.
      */
-    private String buildCacheKey(ReasoningContext context) {
-        String raw = String.join("|",
-                context.getTradingSymbol(),
-                String.valueOf(context.getPerception().getCurrentPrice()),
-                String.valueOf(context.getPerception().getVolume()),
-                nullSafe(context.getPerception().getTrend()),
-                nullSafe(context.getPerception().getSentiment()),
-                context.getGoal() != null ? context.getGoal().toString() : "null"
-        );
-        return sha256(raw);
-    }
-
-    private String sha256(String input) {
+    String buildCacheKey(String prompt) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            byte[] hash = digest.digest(prompt.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException e) {
-            // SHA-256 is guaranteed to be present in all JVMs
+            // SHA-256 is guaranteed present in every JVM
             throw new IllegalStateException("SHA-256 not available", e);
         }
     }
 
-    private String nullSafe(String value) {
-        return value != null ? value : "";
-    }
-
     // -------------------------------------------------------------------------
-    // Redis (L1)
+    // Redis helpers
     // -------------------------------------------------------------------------
 
     private Reasoning readFromRedis(String cacheKey) {
@@ -211,7 +184,7 @@ public class CachedGrokService implements LLMProvider {
                 return fromDto(objectMapper.readValue(json, CachedReasoningDto.class));
             }
         } catch (Exception e) {
-            logger.warn("[LLM Cache] Redis read failed (will fall back to file): {}", e.getMessage());
+            logger.warn("[PaperLLM] Redis read failed (cache miss treated): {}", e.getMessage());
         }
         return null;
     }
@@ -219,49 +192,14 @@ public class CachedGrokService implements LLMProvider {
     private void writeToRedis(String cacheKey, Reasoning reasoning) {
         try {
             String json = objectMapper.writeValueAsString(toDto(reasoning));
-            redisTemplate.opsForValue().set(REDIS_KEY_PREFIX + cacheKey, json, redisTtlHours, TimeUnit.HOURS);
+            redisTemplate.opsForValue().set(REDIS_KEY_PREFIX + cacheKey, json, ttlHours, TimeUnit.HOURS);
         } catch (Exception e) {
-            logger.warn("[LLM Cache] Redis write failed (non-fatal): {}", e.getMessage());
+            logger.warn("[PaperLLM] Redis write failed (non-fatal): {}", e.getMessage());
         }
     }
 
     // -------------------------------------------------------------------------
-    // File Cache (L2)
-    // -------------------------------------------------------------------------
-
-    private Reasoning readFromFile(String cacheKey) {
-        Path file = fileCacheDir.resolve(cacheKey + ".json");
-        if (!Files.exists(file)) return null;
-        try {
-            String json = Files.readString(file);
-            return fromDto(objectMapper.readValue(json, CachedReasoningDto.class));
-        } catch (IOException e) {
-            logger.warn("[LLM Cache] File read failed for key={}: {}", cacheKey, e.getMessage());
-            return null;
-        }
-    }
-
-    private void writeToFile(String cacheKey, Reasoning reasoning) {
-        Path file = fileCacheDir.resolve(cacheKey + ".json");
-        try {
-            String json = objectMapper.writeValueAsString(toDto(reasoning));
-            Files.writeString(file, json);
-        } catch (IOException e) {
-            logger.warn("[LLM Cache] File write failed (non-fatal): {}", e.getMessage());
-        }
-    }
-
-    private void ensureFileCacheDir() {
-        try {
-            Files.createDirectories(fileCacheDir);
-            logger.info("[LLM Cache] File cache directory: {}", fileCacheDir.toAbsolutePath());
-        } catch (IOException e) {
-            logger.warn("[LLM Cache] Could not create file cache directory {}: {}", fileCacheDir, e.getMessage());
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // DTO for serialization (Reasoning has no no-arg constructor)
+    // DTO (Reasoning lacks a no-arg constructor required by Jackson)
     // -------------------------------------------------------------------------
 
     private CachedReasoningDto toDto(Reasoning r) {
@@ -286,9 +224,7 @@ public class CachedGrokService implements LLMProvider {
         );
     }
 
-    /**
-     * Internal DTO used only for JSON serialization/deserialization of cached responses.
-     */
+    /** Internal DTO for JSON serialisation of cached {@link Reasoning} objects. */
     record CachedReasoningDto(
             @JsonProperty("observation") String observation,
             @JsonProperty("analysis") String analysis,
@@ -301,3 +237,4 @@ public class CachedGrokService implements LLMProvider {
         CachedReasoningDto {}
     }
 }
+
