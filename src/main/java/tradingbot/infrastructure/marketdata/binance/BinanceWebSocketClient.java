@@ -16,7 +16,8 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import com.binance.connector.futures.client.impl.UMWebsocketClientImpl;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -163,13 +164,9 @@ public class BinanceWebSocketClient {
     // -------------------------------------------------------------------------
 
     void handleKlineMessage(String rawMessage, String symbol, String interval) throws Exception {
-        JsonNode json = objectMapper.readTree(rawMessage);
-        JsonNode k = json.get("k");
-        if (k == null) {
-            return;
-        }
-        JsonNode xNode = k.get("x");
-        if (xNode == null || !xNode.asBoolean()) {
+        KlineStreamPayload payload = objectMapper.readValue(rawMessage, KlineStreamPayload.class);
+        KlineData k = payload.k();
+        if (k == null || !k.closed()) {
             // Candle not yet closed — ignore in-progress updates
             return;
         }
@@ -178,18 +175,36 @@ public class BinanceWebSocketClient {
                 "BINANCE",
                 symbol.toUpperCase(),
                 interval,
-                new BigDecimal(k.get("o").asText()),
-                new BigDecimal(k.get("h").asText()),
-                new BigDecimal(k.get("l").asText()),
-                new BigDecimal(k.get("c").asText()),
-                new BigDecimal(k.get("v").asText()),
-                Instant.ofEpochMilli(k.get("t").asLong()),
-                Instant.ofEpochMilli(k.get("T").asLong()));
+                new BigDecimal(k.open()),
+                new BigDecimal(k.high()),
+                new BigDecimal(k.low()),
+                new BigDecimal(k.close()),
+                new BigDecimal(k.volume()),
+                Instant.ofEpochMilli(k.openTime()),
+                Instant.ofEpochMilli(k.closeTime()));
 
         String topic = "kline-closed." + symbol.toUpperCase();
         kafkaTemplate.send(topic, symbol.toUpperCase(), event);
         log.debug("Published KlineClosedEvent to {} [close={}]", topic, event.close());
     }
+
+    // -------------------------------------------------------------------------
+    // Typed payloads for Binance kline stream deserialization
+    // -------------------------------------------------------------------------
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record KlineStreamPayload(@JsonProperty("k") KlineData k) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record KlineData(
+            @JsonProperty("o") String open,
+            @JsonProperty("h") String high,
+            @JsonProperty("l") String low,
+            @JsonProperty("c") String close,
+            @JsonProperty("v") String volume,
+            @JsonProperty("t") long openTime,
+            @JsonProperty("T") long closeTime,
+            @JsonProperty("x") boolean closed) {}
 
     // -------------------------------------------------------------------------
     // Lifecycle
