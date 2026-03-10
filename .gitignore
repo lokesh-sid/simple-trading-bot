@@ -141,3 +141,10 @@ docs/resilience.md
 docs/SPRING_VALIDATION_IMPLEMENTATION.md
 docs/SWAGGER_IMPLEMENTATION_SUMMARY.md
 docs/TRADING_BOT_CLASS_DIAGRAM.md
+.github/prompts/track1-websocket-execution.prompt.md
+.github/prompts/track2-ai-intelligence.prompt.md
+.github/prompts/track3-frontend.prompt.md
+.github/prompts/track4-testing-observability.prompt.md
+.github/prompts/track5-backtest-engine.prompt.md
+.github/prompts/track6-security-ownership.prompt.md
+.github/copilot-instructions.md

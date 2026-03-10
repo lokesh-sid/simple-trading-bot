@@ -133,6 +133,66 @@ public class OrderEntity {
     
     public Double getRealizedPnl() { return realizedPnl; }
     public void setRealizedPnl(Double realizedPnl) { this.realizedPnl = realizedPnl; }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private String id;
+        private String agentId;
+        private String symbol;
+        private Direction direction;
+        private double price;
+        private double quantity;
+        private Double stopLoss;
+        private Double takeProfit;
+        private Integer leverage;
+        private Status status;
+        private Instant createdAt;
+        private Instant executedAt;
+        private String exchangeOrderId;
+        private String failureReason;
+        private Double realizedPnl;
+
+        private Builder() {}
+
+        public Builder id(String id) { this.id = id; return this; }
+        public Builder agentId(String agentId) { this.agentId = agentId; return this; }
+        public Builder symbol(String symbol) { this.symbol = symbol; return this; }
+        public Builder direction(Direction direction) { this.direction = direction; return this; }
+        public Builder price(double price) { this.price = price; return this; }
+        public Builder quantity(double quantity) { this.quantity = quantity; return this; }
+        public Builder stopLoss(Double stopLoss) { this.stopLoss = stopLoss; return this; }
+        public Builder takeProfit(Double takeProfit) { this.takeProfit = takeProfit; return this; }
+        public Builder leverage(Integer leverage) { this.leverage = leverage; return this; }
+        public Builder status(Status status) { this.status = status; return this; }
+        public Builder createdAt(Instant createdAt) { this.createdAt = createdAt; return this; }
+        public Builder executedAt(Instant executedAt) { this.executedAt = executedAt; return this; }
+        public Builder exchangeOrderId(String exchangeOrderId) { this.exchangeOrderId = exchangeOrderId; return this; }
+        public Builder failureReason(String failureReason) { this.failureReason = failureReason; return this; }
+        public Builder realizedPnl(Double realizedPnl) { this.realizedPnl = realizedPnl; return this; }
+
+        public OrderEntity build() {
+            OrderEntity order = new OrderEntity();
+            order.setId(id);
+            order.setAgentId(agentId);
+            order.setSymbol(symbol);
+            order.setDirection(direction);
+            order.setPrice(price);
+            order.setQuantity(quantity);
+            order.setStopLoss(stopLoss);
+            order.setTakeProfit(takeProfit);
+            order.setLeverage(leverage);
+            order.setStatus(status);
+            order.setCreatedAt(createdAt);
+            order.setExecutedAt(executedAt);
+            order.setExchangeOrderId(exchangeOrderId);
+            order.setFailureReason(failureReason);
+            order.setRealizedPnl(realizedPnl);
+            return order;
+        }
+    }
     
     // Enums
     public enum Direction {

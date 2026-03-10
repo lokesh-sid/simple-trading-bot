@@ -471,23 +471,29 @@ public class AgentOrchestrator {
 
                                     // P2: Persist the order history to the database
                                     try {
-                                        OrderEntity entity = new OrderEntity();
-                                        entity.setId(UUID.randomUUID().toString());
-                                        entity.setAgentId(agent.getId());
-                                        entity.setSymbol(event.symbol());
-                                        entity.setDirection(decision.action() == Action.BUY ? OrderEntity.Direction.LONG : OrderEntity.Direction.SHORT);
-                                        entity.setPrice(price);
-                                        entity.setQuantity(result.fillQuantity() > 0 ? result.fillQuantity() : (decision.quantity() != null ? decision.quantity() : 1.0));
-                                        entity.setCreatedAt(Instant.now());
+                                        double quantity = result.fillQuantity() > 0 ? result.fillQuantity() : 
+                                                          (decision.quantity() != null ? decision.quantity() : 1.0);
+
+                                        OrderEntity.Builder entityBuilder = OrderEntity.builder()
+                                                .id(UUID.randomUUID().toString())
+                                                .agentId(agent.getId())
+                                                .symbol(event.symbol())
+                                                .direction(decision.action() == Action.BUY ? OrderEntity.Direction.LONG : OrderEntity.Direction.SHORT)
+                                                .price(price)
+                                                .quantity(quantity)
+                                                .createdAt(Instant.now());
+
                                         if (result.success() && result.action() != ExecutionResult.ExecutionAction.NOOP) {
-                                            entity.setStatus(OrderEntity.Status.EXECUTED);
-                                            entity.setExecutedAt(Instant.now());
-                                            entity.setExchangeOrderId(result.exchangeOrderId());
-                                            entity.setRealizedPnl(result.realizedPnl());
+                                            entityBuilder.status(OrderEntity.Status.EXECUTED)
+                                                         .executedAt(Instant.now())
+                                                         .exchangeOrderId(result.exchangeOrderId())
+                                                         .realizedPnl(result.realizedPnl());
                                         } else {
-                                            entity.setStatus(OrderEntity.Status.FAILED);
-                                            entity.setFailureReason(result.reason());
+                                            entityBuilder.status(OrderEntity.Status.FAILED)
+                                                         .failureReason(result.reason());
                                         }
+                                        
+                                        OrderEntity entity = entityBuilder.build();
                                         orderRepository.save(entity);
                                         
                                         // P3: Track performance metrics
