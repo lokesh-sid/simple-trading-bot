@@ -30,6 +30,7 @@ import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
  * Uses real Spring context with mocked external dependencies.
  */
 @DisplayName("AgentController Integration Tests")
+@org.springframework.security.test.context.support.WithMockUser(username = "user1")
 class AgentControllerIntegrationTest extends AbstractIntegrationTest {
 
     private static final String API_AGENTS = "/api/agents";

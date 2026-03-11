@@ -70,7 +70,7 @@ class RAGServiceTest {
         
         // Create test data
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Maximize profits");
-        testAgent = Agent.create("Test Agent", goal, "BTCUSDT", 10000.0);
+        testAgent = Agent.create("Test Agent", goal, "BTCUSDT", 10000.0, "test-user-id");
         
         testPerception = new Perception(
             "BTCUSDT",

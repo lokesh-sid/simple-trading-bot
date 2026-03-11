@@ -8,12 +8,16 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.api.dto.CreateAgentRequest;
@@ -38,6 +42,11 @@ class AgentServiceTest {
     private CreateAgentRequest createRequest;
     private Agent testAgent;
     
+    @Mock
+    private SecurityContext securityContext;
+    @Mock
+    private Authentication authentication;
+    
     @BeforeEach
     void setUp() {
         createRequest = new CreateAgentRequest(
@@ -49,14 +58,23 @@ class AgentServiceTest {
         );
         
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Maximize BTC profits");
-        testAgent = Agent.create("Test Agent", goal, "BTCUSDT", 10000.0);
+        testAgent = Agent.create("Test Agent", goal, "BTCUSDT", 10000.0, "user1");
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
     
     @Test
     void testCreateAgent_Success() {
         // Given
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn("user1");
+        SecurityContextHolder.setContext(securityContext);
+
         when(agentRepository.existsByName("Test Agent")).thenReturn(false);
-        when(agentMapper.toDomain(createRequest)).thenReturn(testAgent);
+        when(agentMapper.toDomain(createRequest, "user1")).thenReturn(testAgent);
         when(agentRepository.save(any(Agent.class))).thenReturn(testAgent);
         
         // When
@@ -66,7 +84,7 @@ class AgentServiceTest {
         assertNotNull(result);
         assertEquals("Test Agent", result.getName());
         verify(agentRepository).existsByName("Test Agent");
-        verify(agentMapper).toDomain(createRequest);
+        verify(agentMapper).toDomain(createRequest, "user1");
         verify(agentRepository).save(any(Agent.class));
     }
     
@@ -90,7 +108,7 @@ class AgentServiceTest {
         Agent agent1 = testAgent;
         Agent agent2 = Agent.create("Agent 2", 
             new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Hedge"), 
-            "ETHUSDT", 5000.0);
+            "ETHUSDT", 5000.0, "user2");
         when(agentRepository.findAll()).thenReturn(Arrays.asList(agent1, agent2));
         
         // When

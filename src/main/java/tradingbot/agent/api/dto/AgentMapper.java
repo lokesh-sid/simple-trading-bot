@@ -63,16 +63,16 @@ public interface AgentMapper {
     /**
      * Convert CreateAgentRequest to Agent domain model
      */
-    @Mapping(target = "id", expression = "java(tradingbot.agent.domain.model.AgentId.generate())")
-    @Mapping(target = "state", expression = "java(tradingbot.agent.domain.model.AgentState.createIdle())")
-    @Mapping(target = "lastPerception", ignore = true)
-    @Mapping(target = "lastReasoning", ignore = true)
-    @Mapping(target = "createdAt", expression = "java(java.time.Instant.now())")
-    @Mapping(source = "name", target = "name")
-    @Mapping(source = "tradingSymbol", target = "tradingSymbol")
-    @Mapping(source = "capital", target = "capital")
-    @Mapping(source = "request", target = "goal", qualifiedByName = "requestToGoal")
-    Agent toDomain(CreateAgentRequest request);
+    default Agent toDomain(CreateAgentRequest request, String ownerId) {
+        if (request == null) return null;
+        return Agent.create(
+            request.name(),
+            requestToGoal(request),
+            request.tradingSymbol(),
+            request.capital(),
+            ownerId
+        );
+    }
     
     /**
      * Custom mapping: GoalType enum to String

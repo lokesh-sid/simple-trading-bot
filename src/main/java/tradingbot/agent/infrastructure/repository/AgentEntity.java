@@ -84,6 +84,9 @@ public class AgentEntity {
     @Column(name = "reasoned_at")
     private Instant reasonedAt;
     
+    @Column(name = "owner_id")
+    private String ownerId;
+    
     // Constructors
     protected AgentEntity() {
         // For JPA
@@ -91,7 +94,7 @@ public class AgentEntity {
     
     public AgentEntity(String id, String name, String goalType, String goalDescription,
                       String tradingSymbol, double capital, AgentStatus status,
-                      Instant createdAt) {
+                      Instant createdAt, String ownerId) {
         this.id = id;
         this.name = name;
         this.goalType = goalType;
@@ -100,7 +103,13 @@ public class AgentEntity {
         this.capital = capital;
         this.status = status;
         this.createdAt = createdAt;
-        this.iterationCount = 0;
+        this.ownerId = ownerId;
+    }
+    
+    public AgentEntity(String id, String name, String goalType, String goalDescription,
+                      String tradingSymbol, double capital, AgentStatus status,
+                      Instant createdAt) {
+        this(id, name, goalType, goalDescription, tradingSymbol, capital, status, createdAt, null);
     }
     
     // Getters and Setters
@@ -166,6 +175,9 @@ public class AgentEntity {
     
     public Instant getReasonedAt() { return reasonedAt; }
     public void setReasonedAt(Instant reasonedAt) { this.reasonedAt = reasonedAt; }
+
+    public String getOwnerId() { return ownerId; }
+    public void setOwnerId(String ownerId) { this.ownerId = ownerId; }
     
     /**
      * AgentStatus - Entity status enum

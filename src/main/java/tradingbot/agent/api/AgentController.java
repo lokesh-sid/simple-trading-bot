@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -108,6 +109,7 @@ public class AgentController {
      * Get agent by ID
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @agentSecurity.isOwner(#id, authentication)")
     @Operation(summary = "Get agent by ID",
                description = "Returns detailed information about a specific trading agent")
     @ApiResponses(value = {
@@ -132,6 +134,7 @@ public class AgentController {
      * Get agent performance
      */
     @GetMapping("/{id}/performance")
+    @PreAuthorize("hasRole('ADMIN') or @agentSecurity.isOwner(#id, authentication)")
     @Operation(summary = "Get agent performance metrics",
                description = "Retrieves performance statistics for a specific agent")
     @ApiResponses(value = {
@@ -149,6 +152,7 @@ public class AgentController {
      * Activate an agent
      */
     @PostMapping("/{id}/activate")
+    @PreAuthorize("hasRole('ADMIN') or @agentSecurity.isOwner(#id, authentication)")
     @Operation(summary = "Activate an agent",
                description = "Activates a paused or stopped agent to begin autonomous trading")
     @ApiResponses(value = {
@@ -176,6 +180,7 @@ public class AgentController {
      * Pause an agent
      */
     @PostMapping("/{id}/pause")
+    @PreAuthorize("hasRole('ADMIN') or @agentSecurity.isOwner(#id, authentication)")
     @Operation(summary = "Pause an agent",
                description = "Temporarily pauses an active agent without stopping it completely")
     @ApiResponses(value = {
@@ -203,6 +208,7 @@ public class AgentController {
      * Stop and delete an agent
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @agentSecurity.isOwner(#id, authentication)")
     @Operation(summary = "Stop and delete an agent",
                description = "Permanently stops and removes a trading agent")
     @ApiResponses(value = {

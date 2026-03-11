@@ -14,7 +14,7 @@ class AgentTest {
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Maximize BTC profits");
         
         // When
-        Agent agent = Agent.create("Bitcoin Trader", goal, "BTCUSDT", 10000.0);
+        Agent agent = Agent.create("Bitcoin Trader", goal, "BTCUSDT", 10000.0, "test-user-id");
         
         // Then
         assertNotNull(agent);
@@ -31,7 +31,7 @@ class AgentTest {
     void testAgentLifecycle() {
         // Given
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Test");
-        Agent agent = Agent.create("Test Agent", goal, "BTCUSDT", 5000.0);
+        Agent agent = Agent.create("Test Agent", goal, "BTCUSDT", 5000.0, "test-user-id");
         
         // When & Then - Activate
         agent.activate();
@@ -51,7 +51,7 @@ class AgentTest {
     void testAgentPerception() {
         // Given
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Test");
-        Agent agent = Agent.create("Test Agent", goal, "BTCUSDT", 5000.0);
+        Agent agent = Agent.create("Test Agent", goal, "BTCUSDT", 5000.0, "test-user-id");
         Perception perception = new Perception(
             "BTCUSDT", 45000.0, "UPTREND", "BULLISH", 1000000.0, Instant.now()
         );
@@ -68,7 +68,7 @@ class AgentTest {
     void testAgentReasoning() {
         // Given
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Test");
-        Agent agent = Agent.create("Test Agent", goal, "BTCUSDT", 5000.0);
+        Agent agent = Agent.create("Test Agent", goal, "BTCUSDT", 5000.0, "test-user-id");
         Reasoning reasoning = new Reasoning(
             "Price rising",
             "Uptrend confirmed",
@@ -89,7 +89,7 @@ class AgentTest {
     void testSetGoal() {
         // Given
         AgentGoal initialGoal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Initial");
-        Agent agent = Agent.create("Test Agent", initialGoal, "BTCUSDT", 5000.0);
+        Agent agent = Agent.create("Test Agent", initialGoal, "BTCUSDT", 5000.0, "test-user-id");
         AgentGoal newGoal = new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Risk hedging");
         
         // When
@@ -104,7 +104,7 @@ class AgentTest {
     void testMultiplePerceptions() {
         // Given
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Test");
-        Agent agent = Agent.create("Test Agent", goal, "BTCUSDT", 5000.0);
+        Agent agent = Agent.create("Test Agent", goal, "BTCUSDT", 5000.0, "test-user-id");
         
         // When - Multiple perceptions
         Perception p1 = new Perception("BTCUSDT", 45000.0, "UPTREND", "BULLISH", 1000000.0, Instant.now());

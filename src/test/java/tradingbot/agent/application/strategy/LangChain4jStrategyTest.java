@@ -50,7 +50,7 @@ class LangChain4jStrategyTest {
     @BeforeEach
     void setUp() {
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Maximize profits");
-        testAgent = Agent.create("Agentic Agent", goal, "BTCUSDT", 10000.0);
+        testAgent = Agent.create("Agentic Agent", goal, "BTCUSDT", 10000.0, "test-user-id");
         
         // Set RAG enabled by default
         ReflectionTestUtils.setField(strategy, "ragEnabled", true);
@@ -236,7 +236,7 @@ class LangChain4jStrategyTest {
     void testExecuteIteration_PassesCorrectSymbol() {
         // Given
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "ETH trading");
-        Agent ethAgent = Agent.create("ETH Agent", goal, "ETHUSDT", 5000.0);
+        Agent ethAgent = Agent.create("ETH Agent", goal, "ETHUSDT", 5000.0, "test-user-id");
         
         when(tradingAgentService.analyzeAndDecide(
             anyString(), anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
@@ -261,7 +261,7 @@ class LangChain4jStrategyTest {
     void testExecuteIteration_PassesCorrectGoal() {
         // Given
         AgentGoal hedgeGoal = new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Risk mitigation");
-        Agent hedgeAgent = Agent.create("Hedge Agent", hedgeGoal, "BTCUSDT", 10000.0);
+        Agent hedgeAgent = Agent.create("Hedge Agent", hedgeGoal, "BTCUSDT", 10000.0, "test-user-id");
         
         ArgumentCaptor<String> goalCaptor = ArgumentCaptor.forClass(String.class);
         when(tradingAgentService.analyzeAndDecide(
@@ -281,7 +281,7 @@ class LangChain4jStrategyTest {
         // Given
         double capital = 25000.0;
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Big account");
-        Agent bigAgent = Agent.create("Big Agent", goal, "BTCUSDT", capital);
+        Agent bigAgent = Agent.create("Big Agent", goal, "BTCUSDT", capital, "test-user-id");
         
         when(tradingAgentService.analyzeAndDecide(
             anyString(), anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))

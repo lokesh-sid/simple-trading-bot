@@ -62,7 +62,7 @@ public class AgentDTOMapper {
     /**
      * Convert CreateAgentRequest to Agent domain model
      */
-    public static Agent toDomain(CreateAgentRequest request) {
+    public static Agent toDomain(CreateAgentRequest request, String ownerId) {
         AgentGoal.GoalType goalType = AgentGoal.GoalType.valueOf(request.goalType());
         AgentGoal goal = new AgentGoal(goalType, request.goalDescription());
         
@@ -70,7 +70,8 @@ public class AgentDTOMapper {
             request.name(),
             goal,
             request.tradingSymbol(),
-            request.capital()
+            request.capital(),
+            ownerId
         );
     }
 }

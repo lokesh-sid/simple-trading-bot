@@ -1,5 +1,7 @@
 package tradingbot.agent.application;
 
+import static org.springframework.security.core.context.SecurityContextHolder.*;
+
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -35,8 +37,10 @@ public class AgentService {
             throw new AgentAlreadyExistsException("Agent with name '" + request.name() + "' already exists");
         }
         
+        String ownerId = getContext().getAuthentication().getName();
+
         // Create and save agent using MapStruct mapper
-        Agent agent = agentMapper.toDomain(request);
+        Agent agent = agentMapper.toDomain(request, ownerId);
         return agentRepository.save(agent);
     }
     

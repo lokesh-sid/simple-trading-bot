@@ -27,7 +27,8 @@ public class AgentMapper {
             agent.getTradingSymbol(),
             agent.getCapital(),
             mapStatus(agent.getState().getStatus()),
-            agent.getCreatedAt()
+            agent.getCreatedAt(),
+            agent.getOwnerId() // Added ownerId
         );
         
         entity.setLastActiveAt(agent.getState().getLastActiveAt());
@@ -108,7 +109,8 @@ public class AgentMapper {
             entity.getTradingSymbol(),
             entity.getCapital(),
             state,
-            entity.getCreatedAt()
+            entity.getCreatedAt(),
+            entity.getOwnerId() // Restore ownerId
         );
         
         // Set perception and reasoning if they exist

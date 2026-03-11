@@ -50,7 +50,7 @@ class RAGEnhancedStrategyTest {
     @BeforeEach
     void setUp() {
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Maximize profits");
-        testAgent = Agent.create("Test Agent", goal, "BTCUSDT", 10000.0);
+        testAgent = Agent.create("Test Agent", goal, "BTCUSDT", 10000.0, "test-user-id");
         
         mockReasoning = new Reasoning(
             "Market is trending up",
@@ -275,7 +275,7 @@ class RAGEnhancedStrategyTest {
     void testExecuteIteration_WithDifferentSymbols() {
         // Given
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Maximize profits");
-        Agent ethAgent = Agent.create("ETH Agent", goal, "ETHUSDT", 5000.0);
+        Agent ethAgent = Agent.create("ETH Agent", goal, "ETHUSDT", 5000.0, "test-user-id");
         
         when(ragService.generateReasoningWithRAG(any(Agent.class), any(ReasoningContext.class)))
             .thenReturn(mockReasoning);
@@ -294,7 +294,7 @@ class RAGEnhancedStrategyTest {
     void testExecuteIteration_PreservesAgentGoal() {
         // Given
         AgentGoal hedgeGoal = new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Minimize risk");
-        Agent hedgeAgent = Agent.create("Hedge Agent", hedgeGoal, "BTCUSDT", 10000.0);
+        Agent hedgeAgent = Agent.create("Hedge Agent", hedgeGoal, "BTCUSDT", 10000.0, "test-user-id");
         
         when(ragService.generateReasoningWithRAG(any(Agent.class), any(ReasoningContext.class)))
             .thenReturn(mockReasoning);

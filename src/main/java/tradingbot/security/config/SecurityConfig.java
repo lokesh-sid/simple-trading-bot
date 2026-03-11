@@ -47,9 +47,20 @@ public class SecurityConfig {
             
             // Configure authorization
             .authorizeHttpRequests(auth -> auth
+                // Prevent bypassing the Gateway: Limit direct /api/auth/** access to loopback only
+                .requestMatchers(request -> {
+                    String path = request.getServletPath();
+                    // MockMvc sometimes returns empty string for servletPath
+                    if (path == null || path.isEmpty()) path = request.getRequestURI();
+                    if (path != null && path.startsWith("/api/auth")) {
+                        String ip = request.getRemoteAddr();
+                        return "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip);
+                    }
+                    return false;
+                }).permitAll()
+            
                 // Public endpoints - no authentication required
                 .requestMatchers(
-                    "/api/auth/**",           // Authentication endpoints (direct)
                     "/gateway/api/auth/**",   // Authentication endpoints (via gateway)
                     "/gateway/health",        // Gateway health check
                     "/gateway/info",          // Gateway info

@@ -16,13 +16,14 @@ public class Agent {
     private final double capital;
     private final AgentState state;
     private final Instant createdAt;
-    
+    private final String ownerId;
+
     // Last perception and reasoning
     private Perception lastPerception;
     private Reasoning lastReasoning;
     
     public Agent(AgentId id, String name, AgentGoal goal, String tradingSymbol,
-                double capital, AgentState state, Instant createdAt) {
+                double capital, AgentState state, Instant createdAt, String ownerId) {
         this.id = id;
         this.name = name;
         this.goal = goal;
@@ -30,12 +31,18 @@ public class Agent {
         this.capital = capital;
         this.state = state;
         this.createdAt = createdAt;
+        this.ownerId = ownerId;
+    }
+    
+    public Agent(AgentId id, String name, AgentGoal goal, String tradingSymbol,
+                double capital, AgentState state, Instant createdAt) {
+        this(id, name, goal, tradingSymbol, capital, state, createdAt, null);
     }
     
     /**
      * Factory method to create a new agent
      */
-    public static Agent create(String name, AgentGoal goal, String tradingSymbol, double capital) {
+    public static Agent create(String name, AgentGoal goal, String tradingSymbol, double capital, String ownerId) {
         return new Agent(
             AgentId.generate(),
             name,
@@ -43,7 +50,8 @@ public class Agent {
             tradingSymbol,
             capital,
             AgentState.createIdle(),
-            Instant.now()
+            Instant.now(),
+            ownerId
         );
     }
     
@@ -89,6 +97,7 @@ public class Agent {
     public double getCapital() { return capital; }
     public AgentState getState() { return state; }
     public Instant getCreatedAt() { return createdAt; }
+    public String getOwnerId() { return ownerId; }
     public Perception getLastPerception() { return lastPerception; }
     public Reasoning getLastReasoning() { return lastReasoning; }
 }

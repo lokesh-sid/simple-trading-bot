@@ -75,7 +75,7 @@ class AgentStrategyIntegrationTest {
     @BeforeEach
     void setUp() {
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Test goal");
-        testAgent = Agent.create("Integration Test Agent", goal, "BTCUSDT", 10000.0);
+        testAgent = Agent.create("Integration Test Agent", goal, "BTCUSDT", 10000.0, "test-user-id");
         
         // Mock repository
         when(agentRepository.save(any(Agent.class))).thenReturn(testAgent);
@@ -216,9 +216,7 @@ class AgentStrategyIntegrationTest {
     @Test
     void testLangChain4jStrategy_WithDifferentAgents() {
         // Test with BTC agent
-        Agent btcAgent = Agent.create("BTC Agent", 
-            new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "BTC"), 
-            "BTCUSDT", 10000.0);
+        Agent btcAgent = Agent.create("BTC Agent", new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "BTC"), "BTCUSDT", 10000.0, "test-user-id");
         
         when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("BUY");
@@ -228,7 +226,7 @@ class AgentStrategyIntegrationTest {
         // Test with ETH agent
         Agent ethAgent = Agent.create("ETH Agent",
             new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "ETH"),
-            "ETHUSDT", 5000.0);
+            "ETHUSDT", 5000.0, "test-user-id");
         
         langChain4jStrategy.executeIteration(ethAgent, null);
         
@@ -242,11 +240,11 @@ class AgentStrategyIntegrationTest {
         // Test with multiple agents
         Agent agent1 = Agent.create("Agent 1",
             new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Goal 1"),
-            "BTCUSDT", 10000.0);
+            "BTCUSDT", 10000.0, "test-user-id");
         
         Agent agent2 = Agent.create("Agent 2",
             new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Goal 2"),
-            "ETHUSDT", 5000.0);
+            "ETHUSDT", 5000.0, "test-user-id");
         
         when(ragService.generateReasoningWithRAG(any(), any()))
             .thenReturn(createMockReasoning());
@@ -264,11 +262,11 @@ class AgentStrategyIntegrationTest {
     void testLegacyLLMStrategy_WithDifferentAgents() {
         Agent agent1 = Agent.create("Legacy Agent 1",
             new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Goal 1"),
-            "BTCUSDT", 20000.0);
+            "BTCUSDT", 20000.0, "test-user-id");
         
         Agent agent2 = Agent.create("Legacy Agent 2",
             new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Goal 2"),
-            "SOLUSDT", 3000.0);
+            "SOLUSDT", 3000.0, "test-user-id");
         
         when(llmProvider.generateReasoning(any()))
             .thenReturn(createMockReasoning());
@@ -309,10 +307,10 @@ class AgentStrategyIntegrationTest {
     @Test
     void testStrategies_PreserveAgentGoals() {
         AgentGoal maximizeProfit = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Max profit");
-        Agent profitAgent = Agent.create("Profit Agent", maximizeProfit, "BTCUSDT", 10000.0);
+        Agent profitAgent = Agent.create("Profit Agent", maximizeProfit, "BTCUSDT", 10000.0, "test-user-id");
         
         AgentGoal hedgeRisk = new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Hedge risk");
-        Agent hedgeAgent = Agent.create("Hedge Agent", hedgeRisk, "BTCUSDT", 10000.0);
+        Agent hedgeAgent = Agent.create("Hedge Agent", hedgeRisk, "BTCUSDT", 10000.0, "test-user-id");
         
         when(tradingAgentService.analyzeAndDecide(anyString(), anyString(), anyString(), anyDouble(), anyInt(), anyString(), anyString()))
             .thenReturn("BUY");

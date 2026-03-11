@@ -52,7 +52,7 @@ class SimpleLLMStrategyTest {
     @BeforeEach
     void setUp() {
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Maximize profits");
-        testAgent = Agent.create("Legacy Agent", goal, "BTCUSDT", 10000.0);
+        testAgent = Agent.create("Legacy Agent", goal, "BTCUSDT", 10000.0, "test-user-id");
         
         mockReasoning = new Reasoning(
             "Market trending upward",
@@ -315,7 +315,7 @@ class SimpleLLMStrategyTest {
     void testExecuteIteration_DifferentTradingSymbols() {
         // Given
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "ETH trading");
-        Agent ethAgent = Agent.create("ETH Agent", goal, "ETHUSDT", 5000.0);
+        Agent ethAgent = Agent.create("ETH Agent", goal, "ETHUSDT", 5000.0, "test-user-id");
         
         ArgumentCaptor<ReasoningContext> contextCaptor = ArgumentCaptor.forClass(ReasoningContext.class);
         
@@ -336,7 +336,7 @@ class SimpleLLMStrategyTest {
     void testExecuteIteration_DifferentAgentGoals() {
         // Given
         AgentGoal hedgeGoal = new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Risk mitigation");
-        Agent hedgeAgent = Agent.create("Hedge Agent", hedgeGoal, "BTCUSDT", 10000.0);
+        Agent hedgeAgent = Agent.create("Hedge Agent", hedgeGoal, "BTCUSDT", 10000.0, "test-user-id");
         
         ArgumentCaptor<ReasoningContext> contextCaptor = ArgumentCaptor.forClass(ReasoningContext.class);
         
@@ -357,7 +357,7 @@ class SimpleLLMStrategyTest {
         // Given
         double largeCapital = 50000.0;
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Large account");
-        Agent largeAgent = Agent.create("Large Agent", goal, "BTCUSDT", largeCapital);
+        Agent largeAgent = Agent.create("Large Agent", goal, "BTCUSDT", largeCapital, "test-user-id");
         
         ArgumentCaptor<ReasoningContext> contextCaptor = ArgumentCaptor.forClass(ReasoningContext.class);
         
