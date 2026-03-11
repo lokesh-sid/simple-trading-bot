@@ -123,8 +123,13 @@ public class OrderPlacementService {
             return null;
         }
         
+        // Choose fill price: ask for LONG entry (buyer pays), bid for SHORT entry (seller receives)
+        double fillPrice = (details.direction() == TradeDirection.LONG)
+                ? perception.getAskPrice()
+                : perception.getBidPrice();
+
         // Validate position size
-        double positionSize = details.quantity() * perception.getCurrentPrice();
+        double positionSize = details.quantity() * fillPrice;
         double maxPositionSize = agent.getCapital() * (maxPositionSizePercent / 100.0);
         
         if (positionSize > maxPositionSize) {
@@ -132,7 +137,7 @@ public class OrderPlacementService {
                 String.format("%.2f", positionSize),
                 String.format("%.2f", maxPositionSize));
             
-            double adjustedQuantity = maxPositionSize / perception.getCurrentPrice();
+            double adjustedQuantity = maxPositionSize / fillPrice;
             details = new OrderDetails(
                 details.direction(),
                 adjustedQuantity,
@@ -147,7 +152,7 @@ public class OrderPlacementService {
             .agentId(agent.getId().toString())
             .symbol(perception.getSymbol())
             .direction(details.direction())
-            .price(perception.getCurrentPrice())
+            .price(fillPrice)
             .quantity(details.quantity())
             .stopLoss(details.stopLoss())
             .takeProfit(details.takeProfit())
@@ -187,7 +192,7 @@ public class OrderPlacementService {
         // Parse quantity (default to small position if not specified)
         double quantity = parseQuantity(recommendation);
         if (quantity == 0) {
-            // Default to 1% of available capital
+            // Default to 1% of available capital — use mid as reference for sizing
             quantity = (perception.getCurrentPrice() > 0) 
                 ? 100.0 / perception.getCurrentPrice() 
                 : 0.01;

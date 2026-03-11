@@ -22,6 +22,8 @@ import jakarta.annotation.PreDestroy;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 import tradingbot.domain.market.BookTickerPayload;
+import tradingbot.domain.market.EmptyPayload;
+import tradingbot.domain.market.RawPayload;
 import tradingbot.domain.market.StreamMarketDataEvent;
 import tradingbot.domain.market.StreamMarketDataEvent.EventType;
 import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
@@ -129,7 +131,7 @@ public class BybitWebSocketAdapter implements ExchangeWebSocketClient {
                     trade.price(),
                     trade.volume(),
                     Instant.ofEpochMilli(eventTime),
-                    log.isDebugEnabled() ? trade.toString() : null   // raw only in debug
+                    log.isDebugEnabled() ? new RawPayload(trade.toString()) : new EmptyPayload()
             );
             emitSafely(sink, symbol, event);
         }
@@ -140,7 +142,7 @@ public class BybitWebSocketAdapter implements ExchangeWebSocketClient {
         BigDecimal bestAsk = extractFirst(book.asks());
         BigDecimal bestBid = extractFirst(book.bids());
 
-        if (bestAsk.signum() > 0) {
+        if (bestAsk.signum() > 0 && bestBid.signum() > 0) {
             StreamMarketDataEvent event = new StreamMarketDataEvent(
                     "BYBIT_LINEAR",
                     symbol,

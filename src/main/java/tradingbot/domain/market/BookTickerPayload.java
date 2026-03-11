@@ -1,5 +1,7 @@
 package tradingbot.domain.market;
 
+import static java.util.Objects.*;
+
 import java.math.BigDecimal;
 
 /**
@@ -20,11 +22,18 @@ import java.math.BigDecimal;
  * }
  * }</pre>
  */
-public record BookTickerPayload(BigDecimal bid, BigDecimal ask) {
+public record BookTickerPayload(BigDecimal bid, BigDecimal ask) implements MarketDataPayload {
+
+    /** Validates that bid and ask are non-null. Business rules are handled by MarketDataSanitizer. */
+    public BookTickerPayload {
+        requireNonNull(bid, "bid must not be null");
+        requireNonNull(ask, "ask must not be null");
+    }
 
     /** Convenience: mid-price for signal/indicator use (not for fill simulation). */
     public BigDecimal mid() {
-        return bid.add(ask).divide(java.math.BigDecimal.valueOf(2), ask.scale() + 1,
+        int scale = Math.max(bid.scale(), ask.scale()) + 1;
+        return bid.add(ask).divide(java.math.BigDecimal.valueOf(2), scale,
                 java.math.RoundingMode.HALF_UP);
     }
 }

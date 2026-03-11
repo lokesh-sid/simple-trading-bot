@@ -14,13 +14,24 @@ public record StreamMarketDataEvent(
     BigDecimal price,
     BigDecimal quantity,
     Instant timestamp,
-    Object payload // Optional raw payload or specialized data (e.g. OrderBook)
+    MarketDataPayload payload // Optional raw payload or specialized data (e.g. OrderBook)
 ) implements MarketEvent {
+
+    public StreamMarketDataEvent {
+        if (payload == null) {
+            payload = new EmptyPayload();
+        }
+    }
+
     public enum EventType {
         TRADE,
         BOOK_TICKER,
         KLINE,
         ORDER_BOOK
+    }
+    
+    public StreamMarketDataEvent withPayload(MarketDataPayload newPayload) {
+        return new StreamMarketDataEvent(exchange, symbol, type, price, quantity, timestamp, newPayload);
     }
 
     @Override

@@ -19,6 +19,7 @@ import jakarta.annotation.PreDestroy;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 import tradingbot.domain.market.BookTickerPayload;
+import tradingbot.domain.market.RawPayload;
 import tradingbot.domain.market.StreamMarketDataEvent;
 import tradingbot.domain.market.StreamMarketDataEvent.EventType;
 import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
@@ -87,7 +88,7 @@ public class BinanceWebSocketAdapter implements ExchangeWebSocketClient {
                         price,
                         qty,
                         Instant.ofEpochMilli(time),
-                        event
+                        new RawPayload(event)
                     );
                     
                     sink.tryEmitNext(marketEvent);
@@ -117,6 +118,12 @@ public class BinanceWebSocketAdapter implements ExchangeWebSocketClient {
                     
                     BigDecimal askPrice = new BigDecimal(json.get("a").asText());
                     BigDecimal bidPrice = new BigDecimal(json.get("b").asText());
+
+                    if (askPrice.signum() <= 0 || bidPrice.signum() <= 0) {
+                        log.warn("Non-positive price in Binance bookTicker for {}: bid={}, ask={}", s, bidPrice, askPrice);
+                        return;
+                    }
+
                     long time = json.has("T") ? json.get("T").asLong() : System.currentTimeMillis();
 
                     // price = ask (conservative entry cost for LONG).

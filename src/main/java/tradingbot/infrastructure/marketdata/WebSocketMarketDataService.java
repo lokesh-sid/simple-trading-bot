@@ -24,14 +24,17 @@ public class WebSocketMarketDataService implements ExchangeWebSocketClient {
     private final BinanceWebSocketAdapter binanceAdapter;
     private final BybitWebSocketAdapter bybitAdapter;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final MarketDataSanitizer sanitizer;
 
     public WebSocketMarketDataService(
             BinanceWebSocketAdapter binanceAdapter, 
             BybitWebSocketAdapter bybitAdapter,
-            KafkaTemplate<String, Object> kafkaTemplate) {
+            KafkaTemplate<String, Object> kafkaTemplate,
+            MarketDataSanitizer sanitizer) {
         this.binanceAdapter = binanceAdapter;
         this.bybitAdapter = bybitAdapter;
         this.kafkaTemplate = kafkaTemplate;
+        this.sanitizer = sanitizer;
     }
 
     @Override
@@ -42,6 +45,7 @@ public class WebSocketMarketDataService implements ExchangeWebSocketClient {
                     log.warn("Binance stream failed for {}, failing over to Bybit", symbol);
                     return bybitAdapter.streamTrades(symbol);
                 })
+                .filter(sanitizer::isValid)
                 .doOnNext(this::publishToKafka);
     }
 
@@ -52,6 +56,8 @@ public class WebSocketMarketDataService implements ExchangeWebSocketClient {
                     log.warn("Binance bookTicker failed for {}, failing over to Bybit", symbol);
                     return bybitAdapter.streamBookTicker(symbol);
                 })
+                .filter(sanitizer::isValid)
+                .map(sanitizer::sanitize)
                 .doOnNext(this::publishToKafka);
     }
     
