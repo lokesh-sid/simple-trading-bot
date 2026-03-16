@@ -41,6 +41,11 @@ public class BybitWebSocketAdapter implements ExchangeWebSocketClient {
 
     private static final Logger log = LoggerFactory.getLogger(BybitWebSocketAdapter.class);
 
+    @Override
+    public String getExchangeName() {
+        return "BYBIT_LINEAR";
+    }
+
     private final Map<String, Sinks.Many<StreamMarketDataEvent>> tradeStreams  = new ConcurrentHashMap<>();
     private final Map<String, Sinks.Many<StreamMarketDataEvent>> tickerStreams = new ConcurrentHashMap<>();
 

@@ -11,6 +11,16 @@ import tradingbot.domain.market.StreamMarketDataEvent;
  * Returns hot reactive streams of market data.
  */
 public interface ExchangeWebSocketClient {
+
+    /**
+     * Identifies this adapter's exchange (e.g. "BINANCE_FUTURES", "BYBIT_LINEAR").
+     * Used by the composite service for priority-based routing and logging.
+     * Returns "UNKNOWN" by default so existing anonymous/test implementations
+     * remain source-compatible.
+     */
+    default String getExchangeName() {
+        return "UNKNOWN";
+    }
     
     /**
      * Stream real-time trades.

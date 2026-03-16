@@ -11,7 +11,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.binance.connector.futures.client.impl.UMWebsocketClientImpl;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.annotation.PostConstruct;
@@ -33,6 +34,25 @@ import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
 public class BinanceWebSocketAdapter implements ExchangeWebSocketClient {
     
     private static final Logger log = LoggerFactory.getLogger(BinanceWebSocketAdapter.class);
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record AggTradeEvent(
+        @JsonProperty("p") BigDecimal price,
+        @JsonProperty("q") BigDecimal qty,
+        @JsonProperty("T") Long time
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record BookTickerEvent(
+        @JsonProperty("b") BigDecimal bidPrice,
+        @JsonProperty("a") BigDecimal askPrice,
+        @JsonProperty("T") Long time
+    ) {}
+
+    @Override
+    public String getExchangeName() {
+        return "BINANCE_FUTURES";
+    }
     private UMWebsocketClientImpl wsClient; 
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -71,23 +91,18 @@ public class BinanceWebSocketAdapter implements ExchangeWebSocketClient {
             
             Integer streamId = wsClient.aggTradeStream(s.toLowerCase(), event -> {
                 try {
-                    JsonNode json = objectMapper.readTree(event);
-                    if (!json.has("p") || !json.has("q")) {
+                    AggTradeEvent trade = objectMapper.readValue(event, AggTradeEvent.class);
+                    if (trade.price() == null || trade.qty() == null || trade.time() == null) {
                         return; 
                     }
-                    
-                    String eventType = json.get("e").asText();
-                    BigDecimal price = new BigDecimal(json.get("p").asText());
-                    BigDecimal qty = new BigDecimal(json.get("q").asText());
-                    long time = json.get("T").asLong();
                     
                     StreamMarketDataEvent marketEvent = new StreamMarketDataEvent(
                         "BINANCE_FUTURES",
                         s,
                         EventType.TRADE,
-                        price,
-                        qty,
-                        Instant.ofEpochMilli(time),
+                        trade.price(),
+                        trade.qty(),
+                        Instant.ofEpochMilli(trade.time()),
                         new RawPayload(event)
                     );
                     
@@ -111,20 +126,20 @@ public class BinanceWebSocketAdapter implements ExchangeWebSocketClient {
             
             Integer streamId = wsClient.bookTicker(s.toLowerCase(), event -> {
                 try {
-                    JsonNode json = objectMapper.readTree(event);
-                    if (!json.has("b") || !json.has("a")) {
+                    BookTickerEvent ticker = objectMapper.readValue(event, BookTickerEvent.class);
+                    if (ticker.bidPrice() == null || ticker.askPrice() == null) {
                         return; 
                     }
                     
-                    BigDecimal askPrice = new BigDecimal(json.get("a").asText());
-                    BigDecimal bidPrice = new BigDecimal(json.get("b").asText());
+                    BigDecimal askPrice = ticker.askPrice();
+                    BigDecimal bidPrice = ticker.bidPrice();
 
                     if (askPrice.signum() <= 0 || bidPrice.signum() <= 0) {
                         log.warn("Non-positive price in Binance bookTicker for {}: bid={}, ask={}", s, bidPrice, askPrice);
                         return;
                     }
 
-                    long time = json.has("T") ? json.get("T").asLong() : System.currentTimeMillis();
+                    long time = ticker.time() != null ? ticker.time() : System.currentTimeMillis();
 
                     // price = ask (conservative entry cost for LONG).
                     // Both sides preserved in payload so OrderPlacementService can

@@ -1,0 +1,93 @@
+sequenceDiagram
+    autonumber
+    
+    actor Client
+    participant Gateway as ApiGatewayController
+    participant Controller as AuthController
+    participant Service as AuthService
+    participant Security as AuthenticationManager
+    participant JWT as JwtService
+    participant Filter as JwtAuthenticationFilter
+    participant DB as UserRepository (DB)
+
+    %% Registration Flow
+    rect rgb(245, 245, 250)
+    note right of Client: 1. User Registration Flow
+    Client->>Gateway: POST /gateway/api/auth/register (username, password, etc.)
+    Gateway->>Controller: Proxy to /api/auth/register
+    Controller->>Service: register(RegisterRequest)
+    Service->>DB: Check if username/email exists
+    alt User already exists
+        DB-->>Service: Existing record found
+        Service-->>Controller: throw IllegalArgumentException
+        Controller-->>Gateway: 400 Bad Request
+        Gateway-->>Client: 400 Bad Request (Error)
+    else New user
+        DB-->>Service: No existing record
+        Service->>DB: Save encoded password & user details
+        DB-->>Service: Valid User Entity
+        Service-->>Controller: LoginResponse DTO
+        Controller-->>Gateway: 201 Created (with Tokens)
+        Gateway-->>Client: 201 Created (with Tokens)
+    end
+    end
+
+    %% Login Flow
+    rect rgb(240, 250, 240)
+    note right of Client: 2. Main Login Flow (OAuth 2.0 Upgraded)
+    Client->>Gateway: POST /gateway/api/auth/login (username, password)
+    Gateway->>Controller: Proxy to /api/auth/login
+    Controller->>Service: login(LoginRequest)
+    Service->>Security: authenticate(UsernamePasswordAuthenticationToken)
+    Security->>DB: Load UserDetails by Username
+    DB-->>Security: User details + hashed password
+    Security-->>Service: Valid Authentication Context
+    
+    Service->>JWT: generateAccessToken(Id, Username, Roles)
+    JWT-->>Service: Returns JWT Access Token
+    Service->>JWT: generateRefreshToken(Id)
+    JWT-->>Service: Returns JWT Refresh Token
+    
+    Service-->>Controller: LoginResponse DTO
+    Note right of Controller: Formatted to RFC 6749:<br>access_token, refresh_token, token_type, expires_in, scope
+    Controller-->>Gateway: 200 OK (LoginResponse)
+    Gateway-->>Client: 200 OK (OAuth 2.0 JSON Payload)
+    end
+
+    %% Refresh Token Flow
+    rect rgb(250, 240, 230)
+    note right of Client: 3. Token Refresh Flow
+    Client->>Gateway: POST /gateway/api/auth/refresh (refresh_token payload)
+    Gateway->>Controller: Proxy to /api/auth/refresh
+    Controller->>Service: refreshToken(RefreshTokenRequest)
+    Service->>JWT: validateToken(refresh_token)
+    alt Invalid/Expired Token
+        JWT-->>Service: InvalidTokenException
+        Service-->>Controller: throws IllegalArgumentException
+        Controller-->>Gateway: 401 Unauthorized
+        Gateway-->>Client: 401 Unauthorized
+    else Valid Token
+        JWT-->>Service: Validity Confirmed (claims/sub extracted)
+        Service->>JWT: generateAccessToken(...)
+        JWT-->>Service: New JWT Access Token
+        Service->>JWT: generateRefreshToken(...)
+        JWT-->>Service: New JWT Refresh Token
+        Service-->>Controller: LoginResponse DTO
+        Controller-->>Gateway: 200 OK (New LoginResponse)
+        Gateway-->>Client: 200 OK (Rotated access & refresh tokens)
+    end
+    end
+
+    %% Protected Resource Access Flow (e.g. Agents)
+    rect rgb(250, 240, 250)
+    note right of Client: 4. Secure Resource Access
+    Client->>Gateway: POST /api/agents (Header: "Authorization: Bearer <access_token>")
+    Gateway->>Filter: Routes request, Filter intercepts
+    Note over Gateway,Filter: JwtAuthenticationFilter runs before Controller
+    Filter->>JWT: Validate token signature & expiry
+    JWT-->>Filter: Token valid, extract Claims
+    Filter->>Filter: Set SecurityContextHolder
+    Filter->>Controller: Forward request to target Controller
+    Controller-->>Gateway: 201 Created
+    Gateway-->>Client: 201 Created (Authorized Request processed)
+    end
