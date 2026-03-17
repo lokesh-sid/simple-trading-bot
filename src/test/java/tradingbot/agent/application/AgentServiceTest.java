@@ -15,16 +15,23 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import tradingbot.agent.api.PaginatedAgentResponse;
 import tradingbot.agent.api.dto.AgentMapper;
+import tradingbot.agent.api.dto.AgentResponse;
 import tradingbot.agent.api.dto.CreateAgentRequest;
+import tradingbot.agent.application.event.AgentPausedEvent;
+import tradingbot.agent.application.event.AgentStartedEvent;
+import tradingbot.agent.application.event.AgentStoppedEvent;
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentGoal;
 import tradingbot.agent.domain.model.AgentId;
 import tradingbot.agent.domain.model.AgentState;
+import tradingbot.agent.domain.model.PageResult;
 import tradingbot.agent.domain.repository.AgentRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,6 +42,9 @@ class AgentServiceTest {
     
     @Mock
     private AgentMapper agentMapper;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
     
     @InjectMocks
     private AgentService agentService;
@@ -118,6 +128,24 @@ class AgentServiceTest {
         assertEquals(2, result.size());
         verify(agentRepository).findAll();
     }
+
+    @Test
+    void testGetAgentsByOwner() {
+        // Given
+        Agent agent1 = testAgent;
+        PageResult<Agent> pageResult = new PageResult<>(List.of(agent1), 1L);
+        when(agentRepository.findByOwner("user1", 0, 20)).thenReturn(pageResult);
+        AgentResponse mockResponse = mock(AgentResponse.class);
+        when(agentMapper.toResponse(agent1)).thenReturn(mockResponse);
+
+        // When
+        PaginatedAgentResponse result = agentService.getAgentsByOwner("user1", 0, 20);
+
+        // Then
+        assertEquals(1, result.content().size());
+        assertEquals(1L, result.totalElements());
+        verify(agentRepository).findByOwner("user1", 0, 20);
+    }
     
     @Test
     void testGetAgent_Success() {
@@ -162,6 +190,7 @@ class AgentServiceTest {
         assertEquals(AgentState.Status.ACTIVE, result.getState().getStatus());
         verify(agentRepository).findById(agentId);
         verify(agentRepository).save(testAgent);
+        verify(eventPublisher).publishEvent(any(AgentStartedEvent.class));
     }
     
     @Test
@@ -179,6 +208,7 @@ class AgentServiceTest {
         assertEquals(AgentState.Status.PAUSED, result.getState().getStatus());
         verify(agentRepository).findById(agentId);
         verify(agentRepository).save(testAgent);
+        verify(eventPublisher).publishEvent(any(AgentPausedEvent.class));
     }
     
     @Test
@@ -196,5 +226,6 @@ class AgentServiceTest {
         assertEquals(AgentState.Status.STOPPED, testAgent.getState().getStatus());
         verify(agentRepository).findById(agentId);
         verify(agentRepository).save(testAgent);
+        verify(eventPublisher).publishEvent(any(AgentStoppedEvent.class));
     }
 }

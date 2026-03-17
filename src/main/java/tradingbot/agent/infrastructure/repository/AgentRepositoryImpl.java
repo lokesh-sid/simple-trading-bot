@@ -4,10 +4,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentId;
+import tradingbot.agent.domain.model.AgentSymbolLink;
+import tradingbot.agent.domain.model.PageResult;
 import tradingbot.agent.domain.repository.AgentRepository;
 
 /**
@@ -49,10 +52,25 @@ public class AgentRepositoryImpl implements AgentRepository {
     }
     
     @Override
+    public PageResult<Agent> findByOwner(String ownerId, int offset, int limit) {
+        int page = offset / Math.max(limit, 1);
+        var jpaPage = jpaRepository.findByOwnerId(ownerId, PageRequest.of(page, limit));
+        List<Agent> content = jpaPage.map(AgentMapper::toDomain).getContent();
+        return new PageResult<>(content, jpaPage.getTotalElements());
+    }
+
+    @Override
     public List<Agent> findAllActive() {
         return jpaRepository.findAllActive().stream()
             .map(AgentMapper::toDomain)
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<AgentSymbolLink> findActiveAgentSymbols() {
+        return jpaRepository.findAllActiveAgentSymbols().stream()
+            .map(p -> new AgentSymbolLink(p.getId(), p.getTradingSymbol()))
+            .toList();
     }
     
     @Override

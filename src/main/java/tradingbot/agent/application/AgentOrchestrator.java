@@ -7,14 +7,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -30,6 +29,9 @@ import reactor.core.Disposable;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 import tradingbot.agent.ReactiveTradingAgent;
+import tradingbot.agent.application.event.AgentPausedEvent;
+import tradingbot.agent.application.event.AgentStartedEvent;
+import tradingbot.agent.application.event.AgentStoppedEvent;
 import tradingbot.agent.application.strategy.AgentStrategy;
 import tradingbot.agent.application.strategy.LangChain4jStrategy;
 import tradingbot.agent.application.strategy.RAGEnhancedStrategy;
@@ -40,6 +42,7 @@ import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentDecision.Action;
 import tradingbot.agent.domain.model.AgentId;
 import tradingbot.agent.domain.model.AgentStatus;
+import tradingbot.agent.domain.model.AgentSymbolLink;
 import tradingbot.agent.domain.repository.AgentRepository;
 import tradingbot.agent.infrastructure.persistence.OrderEntity;
 import tradingbot.agent.infrastructure.repository.OrderRepository;
@@ -113,7 +116,7 @@ public class AgentOrchestrator {
      * Populated by Spring when concrete implementations are registered as beans.
      * Empty until Phase 2 agent implementations are added.
      */
-    private final List<ReactiveTradingAgent> agenticAgents;
+    private final List<ReactiveTradingAgent> agents;
 
     /**
      * Per-agent bulkhead registry — isolates one misbehaving agent from others.
@@ -145,7 +148,7 @@ public class AgentOrchestrator {
             AgentRepository agentRepository,
             LangChain4jStrategy langChain4jStrategy,
             ExchangeWebSocketClient webSocketClient,
-            List<ReactiveTradingAgent> agenticAgents,
+            List<ReactiveTradingAgent> agents,
             BulkheadRegistry bulkheadRegistry,
             @Nullable OrderExecutionGateway executionGateway,
             OrderRepository orderRepository,
@@ -156,7 +159,7 @@ public class AgentOrchestrator {
 
         this.agentRepository = agentRepository;
         this.webSocketClient = webSocketClient;
-        this.agenticAgents = agenticAgents;
+        this.agents = agents;
         this.bulkheadRegistry = bulkheadRegistry;
         this.executionGateway = executionGateway;
         this.orderRepository = orderRepository;
@@ -197,7 +200,7 @@ public class AgentOrchestrator {
             RAGEnhancedStrategy ragEnhancedStrategy,
             SimpleLLMStrategy legacyLLMStrategy,
             ExchangeWebSocketClient webSocketClient,
-            List<ReactiveTradingAgent> agenticAgents,
+            List<ReactiveTradingAgent> agents,
             BulkheadRegistry bulkheadRegistry,
             @org.springframework.lang.Nullable OrderExecutionGateway executionGateway,
             OrderRepository orderRepository,
@@ -206,7 +209,7 @@ public class AgentOrchestrator {
 
         this.agentRepository = agentRepository;
         this.webSocketClient = webSocketClient;
-        this.agenticAgents = agenticAgents;
+        this.agents = agents;
         this.bulkheadRegistry = bulkheadRegistry;
         this.executionGateway = executionGateway;
         this.orderRepository = orderRepository;
@@ -250,28 +253,28 @@ public class AgentOrchestrator {
     }
     
     /**
-     * Refreshes subscriptions based on currently active agents.
-     * This method is idempotent and can be called periodically.
+     * Refreshes subscriptions based on currently active agents using a
+     * lightweight projection query (only id + symbol, no full entity hydration).
+     * Used at startup and as a periodic safety-net reconciliation.
      */
     public synchronized void refreshSubscriptions() {
         if (!websocketEnabled) return;
         
-        // 1. Fetch all currently active agents
-        Iterable<Agent> activeAgents = agentRepository.findAllActive();
+        // 1. Use lightweight projection — only ids + symbols, no full entity hydration
+        List<AgentSymbolLink> activeLinks = agentRepository.findActiveAgentSymbols();
         
         // 2. Rebuild the symbol -> agent mapping
-        Map<String, Set<AgentId>> newMapping = StreamSupport.stream(activeAgents.spliterator(), false)
-            .collect(Collectors.groupingBy(
-                Agent::getTradingSymbol,
-                Collectors.mapping(Agent::getId, Collectors.toSet())
-            ));
-        
-        // Update the cache atomically (or close enough for this use case)
         symbolToAgentMap.clear();
-        symbolToAgentMap.putAll(newMapping);
+        for (AgentSymbolLink link : activeLinks) {
+            symbolToAgentMap.computeIfAbsent(link.symbol(), k -> ConcurrentHashMap.newKeySet())
+                            .add(new AgentId(link.agentId()));
+        }
+        
+        logger.info("[Orchestrator] Refreshed symbolToAgentMap: {} agents across {} symbols",
+                activeLinks.size(), symbolToAgentMap.size());
         
         // 3. Ensure we have a subscription for each needed symbol
-        newMapping.keySet().forEach(symbol -> {
+        symbolToAgentMap.keySet().forEach(symbol -> {
             if (!activeSubscriptions.containsKey(symbol)) {
                 logger.info("Subscribing to WebSocket for symbol: {}", symbol);
                 Disposable sub = webSocketClient.streamTrades(symbol)
@@ -281,10 +284,6 @@ public class AgentOrchestrator {
                 activeSubscriptions.put(symbol, sub);
             }
         });
-        
-        // 4. (Optional) Cleanup subscriptions for symbols no longer needed
-        // For simplicity in Phase 1, we keep subscriptions open even if agents drop off
-        // to avoid churn. Can be added later.
     }
 
     /**
@@ -366,15 +365,23 @@ public class AgentOrchestrator {
     }
     
     /**
-     * Main agent loop - runs every 30 seconds
+     * Safety-net reconciliation loop.
+     *
+     * <p>In WebSocket mode, real-time cache updates are handled by
+     * {@link #onAgentStarted}, {@link #onAgentPaused}, and {@link #onAgentStopped}.
+     * This loop runs every 5 minutes as a lightweight reconciliation to recover
+     * from any missed events (e.g. transaction rollback before event fires).
+     *
+     * <p>In Polling mode (legacy), this loop runs every 30 seconds and executes
+     * each active agent's strategy iteration.
      */
-    @Scheduled(fixedDelay = 30000, initialDelay = 10000)
-    public void executeAgentLoop() { // Transactional removed from here as it delegates
+    @Scheduled(fixedDelayString = "${orchestrator.reconciliation.interval-ms:#{${websocket.enabled:false} ? 300000 : 30000}}",
+               initialDelay = 10000)
+    public void executeAgentLoop() {
         if (websocketEnabled) {
-            // Use this loop to refresh subscriptions/cache in case new agents were added
-            logger.debug("Heartbeat check (WebSocket active) - refreshing subscriptions");
-            refreshSubscriptions(); 
-            return; 
+            logger.debug("Reconciliation heartbeat — lightweight projection refresh");
+            refreshSubscriptions();
+            return;
         }
 
         logger.debug("Starting agent orchestration cycle (Polling Mode)");
@@ -426,14 +433,14 @@ public class AgentOrchestrator {
             groupId = "agent-orchestrator-klines",
             containerFactory = "kafkaListenerContainerFactory")
     public void onKlineClosedEvent(KlineClosedEvent event) {
-        if (agenticAgents.isEmpty()) {
+        if (agents.isEmpty()) {
             // No ReactiveTradingAgent beans registered yet (normal during Phase 1).
             logger.trace("[KlineListener] No ReactiveTradingAgent beans — skipping dispatch for {}/{}",
                     event.exchange(), event.symbol());
             return;
         }
 
-        agenticAgents.stream()
+        agents.stream()
                 .filter(agent -> event.symbol().equals(agent.getSymbol()))
                 .filter(agent -> agent.getStatus() == AgentStatus.ACTIVE)
                 .forEach(agent -> dispatchWithBulkhead(agent, event));
@@ -608,12 +615,52 @@ public class AgentOrchestrator {
      *
      * @param agentId the agent to evict
      */
-    public void evictAgent(AgentId agentId) {
+    public synchronized void evictAgent(AgentId agentId) {
         symbolToAgentMap.forEach((symbol, agentIds) -> agentIds.remove(agentId));
         symbolToAgentMap.entrySet().removeIf(e -> e.getValue().isEmpty());
         lastExecutionTime.remove(agentId);
         logger.info("[Orchestrator] Evicted agent {} from symbolToAgentMap and lastExecutionTime caches",
                 agentId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Event-driven cache updates
+    // -------------------------------------------------------------------------
+
+    /**
+     * Reacts to an agent being activated — adds it to the in-memory routing
+     * cache and opens a WebSocket subscription for the symbol if needed.
+     */
+    @EventListener
+    public synchronized void onAgentStarted(AgentStartedEvent event) {
+        symbolToAgentMap.computeIfAbsent(event.symbol(), k -> ConcurrentHashMap.newKeySet())
+                        .add(event.agentId());
+
+        if (websocketEnabled && !activeSubscriptions.containsKey(event.symbol())) {
+            logger.info("New symbol detected dynamically, subscribing: {}", event.symbol());
+            Disposable sub = webSocketClient.streamTrades(event.symbol())
+                .doOnNext(this::handleMarketEvent)
+                .onErrorContinue((ex, obj) -> logger.error("Stream error {}: {}", event.symbol(), ex.getMessage()))
+                .subscribe();
+            activeSubscriptions.put(event.symbol(), sub);
+        }
+        logger.info("[Orchestrator] Agent {} added to symbolToAgentMap for {}", event.agentId(), event.symbol());
+    }
+
+    /**
+     * Reacts to an agent being paused — evicts it from routing caches.
+     */
+    @EventListener
+    public void onAgentPaused(AgentPausedEvent event) {
+        evictAgent(event.agentId());
+    }
+
+    /**
+     * Reacts to an agent being stopped or deleted — evicts it from routing caches.
+     */
+    @EventListener
+    public void onAgentStopped(AgentStoppedEvent event) {
+        evictAgent(event.agentId());
     }
 
     // Repository query methods

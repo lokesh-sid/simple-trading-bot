@@ -212,11 +212,14 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
         performPost(API_AGENTS, request1).andExpect(status().isCreated());
         performPost(API_AGENTS, request2).andExpect(status().isCreated());
 
-        // List all agents
+        // List agents (paginated, scoped to authenticated user)
         performGet(API_AGENTS)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(2))));
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content", hasSize(greaterThanOrEqualTo(2))))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").isNumber());
     }
 
     // ========== AGENT LIFECYCLE TESTS ==========

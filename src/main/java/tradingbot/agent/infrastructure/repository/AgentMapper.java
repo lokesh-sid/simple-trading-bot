@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentGoal;
+import tradingbot.agent.domain.model.AgentGoal.GoalType;
 import tradingbot.agent.domain.model.AgentId;
 import tradingbot.agent.domain.model.AgentState;
 import tradingbot.agent.domain.model.Perception;
@@ -19,43 +20,41 @@ public class AgentMapper {
      * Convert Agent domain model to AgentEntity
      */
     public static AgentEntity toEntity(Agent agent) {
-        AgentEntity entity = new AgentEntity(
-            agent.getId().getValue(),
-            agent.getName(),
-            agent.getGoal().getType().name(),
-            agent.getGoal().getDescription(),
-            agent.getTradingSymbol(),
-            agent.getCapital(),
-            mapStatus(agent.getState().getStatus()),
-            agent.getCreatedAt(),
-            agent.getOwnerId() // Added ownerId
-        );
-        
-        entity.setLastActiveAt(agent.getState().getLastActiveAt());
-        entity.setIterationCount(agent.getState().getIterationCount());
-        
+        AgentEntity.Builder builder = new AgentEntity.Builder()
+            .id(agent.getId().getValue())
+            .name(agent.getName())
+            .goalType(agent.getGoal().getType().name())
+            .goalDescription(agent.getGoal().getDescription())
+            .tradingSymbol(agent.getTradingSymbol())
+            .capital(agent.getCapital())
+            .status(mapStatus(agent.getState().getStatus()))
+            .createdAt(agent.getCreatedAt())
+            .ownerId(agent.getOwnerId())
+            .lastActiveAt(agent.getState().getLastActiveAt())
+            .iterationCount(agent.getState().getIterationCount());
+
         // Map perception
         if (agent.getLastPerception() != null) {
             Perception perception = agent.getLastPerception();
-            entity.setLastPrice(perception.getCurrentPrice());
-            entity.setLastTrend(perception.getTrend());
-            entity.setLastSentiment(perception.getSentiment());
-            entity.setLastVolume(perception.getVolume());
-            entity.setPerceivedAt(perception.getTimestamp());
+            builder.lastPrice(perception.getCurrentPrice())
+                   .lastTrend(perception.getTrend())
+                   .lastSentiment(perception.getSentiment())
+                   .lastVolume(perception.getVolume())
+                   .perceivedAt(perception.getTimestamp());
         }
-        
+
         // Map reasoning
         if (agent.getLastReasoning() != null) {
             Reasoning reasoning = agent.getLastReasoning();
-            entity.setLastObservation(reasoning.getObservation());
-            entity.setLastAnalysis(reasoning.getAnalysis());
-            entity.setLastRiskAssessment(reasoning.getRiskAssessment());
-            entity.setLastRecommendation(reasoning.getRecommendation());
-            entity.setLastConfidence(reasoning.getConfidence());
-            entity.setReasonedAt(reasoning.getTimestamp());
+            builder.lastObservation(reasoning.getObservation())
+                   .lastAnalysis(reasoning.getAnalysis())
+                   .lastRiskAssessment(reasoning.getRiskAssessment())
+                   .lastRecommendation(reasoning.getRecommendation())
+                   .lastConfidence(reasoning.getConfidence())
+                   .reasonedAt(reasoning.getTimestamp());
         }
-        
-        return entity;
+
+        return builder.build();
     }
     
     /**
@@ -64,7 +63,7 @@ public class AgentMapper {
     public static Agent toDomain(AgentEntity entity) {
         // Create goal
         AgentGoal goal = new AgentGoal(
-            AgentGoal.GoalType.valueOf(entity.getGoalType()),
+            GoalType.valueOf(entity.getGoalType()),
             entity.getGoalDescription()
         );
         

@@ -1,10 +1,9 @@
 package tradingbot.agent.api;
 
-import java.util.List;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -85,11 +85,11 @@ public class AgentController {
     }
     
     /**
-     * Get all agents
+     * Get agents for the authenticated user (paginated, cached via Redis)
      */
     @GetMapping
-    @Operation(summary = "List all AI trading agents",
-               description = "Returns a list of all trading agents with their current status and performance")
+    @Operation(summary = "List AI trading agents for the authenticated user",
+               description = "Returns a paginated list of the authenticated user's trading agents")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Agents retrieved successfully",
                     content = @Content(mediaType = "application/json")),
@@ -97,12 +97,13 @@ public class AgentController {
                     content = @Content(mediaType = "application/json", 
                     schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<List<AgentResponse>> getAllAgents() {
-        List<Agent> agents = agentService.getAllAgents();
-        List<AgentResponse> responses = agents.stream()
-            .map(agentMapper::toResponse)
-            .toList();
-        return ResponseEntity.ok(responses);
+    public ResponseEntity<PaginatedAgentResponse> getAgents(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            Authentication authentication) {
+        String ownerId = authentication.getName();
+        PaginatedAgentResponse response = agentService.getAgentsByOwner(ownerId, page, size);
+        return ResponseEntity.ok(response);
     }
     
     /**
