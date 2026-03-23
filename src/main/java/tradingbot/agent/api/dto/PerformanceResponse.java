@@ -1,4 +1,4 @@
-package tradingbot.agent.api;
+package tradingbot.agent.api.dto;
 
 import java.time.Instant;
 

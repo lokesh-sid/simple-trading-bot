@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -67,6 +68,16 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Malformed JSON request body — e.g. unrecognised enum value.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex, WebRequest request) {
+        logger.warn("Malformed request body: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST, "Malformed or unreadable request body.", request);
+    }
+
+    /**
      * Jakarta @Min, @Max, @Pattern on @RequestParam / @PathVariable
      * Triggered because the class is annotated with @Validated.
      */
@@ -110,6 +121,17 @@ public class GlobalExceptionHandler {
      * Thrown by BotOperationPolicy when the bot is in the wrong runtime state.
      * e.g. trying to start an already running bot.
      */
+    /**
+     * Thrown when a start request is issued for a bot that is already running.
+     */
+    @ExceptionHandler(BotAlreadyRunningException.class)
+    public ResponseEntity<ErrorResponse> handleBotAlreadyRunning(
+            BotAlreadyRunningException ex, WebRequest request) {
+        logger.warn("Bot already running: {}", ex.getMessage());
+        ErrorResponse error = buildWithTitle(HttpStatus.CONFLICT, "Bot Already Running", ex.getMessage(), request);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ErrorResponse> handleIllegalState(
             IllegalStateException ex, WebRequest request) {

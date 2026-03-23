@@ -2,8 +2,6 @@ package tradingbot.config;
 
 import java.util.List;
 
-import javax.sql.DataSource;
-
 import org.mockito.Mockito;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration;
@@ -11,16 +9,15 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
-import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.ComponentScan.Filter;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.test.context.TestPropertySource;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,8 +34,8 @@ import tradingbot.agent.TradingAgentFactory;
 import tradingbot.agent.factory.AgentFactory;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.agent.infrastructure.persistence.PositionEntity;
+import tradingbot.agent.infrastructure.repository.AgentEntity;
 import tradingbot.agent.manager.AgentManager;
-import tradingbot.agent.persistence.LegacyAgentEntity;
 import tradingbot.agent.service.OrderPlacementService;
 import tradingbot.agent.service.RAGService;
 import tradingbot.agent.service.TradeReflectionService;
@@ -67,7 +64,6 @@ import tradingbot.security.repository.UserRepository;
 @SpringBootConfiguration
 @TestPropertySource("classpath:application-test.properties")
 @EnableAutoConfiguration(exclude = {
-    KafkaAutoConfiguration.class,
     RedisAutoConfiguration.class,
     RedisRepositoriesAutoConfiguration.class,
     SecurityAutoConfiguration.class,
@@ -75,14 +71,17 @@ import tradingbot.security.repository.UserRepository;
 })
 @ComponentScan(
     basePackages = {
-        "tradingbot.bot.controller", 
+        "tradingbot.bot.controller",
         "tradingbot.bot.service",
         "tradingbot.gateway.controller",
         "tradingbot.agent.application",
         "tradingbot.agent.infrastructure.repository",
         "tradingbot.agent.api"
     },
-    useDefaultFilters = true
+    useDefaultFilters = true,
+    excludeFilters = {
+        @Filter(type = FilterType.ANNOTATION, classes = EnableAutoConfiguration.class)
+    }
 )
 @Import({InstanceConfig.class, AgentManager.class, AgentFactory.class})
 @EnableJpaRepositories(basePackages = {
@@ -92,8 +91,8 @@ import tradingbot.security.repository.UserRepository;
 })
 @EntityScan(basePackageClasses = {
     PositionEntity.class,
-    LegacyAgentEntity.class,
-    TradingEventEntity.class
+    TradingEventEntity.class,
+    AgentEntity.class
 })
 public class FuturesTradingBotIntegrationTestConfig {
     @Bean
@@ -106,12 +105,8 @@ public class FuturesTradingBotIntegrationTestConfig {
         return new TradingSafetyService("paper", "paper", "TESTNET_DOMAIN", false);
     }
 
-    @Bean
-    public DataSource dataSource() {
-        return new EmbeddedDatabaseBuilder()
-            .setType(EmbeddedDatabaseType.H2)
-            .build();
-    }
+    // Use Spring Boot's auto-configured DataSource (Testcontainers/Postgres) for integration tests
+    // No explicit DataSource bean; rely on application-container-test.properties and @DynamicPropertySource
 
     @Bean
     public ExchangeWebSocketClient exchangeWebSocketClient() {

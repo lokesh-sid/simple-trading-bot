@@ -33,7 +33,7 @@ import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
 @org.springframework.security.test.context.support.WithMockUser(username = "user1")
 class AgentControllerIntegrationTest extends AbstractIntegrationTest {
 
-    private static final String API_AGENTS = "/api/agents";
+    private static final String API_AGENTS = "/api/v1/agents";
 
     @MockitoBean
     private FuturesExchangeService exchangeService;
@@ -43,6 +43,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
 
     @MockitoBean
     private EventPublisher eventPublisher;
+    
+        // Use inherited protected performPost, performGet, performDelete from AbstractHttpTest
 
     // ========== AGENT CREATION TESTS ==========
 
@@ -404,7 +406,7 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
         // List should contain both agents
         performGet(API_AGENTS)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(2))));
+                .andExpect(jsonPath("$.content", hasSize(greaterThanOrEqualTo(2))));
 
         // Delete first agent
         performDelete(API_AGENTS + "/" + agentId1)

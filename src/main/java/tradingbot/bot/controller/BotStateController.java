@@ -20,10 +20,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import tradingbot.agent.infrastructure.repository.AgentEntity;
+import tradingbot.agent.infrastructure.repository.JpaAgentRepository;
 import tradingbot.agent.manager.AgentManager;
-import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.bot.FuturesTradingBot;
-import tradingbot.bot.TradeDirection;
 import tradingbot.bot.controller.dto.request.BotStateUpdateRequest;
 import tradingbot.bot.controller.dto.request.BotStateUpdateRequest.BotStatus;
 import tradingbot.bot.controller.dto.response.BotStateResponse;
@@ -54,7 +54,7 @@ public class BotStateController {
 
     private static final Logger logger = LoggerFactory.getLogger(BotStateController.class);
 
-    private final AgentRepository agentRepository;
+    private final JpaAgentRepository agentRepository;
     private final TradingSafetyService tradingSafetyService;
     private final BotRequestValidator botRequestValidator;
     private final BotOperationPolicy botOperationPolicy;
@@ -62,7 +62,7 @@ public class BotStateController {
 
     public BotStateController(
             AgentManager agentManager,
-            AgentRepository agentRepository,
+            JpaAgentRepository agentRepository,
             TradingSafetyService tradingSafetyService,
             BotRequestValidator botRequestValidator,
             BotOperationPolicy botOperationPolicy,
@@ -97,12 +97,9 @@ public class BotStateController {
         response.setEntryPrice(bot.getEntryPrice());
         response.setTimestamp(Instant.now());
 
-        agentRepository.findById(botId).ifPresent(entity -> {
-            response.setPaperMode(entity.isPaperMode());
-            if (entity.getDirection() != null) {
-                response.setDirection(TradeDirection.valueOf(entity.getDirection()));
-            }
-        });
+        agentRepository.findById(botId).ifPresent(entity ->
+            response.setPaperMode(entity.getExecutionMode() == AgentEntity.ExecutionMode.FUTURES_PAPER)
+        );
 
         return ResponseEntity.ok(response);
     }

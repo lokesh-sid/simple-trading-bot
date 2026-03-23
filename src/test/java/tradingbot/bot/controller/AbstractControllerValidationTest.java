@@ -12,12 +12,17 @@ import tradingbot.AbstractHttpTest;
 import tradingbot.agent.TradingAgentFactory;
 import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.application.AgentService;
+import tradingbot.agent.application.PerformanceTrackingService;
+import tradingbot.config.TradingSafetyService;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
+import tradingbot.agent.infrastructure.repository.AgentPerformanceRepository;
+import tradingbot.agent.infrastructure.repository.ChatMessageRepository;
+import tradingbot.agent.infrastructure.repository.DeadLetterRepository;
 import tradingbot.agent.infrastructure.repository.JpaAgentRepository;
 import tradingbot.agent.infrastructure.repository.OrderRepository;
 import tradingbot.agent.infrastructure.repository.PositionRepository;
+import tradingbot.agent.infrastructure.repository.TradeMemoryRepository;
 import tradingbot.agent.manager.AgentManager;
-import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.persistence.repository.TradingEventRepository;
@@ -31,7 +36,7 @@ import tradingbot.security.repository.UserRepository;
  * Provides common Spring Boot test setup and validation test utilities.
  */
 @SpringBootTest(
-    classes = tradingbot.config.FuturesTradingBotIntegrationTestConfig.class,
+    classes = tradingbot.bot.controller.config.TradingBotControllerValidationTestConfig.class,
     webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @AutoConfigureMockMvc(addFilters = false)
@@ -40,8 +45,6 @@ public abstract class AbstractControllerValidationTest extends AbstractHttpTest 
     @MockitoBean
     protected AgentManager agentManager;
 
-    @MockitoBean
-    protected AgentRepository agentRepository;
 
     @MockitoBean
     protected JpaAgentRepository jpaAgentRepository;
@@ -51,6 +54,18 @@ public abstract class AbstractControllerValidationTest extends AbstractHttpTest 
 
     @MockitoBean
     protected PositionRepository positionRepository;
+
+    @MockitoBean
+    protected AgentPerformanceRepository agentPerformanceRepository;
+
+    @MockitoBean
+    protected DeadLetterRepository deadLetterRepository;
+
+    @MockitoBean
+    protected TradeMemoryRepository tradeMemoryRepository;
+
+    @MockitoBean
+    protected ChatMessageRepository chatMessageRepository;
 
     @MockitoBean
     protected RedisConnectionFactory redisConnectionFactory;
@@ -84,6 +99,12 @@ public abstract class AbstractControllerValidationTest extends AbstractHttpTest 
 
     @MockitoBean
     protected AgentMapper agentMapper;
+
+    @MockitoBean
+    protected PerformanceTrackingService performanceTrackingService;
+
+    @MockitoBean
+    protected TradingSafetyService tradingSafetyService;
 
     @MockitoBean
     protected TradingAgentFactory tradingAgentFactory;

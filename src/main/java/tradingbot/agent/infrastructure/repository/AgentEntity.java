@@ -24,7 +24,7 @@ public class AgentEntity {
     private String name;
     @Column(name = "goal_type", nullable = false)
     private String goalType;
-    @Column(name = "goal_description")
+    @Column(name = "goal_description", columnDefinition = "TEXT")
     private String goalDescription;
     @Column(name = "trading_symbol", nullable = false)
     private String tradingSymbol;
@@ -66,7 +66,10 @@ public class AgentEntity {
     private Instant reasonedAt;
     @Column(name = "owner_id")
     private String ownerId;
-    
+    @Column(name = "execution_mode", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private ExecutionMode executionMode;
+
     // Builder pattern
     public static class Builder {
         private String id;
@@ -91,6 +94,7 @@ public class AgentEntity {
         private Integer lastConfidence;
         private Instant reasonedAt;
         private String ownerId;
+        private ExecutionMode executionMode = ExecutionMode.NONE;
 
         public Builder id(String id) { this.id = id; return this; }
         public Builder name(String name) { this.name = name; return this; }
@@ -114,6 +118,7 @@ public class AgentEntity {
         public Builder lastConfidence(Integer lastConfidence) { this.lastConfidence = lastConfidence; return this; }
         public Builder reasonedAt(Instant reasonedAt) { this.reasonedAt = reasonedAt; return this; }
         public Builder ownerId(String ownerId) { this.ownerId = ownerId; return this; }
+        public Builder executionMode(ExecutionMode executionMode) { this.executionMode = executionMode; return this; }
 
         public AgentEntity build() {
             return new AgentEntity(this);
@@ -147,8 +152,9 @@ public class AgentEntity {
         this.lastConfidence = builder.lastConfidence;
         this.reasonedAt = builder.reasonedAt;
         this.ownerId = builder.ownerId;
+        this.executionMode = builder.executionMode != null ? builder.executionMode : ExecutionMode.NONE;
     }
-    
+
     // Getters only (no setters for builder pattern)
     public String getId() { return id; }
     public String getName() { return name; }
@@ -172,11 +178,22 @@ public class AgentEntity {
     public Integer getLastConfidence() { return lastConfidence; }
     public Instant getReasonedAt() { return reasonedAt; }
     public String getOwnerId() { return ownerId; }
-    
+    public ExecutionMode getExecutionMode() { return executionMode; }
+
     /**
      * AgentStatus - Entity status enum
      */
     public enum AgentStatus {
         IDLE, ACTIVE, PAUSED, STOPPED
+    }
+
+    /**
+     * ExecutionMode - How this agent/bot is being executed.
+     * Separate from AgentGoal.GoalType which is a domain concept.
+     */
+    public enum ExecutionMode {
+        FUTURES,
+        FUTURES_PAPER,
+        NONE
     }
 }

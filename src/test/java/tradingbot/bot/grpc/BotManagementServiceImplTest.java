@@ -17,6 +17,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import tradingbot.bot.controller.dto.BotState;
 import tradingbot.bot.service.BotCacheService;
@@ -334,23 +336,22 @@ class BotManagementServiceImplTest {
     void testGetBotStatusNotFound() {
         // Given
         when(botCacheService.getBotState(TEST_BOT_ID)).thenReturn(null);
-        
+
         BotStatusRequest request = BotStatusRequest.newBuilder()
                 .setBotId(TEST_BOT_ID)
                 .build();
-        
+
         // When
         botManagementService.getBotStatus(request, botStatusResponseObserver);
-        
-        // Then
-        ArgumentCaptor<BotStatusResponse> responseCaptor = ArgumentCaptor.forClass(BotStatusResponse.class);
-        verify(botStatusResponseObserver).onNext(responseCaptor.capture());
-        verify(botStatusResponseObserver).onCompleted();
-        
-        BotStatusResponse response = responseCaptor.getValue();
-        assertTrue(response.hasError());
-        assertEquals(404, response.getError().getCode());
-        assertEquals("Bot not found", response.getError().getMessage());
+
+        // Then - onError should be called with NOT_FOUND status
+        ArgumentCaptor<Throwable> errorCaptor = ArgumentCaptor.forClass(Throwable.class);
+        verify(botStatusResponseObserver).onError(errorCaptor.capture());
+        verify(botStatusResponseObserver, never()).onNext(any());
+
+        Throwable error = errorCaptor.getValue();
+        assertInstanceOf(StatusRuntimeException.class, error);
+        assertEquals(Status.NOT_FOUND.getCode(), ((StatusRuntimeException) error).getStatus().getCode());
     }
     
     // ==================== UPDATE BOT TESTS ====================

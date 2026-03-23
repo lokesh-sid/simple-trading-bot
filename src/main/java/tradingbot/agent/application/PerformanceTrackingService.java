@@ -7,8 +7,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import tradingbot.agent.api.PerformanceResponse;
 import tradingbot.agent.api.dto.PerformanceMapper;
+import tradingbot.agent.api.dto.PerformanceResponse;
 import tradingbot.agent.domain.execution.ExecutionResult;
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentId;

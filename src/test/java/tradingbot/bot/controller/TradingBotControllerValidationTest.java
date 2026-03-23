@@ -132,7 +132,7 @@ class TradingBotControllerValidationTest extends AbstractControllerValidationTes
     void validSymbol_invalid(String symbol, String description) throws Exception {
         CreateAgentRequest request = new CreateAgentRequest("Test Agent", "PROFIT_MAXIMIZATION", "Test Description", symbol, 1000.0);
 
-        mockMvc.perform(post("/api/agents")
+        mockMvc.perform(post("/api/v1/agents")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
                .andExpect(status().isBadRequest())
@@ -145,6 +145,6 @@ class TradingBotControllerValidationTest extends AbstractControllerValidationTes
     void validSymbol_valid() throws Exception {
         CreateAgentRequest request = new CreateAgentRequest("Test Agent", "PROFIT_MAXIMIZATION", "Test Description", "BTCUSDT", 1000.0);
 
-        performValidRequestTest("/api/agents", request);
+        performValidRequestTest("/api/v1/agents", request);
     }
 }

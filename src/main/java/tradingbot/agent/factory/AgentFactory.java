@@ -1,10 +1,11 @@
 package tradingbot.agent.factory;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 // import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
@@ -13,7 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import tradingbot.agent.TradingAgent;
 import tradingbot.agent.config.AgentProperties;
-import tradingbot.agent.persistence.LegacyAgentEntity;
+import tradingbot.agent.infrastructure.repository.AgentEntity;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.FuturesTradingBot.BotParams;
 import tradingbot.bot.TradeDirection;
@@ -46,6 +47,7 @@ import tradingbot.config.TradingConfig;
  */
 @Component
 public class AgentFactory {
+    private static final Logger log = LoggerFactory.getLogger(AgentFactory.class);
 
     private final FuturesExchangeService realExchangeService;
     private final SentimentAnalyzer sentimentAnalyzer;
@@ -155,29 +157,19 @@ public class AgentFactory {
     }
     // Duplicate methods removed
 
-    public TradingAgent createAgent(LegacyAgentEntity entity) {
+    public TradingAgent createAgent(AgentEntity entity) {
         try {
-            TradingConfig config = objectMapper.readValue(entity.getConfigurationJson(), TradingConfig.class);
-            
-            // Override symbol from entity if needed, or ensure they match
-            config.setSymbol(entity.getSymbol());
-
-            // Dispatch based on agent type (Simple Factory Pattern)
-            String type = entity.getType() != null ? entity.getType().toUpperCase() : "UNKNOWN";
-            
-            return switch (type) {
-                case "FUTURES", "FUTURES_PAPER" -> createFuturesTradingBot(entity, config);
-                default -> throw new IllegalArgumentException("Unsupported agent type: " + type);
-            };
-        } catch (IllegalArgumentException e) {
-            throw e;
+            TradingConfig config = objectMapper.readValue(entity.getGoalDescription(), TradingConfig.class);
+            config.setSymbol(entity.getTradingSymbol());
+            return createFuturesTradingBot(entity, config);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to create agent from entity: " + entity.getId(), e);
+            log.error("Failed to create agent {} — invalid goalDescription JSON: {}", entity.getId(), entity.getGoalDescription(), e);
+            throw new RuntimeException("Invalid agent configuration for agent " + entity.getId(), e);
         }
     }
 
-    private FuturesTradingBot createFuturesTradingBot(LegacyAgentEntity entity, TradingConfig config) {
-        boolean isPaper = entity.isPaperMode();
+    private FuturesTradingBot createFuturesTradingBot(AgentEntity entity, TradingConfig config) {
+        boolean isPaper = entity.getExecutionMode() == AgentEntity.ExecutionMode.FUTURES_PAPER;
         // For integration tests, if realExchangeService is a mock, use it instead of creating new PaperService
         // This allows Mockito behavior to persist
         FuturesExchangeService exchangeService;
@@ -187,11 +179,20 @@ public class AgentFactory {
              exchangeService = isPaper ? new PaperFuturesExchangeService() : this.realExchangeService;
         }
 
+        TradeDirection direction = TradeDirection.LONG;
+        if (config.getDirection() != null && !config.getDirection().isBlank()) {
+            try {
+                direction = TradeDirection.valueOf(config.getDirection().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                log.warn("Unknown direction '{}' for agent {}, defaulting to LONG", config.getDirection(), entity.getId());
+            }
+        }
+
         Map<String, TechnicalIndicator> indicators = createIndicators(config);
         IndicatorCalculator indicatorCalculator = new IndicatorCalculator(exchangeService, indicators, redisTemplate);
         TrailingStopTracker trailingStopTracker = new TrailingStopTracker(exchangeService, config.getTrailingStopPercent());
         List<PositionExitCondition> exitConditions = createExitConditions(config, indicatorCalculator, trailingStopTracker, exchangeService);
-        
+
         BotParams botParams = new BotParams.Builder()
             .id(entity.getId())
             .name(entity.getName())
@@ -201,15 +202,11 @@ public class AgentFactory {
             .sentimentAnalyzer(sentimentAnalyzer)
             .exitConditions(exitConditions)
             .config(config)
-            .tradeDirection(TradeDirection.valueOf(entity.getDirection()))
+            .tradeDirection(direction)
             .skipLeverageInit(shouldSkipLeverageInit(isPaper))
             .build();
-            
-        FuturesTradingBot bot = new FuturesTradingBot(botParams);
-        if (entity.isSentimentEnabled()) {
-            bot.enableSentimentAnalysis(true);
-        }
-        return bot;
+
+        return new FuturesTradingBot(botParams);
     }
 
     private Map<String, TechnicalIndicator> createIndicators(TradingConfig config) {

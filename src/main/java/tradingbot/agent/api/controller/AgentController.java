@@ -1,9 +1,10 @@
-package tradingbot.agent.api;
+package tradingbot.agent.api.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +26,10 @@ import jakarta.validation.Valid;
 import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.api.dto.AgentResponse;
 import tradingbot.agent.api.dto.CreateAgentRequest;
+import tradingbot.agent.api.dto.PaginatedAgentResponse;
+import tradingbot.agent.api.dto.PerformanceResponse;
 import tradingbot.agent.application.AgentService;
+import tradingbot.agent.application.PerformanceTrackingService;
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentId;
 import tradingbot.bot.controller.dto.response.ErrorResponse;
@@ -45,16 +49,16 @@ import tradingbot.bot.controller.validation.ValidBotId;
  * API Path Pattern: /api/agents/{id}
  */
 @RestController
-@RequestMapping("/api/agents")
+@RequestMapping("/api/v1/agents")
 @Validated
 @Tag(name = "Agent Controller", description = "API for managing AI trading agents with autonomous decision-making capabilities")
 public class AgentController {
     
     private final AgentService agentService;
     private final AgentMapper agentMapper;
-    private final tradingbot.agent.application.PerformanceTrackingService performanceService;
+    private final PerformanceTrackingService performanceService;
     
-    public AgentController(AgentService agentService, AgentMapper agentMapper, tradingbot.agent.application.PerformanceTrackingService performanceService) {
+    public AgentController(AgentService agentService, AgentMapper agentMapper, PerformanceTrackingService performanceService) {
         this.agentService = agentService;
         this.agentMapper = agentMapper;
         this.performanceService = performanceService;
@@ -99,13 +103,13 @@ public class AgentController {
     })
     public ResponseEntity<PaginatedAgentResponse> getAgents(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            Authentication authentication) {
+            @RequestParam(defaultValue = "20") int size) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String ownerId = authentication.getName();
         PaginatedAgentResponse response = agentService.getAgentsByOwner(ownerId, page, size);
         return ResponseEntity.ok(response);
     }
-    
+
     /**
      * Get agent by ID
      */

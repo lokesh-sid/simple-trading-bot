@@ -1,0 +1,26 @@
+-- Flyway migration: create agents table
+CREATE TABLE agents (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    goal_type VARCHAR(64) NOT NULL,
+    goal_description TEXT,
+    trading_symbol VARCHAR(32) NOT NULL,
+    capital NUMERIC(18,2) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    last_active_at TIMESTAMP,
+    iteration_count INTEGER DEFAULT 0,
+    last_price DOUBLE PRECISION,
+    last_trend VARCHAR(64),
+    last_sentiment VARCHAR(64),
+    last_volume DOUBLE PRECISION,
+    perceived_at TIMESTAMP,
+    last_observation TEXT,
+    last_analysis TEXT,
+    last_risk_assessment TEXT,
+    last_recommendation TEXT,
+    last_confidence INTEGER,
+    reasoned_at TIMESTAMP,
+    owner_id VARCHAR(255),
+    execution_mode VARCHAR(50) NOT NULL DEFAULT 'NONE'
+);

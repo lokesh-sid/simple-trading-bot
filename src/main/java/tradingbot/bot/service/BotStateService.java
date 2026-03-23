@@ -1,17 +1,16 @@
 package tradingbot.bot.service;
 
-import static tradingbot.agent.persistence.LegacyAgentEntity.AgentType.*;
+// import static tradingbot.agent.persistence.LegacyAgentEntity.AgentType.*;
 
-import java.time.Instant;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import tradingbot.agent.infrastructure.repository.AgentEntity;
+import tradingbot.agent.infrastructure.repository.JpaAgentRepository;
 import tradingbot.agent.manager.AgentManager;
-import tradingbot.agent.persistence.AgentRepository;
-import tradingbot.agent.persistence.LegacyAgentEntity;
 import tradingbot.bot.TradeDirection;
 
 @Service
@@ -20,10 +19,10 @@ public class BotStateService {
     private static final Logger logger = LoggerFactory.getLogger(BotStateService.class);
 
     private final AgentManager agentManager;
-    private final AgentRepository agentRepository;
+    private final JpaAgentRepository agentRepository;
 
     // ✅ Constructor injection only — no runtime parameter passing
-    public BotStateService(AgentManager agentManager, AgentRepository agentRepository) {
+    public BotStateService(AgentManager agentManager, JpaAgentRepository agentRepository) {
         this.agentManager = agentManager;
         this.agentRepository = agentRepository;
     }
@@ -31,15 +30,19 @@ public class BotStateService {
     @Transactional
     public void startBot(String botId, boolean resolvedPaperMode, TradeDirection direction) {
         agentRepository.findById(botId).ifPresent(entity -> {
-            if (direction != null) {
-                entity.setDirection(direction.toString());
-            }
-            entity.setType(resolvedPaperMode
-                    ? FUTURES_PAPER.name()
-                    : FUTURES.name());
-            entity.setStatus(LegacyAgentEntity.AgentStatus.RUNNING);
-            entity.setUpdatedAt(Instant.now());
-            agentRepository.save(entity);
+            AgentEntity updated = new AgentEntity.Builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .goalType(entity.getGoalType())
+                .goalDescription(entity.getGoalDescription())
+                .tradingSymbol(entity.getTradingSymbol())
+                .capital(entity.getCapital())
+                .status(AgentEntity.AgentStatus.ACTIVE)
+                .createdAt(entity.getCreatedAt())
+                .ownerId(entity.getOwnerId())
+                .executionMode(resolvedPaperMode ? AgentEntity.ExecutionMode.FUTURES_PAPER : AgentEntity.ExecutionMode.FUTURES)
+                .build();
+            agentRepository.save(updated);
         });
 
         agentManager.refreshAgent(botId);
@@ -51,11 +54,20 @@ public class BotStateService {
     @Transactional
     public void stopBot(String botId) {
         agentManager.stopAgent(botId);
-
         agentRepository.findById(botId).ifPresent(entity -> {
-            entity.setStatus(LegacyAgentEntity.AgentStatus.STOPPED);
-            entity.setUpdatedAt(Instant.now());
-            agentRepository.save(entity);
+            AgentEntity updated = new AgentEntity.Builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .goalType(entity.getGoalType())
+                .goalDescription(entity.getGoalDescription())
+                .tradingSymbol(entity.getTradingSymbol())
+                .capital(entity.getCapital())
+                .status(AgentEntity.AgentStatus.STOPPED)
+                .createdAt(entity.getCreatedAt())
+                .ownerId(entity.getOwnerId())
+                .executionMode(entity.getExecutionMode())
+                .build();
+            agentRepository.save(updated);
         });
 
         logger.info("Bot {} stopped", botId);
@@ -64,11 +76,20 @@ public class BotStateService {
     @Transactional
     public void pauseBot(String botId) {
         agentManager.stopAgent(botId);
-
         agentRepository.findById(botId).ifPresent(entity -> {
-            entity.setStatus(LegacyAgentEntity.AgentStatus.PAUSED);
-            entity.setUpdatedAt(Instant.now());
-            agentRepository.save(entity);
+            AgentEntity updated = new AgentEntity.Builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .goalType(entity.getGoalType())
+                .goalDescription(entity.getGoalDescription())
+                .tradingSymbol(entity.getTradingSymbol())
+                .capital(entity.getCapital())
+                .status(AgentEntity.AgentStatus.PAUSED)
+                .createdAt(entity.getCreatedAt())
+                .ownerId(entity.getOwnerId())
+                .executionMode(entity.getExecutionMode())
+                .build();
+            agentRepository.save(updated);
         });
 
         logger.info("Bot {} paused", botId);

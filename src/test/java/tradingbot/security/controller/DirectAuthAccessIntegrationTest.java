@@ -10,10 +10,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest
+import tradingbot.AbstractContainerIntegrationTest;
+import tradingbot.config.ContainerIntegrationTestConfig;
+
+@SpringBootTest(classes = ContainerIntegrationTestConfig.class)
 @AutoConfigureMockMvc
-@ActiveProfiles("integration-test")
-public class DirectAuthAccessIntegrationTest {
+@ActiveProfiles("container-test")
+public class DirectAuthAccessIntegrationTest extends AbstractContainerIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;

@@ -1,34 +1,33 @@
 package tradingbot.bot.controller.config;
 
+import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
-import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
-import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import net.devh.boot.grpc.server.autoconfigure.GrpcServerAutoConfiguration;
 import net.devh.boot.grpc.server.autoconfigure.GrpcServerFactoryAutoConfiguration;
-import tradingbot.agent.api.AgentController;
+import tradingbot.agent.api.controller.AgentController;
 import tradingbot.bot.controller.TradingBotController;
 import tradingbot.bot.controller.exception.GlobalExceptionHandler;
+import tradingbot.bot.controller.validation.BotOperationPolicy;
+import tradingbot.bot.controller.validation.BotRequestValidator;
 
-@TestConfiguration
+@SpringBootConfiguration
 @EnableAutoConfiguration(exclude = {
     KafkaAutoConfiguration.class,
     RedisAutoConfiguration.class,
     RedisRepositoriesAutoConfiguration.class,
-    // HibernateJpaAutoConfiguration.class,  // Allow JPA to configure so mocks can work if they trigger it
     DataSourceAutoConfiguration.class,
+    HibernateJpaAutoConfiguration.class,
     GrpcServerAutoConfiguration.class,
     GrpcServerFactoryAutoConfiguration.class
 })
-@EntityScan(basePackages = "tradingbot")
-@EnableJpaRepositories(basePackages = "tradingbot")
 @ComponentScan(
     basePackages = {"tradingbot.bot.controller", "tradingbot.agent.api"},
     useDefaultFilters = false,
@@ -38,7 +37,9 @@ import tradingbot.bot.controller.exception.GlobalExceptionHandler;
             classes = {
                 TradingBotController.class,
                 GlobalExceptionHandler.class,
-                AgentController.class
+                AgentController.class,
+                BotRequestValidator.class,
+                BotOperationPolicy.class
             }
         )
     }

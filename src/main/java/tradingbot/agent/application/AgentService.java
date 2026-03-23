@@ -10,10 +10,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import tradingbot.agent.api.PaginatedAgentResponse;
 import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.api.dto.AgentResponse;
 import tradingbot.agent.api.dto.CreateAgentRequest;
+import tradingbot.agent.api.dto.PaginatedAgentResponse;
 import tradingbot.agent.application.event.AgentPausedEvent;
 import tradingbot.agent.application.event.AgentStartedEvent;
 import tradingbot.agent.application.event.AgentStoppedEvent;

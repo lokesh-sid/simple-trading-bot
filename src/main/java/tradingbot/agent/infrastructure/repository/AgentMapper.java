@@ -30,6 +30,7 @@ public class AgentMapper {
             .status(mapStatus(agent.getState().getStatus()))
             .createdAt(agent.getCreatedAt())
             .ownerId(agent.getOwnerId())
+            .executionMode(AgentEntity.ExecutionMode.NONE)
             .lastActiveAt(agent.getState().getLastActiveAt())
             .iterationCount(agent.getState().getIterationCount());
 
@@ -61,11 +62,9 @@ public class AgentMapper {
      * Convert AgentEntity to Agent domain model
      */
     public static Agent toDomain(AgentEntity entity) {
-        // Create goal
-        AgentGoal goal = new AgentGoal(
-            GoalType.valueOf(entity.getGoalType()),
-            entity.getGoalDescription()
-        );
+        // goalType is now always a valid domain GoalType (FUTURES_PAPER/FUTURES are in executionMode).
+        GoalType goalType = GoalType.valueOf(entity.getGoalType());
+        AgentGoal goal = new AgentGoal(goalType, entity.getGoalDescription());
         
         // Create state
         AgentState state = new AgentState(

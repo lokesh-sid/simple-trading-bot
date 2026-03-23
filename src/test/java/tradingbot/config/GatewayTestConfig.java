@@ -1,19 +1,19 @@
 package tradingbot.config;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-
-import javax.sql.DataSource;
 
 import org.mockito.Mockito;
+import javax.sql.DataSource;
+
 import org.springframework.boot.actuate.autoconfigure.security.servlet.ManagementWebSecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -23,11 +23,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.orm.jpa.JpaTransactionManager;
-import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
-import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.web.client.RestTemplate;
@@ -44,7 +40,6 @@ import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.application.AgentService;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.agent.manager.AgentManager;
-import tradingbot.agent.persistence.AgentRepository;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.controller.BotStateController;
 import tradingbot.bot.controller.ResilienceController;
@@ -70,13 +65,16 @@ import tradingbot.security.repository.UserRepository;
     RedisAutoConfiguration.class,
     RedisRepositoriesAutoConfiguration.class,
     SecurityAutoConfiguration.class,
-    ManagementWebSecurityAutoConfiguration.class
+    ManagementWebSecurityAutoConfiguration.class,
+    FlywayAutoConfiguration.class
 })
 @TestPropertySource(properties = {
     // Use H2 in-memory database for testing
     "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
+    "spring.datasource.driver-class-name=org.h2.Driver",
     "spring.jpa.hibernate.ddl-auto=create-drop",
     "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
+    "spring.flyway.enabled=false",
     "spring.kafka.consumer.auto-startup=false",
     "spring.kafka.producer.bootstrap-servers=localhost:9999",
     "spring.kafka.bootstrap-servers=localhost:9999",
@@ -97,7 +95,8 @@ import tradingbot.security.repository.UserRepository;
             BotStateController.class,
             ResilienceController.class,
             BotCacheService.class
-        })
+        }),
+        @ComponentScan.Filter(type = FilterType.ANNOTATION, classes = EnableAutoConfiguration.class)
     }
 )
 @Import({InstanceConfig.class})
@@ -114,31 +113,14 @@ import tradingbot.security.repository.UserRepository;
 public class GatewayTestConfig {
 
     @Bean
+    @Primary
     public DataSource dataSource() {
-        return new EmbeddedDatabaseBuilder()
-            .setType(EmbeddedDatabaseType.H2)
-            .build();
-    }
-
-    @Bean
-    public LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
-        LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
-        em.setDataSource(dataSource);
-        em.setPackagesToScan(
-            "tradingbot.bot.persistence.entity",
-            "tradingbot.agent.infrastructure.repository",
-            "tradingbot.agent.infrastructure.persistence",
-            "tradingbot.agent.persistence",
-            "tradingbot.security.entity"
-        );
-        em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-
-        Map<String, Object> properties = new HashMap<>();
-        properties.put("hibernate.hbm2ddl.auto", "create-drop");
-        properties.put("hibernate.dialect", "org.hibernate.dialect.H2Dialect");
-        em.setJpaPropertyMap(properties);
-
-        return em;
+        return DataSourceBuilder.create()
+                .url("jdbc:h2:mem:gateway-test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE")
+                .driverClassName("org.h2.Driver")
+                .username("sa")
+                .password("")
+                .build();
     }
 
     @Bean
@@ -267,10 +249,6 @@ public class GatewayTestConfig {
         return Mockito.mock(AgentManager.class);
     }
 
-    @Bean
-    public AgentRepository agentRepository() {
-        return Mockito.mock(AgentRepository.class);
-    }
 
     @Bean
     public AgentService agentService() {

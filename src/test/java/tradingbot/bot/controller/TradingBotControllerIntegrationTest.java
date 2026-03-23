@@ -12,6 +12,8 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import org.springframework.test.context.TestPropertySource;
+
 import tradingbot.AbstractIntegrationTest;
 import tradingbot.bot.TradeDirection;
 import tradingbot.bot.controller.dto.request.BotStartRequest;
@@ -20,6 +22,7 @@ import tradingbot.bot.controller.dto.request.SentimentUpdateRequest;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
+import tradingbot.config.TradingSafetyService;
 
 /**
  * Integration Tests for TradingBotController
@@ -34,7 +37,10 @@ import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
  * Uses real Spring context with mocked external dependencies.
  */
 @DisplayName("TradingBotController Integration Tests")
-@org.junit.jupiter.api.Disabled("Disabled due to flaky database interactions in CI environment")
+@TestPropertySource(properties = {
+    "trading.execution.mode=live",
+    "trading.exchange.provider=bybit"
+})
 class TradingBotControllerIntegrationTest extends AbstractIntegrationTest {
 
     private static final String API_V1_BOTS = "/api/v1/bots";
@@ -47,6 +53,9 @@ class TradingBotControllerIntegrationTest extends AbstractIntegrationTest {
 
     @MockitoBean
     private EventPublisher eventPublisher;
+
+    @MockitoBean
+    private TradingSafetyService tradingSafetyService;
 
     // ========== BOT LIFECYCLE TESTS ==========
 

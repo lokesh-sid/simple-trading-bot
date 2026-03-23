@@ -1,5 +1,6 @@
 package tradingbot.bot.controller;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -35,10 +36,11 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import tradingbot.agent.TradingAgent;
+import tradingbot.agent.infrastructure.repository.AgentEntity;
+import tradingbot.agent.infrastructure.repository.JpaAgentRepository;
 import tradingbot.agent.manager.AgentManager;
-import tradingbot.agent.persistence.AgentRepository;
-import tradingbot.agent.persistence.LegacyAgentEntity;
 import tradingbot.bot.FuturesTradingBot;
+import tradingbot.bot.TradeDirection;
 import tradingbot.bot.capability.LeverageConfigurable;
 import tradingbot.bot.capability.SentimentAware;
 import tradingbot.bot.controller.dto.request.BotStartRequest;
@@ -87,7 +89,7 @@ public class TradingBotController {
     private static final Logger logger = LoggerFactory.getLogger(TradingBotController.class);
     
     private final AgentManager agentManager;
-    private final AgentRepository agentRepository;
+    private final JpaAgentRepository agentRepository;
     private final ObjectMapper objectMapper;
     private final TradingSafetyService tradingSafetyService;
     private final BotRequestValidator botRequestValidator;
@@ -95,7 +97,7 @@ public class TradingBotController {
 
     public TradingBotController(
             AgentManager agentManager,
-            AgentRepository agentRepository,
+            JpaAgentRepository agentRepository,
             ObjectMapper objectMapper,
             TradingSafetyService tradingSafetyService,
             BotRequestValidator botRequestValidator,
@@ -122,29 +124,38 @@ public class TradingBotController {
     })
     public ResponseEntity<BotCreatedResponse> createBot() {
         String botId = UUID.randomUUID().toString();
-        
         TradingConfig config = new TradingConfig(); // Default config
-        
-        LegacyAgentEntity entity = new LegacyAgentEntity();
-        entity.setId(botId);
-        entity.setName("Bot-" + botId.substring(0, 8));
-        entity.setType(LegacyAgentEntity.AgentType.FUTURES_PAPER.name());
-        entity.setSymbol(config.getSymbol());
-        entity.setStatus(LegacyAgentEntity.AgentStatus.CREATED);
-        entity.setDirection("LONG");
-        entity.setSentimentEnabled(false);
-        entity.setCreatedAt(java.time.Instant.now());
-        entity.setUpdatedAt(java.time.Instant.now());
-        
         try {
-            entity.setConfigurationJson(objectMapper.writeValueAsString(config));
+            String name = ("Bot-" + botId.substring(0, 8));
+            String goalType = "MAXIMIZE_PROFIT";
+            String goalDescription = objectMapper.writeValueAsString(config);
+            String tradingSymbol = config.getSymbol();
+            // Truncate fields to 255 chars max
+            name = name.length() > 255 ? name.substring(0, 255) : name;
+            goalType = goalType.length() > 255 ? goalType.substring(0, 255) : goalType;
+            // goalDescription is now TEXT, no truncation needed
+            tradingSymbol = tradingSymbol != null && tradingSymbol.length() > 255 ? tradingSymbol.substring(0, 255) : tradingSymbol;
+            AgentEntity entity = new AgentEntity.Builder()
+                .id(botId)
+                .name(name)
+                .goalType(goalType)
+                .goalDescription(goalDescription)
+                .tradingSymbol(tradingSymbol)
+                .capital(0.0)
+                .status(AgentEntity.AgentStatus.IDLE)
+                .createdAt(Instant.now())
+                .ownerId(null)
+                .executionMode(AgentEntity.ExecutionMode.FUTURES_PAPER)
+                .build();
             agentManager.createAgent(entity);
             logger.info("Created new bot: {} and saved to DB", botId);
-            
             BotCreatedResponse response = new BotCreatedResponse(botId, "Trading bot created successfully");
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (JsonProcessingException e) {
-            logger.error("Failed to serialize config", e);
+            logger.error("Failed to serialize config for bot {}", botId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        } catch (Exception e) {
+            logger.error("Failed to create bot {}", botId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -169,7 +180,7 @@ public class TradingBotController {
             @PathVariable @ValidBotId String botId,
             @Valid @RequestBody BotStartRequest request) {
         
-        LegacyAgentEntity entity = agentRepository.findById(botId)
+        AgentEntity entity = agentRepository.findById(botId)
             .orElseThrow(() -> new BotNotFoundException(botId));
 
         // Policy: reject if already running
@@ -181,13 +192,30 @@ public class TradingBotController {
         // Safety guardrail: reject live mode if system is not configured for it
         tradingSafetyService.validateBotStartMode(paperMode);
         
+        // Persist direction into TradingConfig so refreshAgent picks it up
+        String updatedGoalDescription = entity.getGoalDescription();
+        try {
+            TradingConfig config = objectMapper.readValue(entity.getGoalDescription(), TradingConfig.class);
+            config.setDirection(request.getDirection().name());
+            updatedGoalDescription = objectMapper.writeValueAsString(config);
+        } catch (Exception e) {
+            logger.warn("Could not persist direction for bot {}: {}", botId, e.getMessage());
+        }
+
         // Update entity
-        entity.setDirection(request.getDirection().toString());
-        entity.setType(paperMode
-                ? LegacyAgentEntity.AgentType.FUTURES_PAPER.name()
-                : LegacyAgentEntity.AgentType.FUTURES.name());
-        entity.setUpdatedAt(java.time.Instant.now());
-        agentRepository.save(entity);
+        AgentEntity updated = new AgentEntity.Builder()
+            .id(entity.getId())
+            .name(entity.getName())
+            .goalType(entity.getGoalType())
+            .goalDescription(updatedGoalDescription)
+            .tradingSymbol(entity.getTradingSymbol())
+            .capital(entity.getCapital())
+            .status(AgentEntity.AgentStatus.ACTIVE)
+            .createdAt(entity.getCreatedAt())
+            .ownerId(entity.getOwnerId())
+            .executionMode(paperMode ? AgentEntity.ExecutionMode.FUTURES_PAPER : AgentEntity.ExecutionMode.FUTURES)
+            .build();
+        agentRepository.save(updated);
         
         // Refresh agent to pick up changes
         agentManager.refreshAgent(botId);
@@ -247,9 +275,19 @@ public class TradingBotController {
         
         // Update entity status
         agentRepository.findById(botId).ifPresent(entity -> {
-            entity.setStatus(LegacyAgentEntity.AgentStatus.STOPPED);
-            entity.setUpdatedAt(java.time.Instant.now());
-            agentRepository.save(entity);
+            AgentEntity updated = new AgentEntity.Builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .goalType(entity.getGoalType())
+                .goalDescription(entity.getGoalDescription())
+                .tradingSymbol(entity.getTradingSymbol())
+                .capital(entity.getCapital())
+                .status(AgentEntity.AgentStatus.STOPPED)
+                .createdAt(entity.getCreatedAt())
+                .ownerId(entity.getOwnerId())
+                .executionMode(entity.getExecutionMode())
+                .build();
+            agentRepository.save(updated);
         });
         
         BotStopResponse response = new BotStopResponse(
@@ -307,7 +345,7 @@ public class TradingBotController {
             @PathVariable @ValidBotId String botId,
             @Valid @RequestBody TradingConfig config) {
         
-        LegacyAgentEntity entity = agentRepository.findById(botId)
+        AgentEntity entity = agentRepository.findById(botId)
             .orElseThrow(() -> new BotNotFoundException(botId));
 
         // Policy: configuration changes require the bot to be stopped
@@ -315,10 +353,19 @@ public class TradingBotController {
             
         try {
             // Update DB
-            entity.setConfigurationJson(objectMapper.writeValueAsString(config));
-            entity.setSymbol(config.getSymbol());
-            entity.setUpdatedAt(java.time.Instant.now());
-            agentRepository.save(entity);
+            AgentEntity updated = new AgentEntity.Builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .goalType(entity.getGoalType())
+                .goalDescription(objectMapper.writeValueAsString(config))
+                .tradingSymbol(config.getSymbol())
+                .capital(entity.getCapital())
+                .status(entity.getStatus())
+                .createdAt(entity.getCreatedAt())
+                .ownerId(entity.getOwnerId())
+                .executionMode(entity.getExecutionMode())
+                .build();
+            agentRepository.save(updated);
             
             // Update runtime agent if exists
             TradingAgent agent = agentManager.getAgent(botId);
@@ -371,11 +418,21 @@ public class TradingBotController {
         // Update DB
         agentRepository.findById(botId).ifPresent(entity -> {
             try {
-                TradingConfig config = objectMapper.readValue(entity.getConfigurationJson(), TradingConfig.class);
+                TradingConfig config = objectMapper.readValue(entity.getGoalDescription(), TradingConfig.class);
                 config.setLeverage(request.getLeverage().intValue());
-                entity.setConfigurationJson(objectMapper.writeValueAsString(config));
-                entity.setUpdatedAt(java.time.Instant.now());
-                agentRepository.save(entity);
+                AgentEntity updated = new AgentEntity.Builder()
+                    .id(entity.getId())
+                    .name(entity.getName())
+                    .goalType(entity.getGoalType())
+                    .goalDescription(objectMapper.writeValueAsString(config))
+                    .tradingSymbol(entity.getTradingSymbol())
+                    .capital(entity.getCapital())
+                    .status(entity.getStatus())
+                    .createdAt(entity.getCreatedAt())
+                    .ownerId(entity.getOwnerId())
+                    .executionMode(entity.getExecutionMode())
+                    .build();
+                agentRepository.save(updated);
             } catch (Exception e) {
                 logger.error("Failed to update leverage in DB for bot: {}", botId, e);
             }
@@ -415,11 +472,21 @@ public class TradingBotController {
         
         // Update DB
         agentRepository.findById(botId).ifPresent(entity -> {
-            entity.setSentimentEnabled(enable);
-            entity.setUpdatedAt(java.time.Instant.now());
-            agentRepository.save(entity);
+            AgentEntity updated = new AgentEntity.Builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .goalType(entity.getGoalType())
+                .goalDescription(entity.getGoalDescription())
+                .tradingSymbol(entity.getTradingSymbol())
+                .capital(entity.getCapital())
+                .status(entity.getStatus())
+                .createdAt(entity.getCreatedAt())
+                .ownerId(entity.getOwnerId())
+                .executionMode(entity.getExecutionMode())
+                .build();
+            agentRepository.save(updated);
         });
-        
+
         logger.info("{} sentiment analysis for bot: {}", enable ? "Enabled" : "Disabled", botId);
         
         SentimentUpdateResponse response = new SentimentUpdateResponse(
@@ -457,10 +524,10 @@ public class TradingBotController {
             @RequestParam(defaultValue = "DESC") @Parameter(description = "Sort order (ASC, DESC)") String sortOrder) {
 
         // Get all entities
-        List<LegacyAgentEntity> allAgents = agentRepository.findAll();
+                List<AgentEntity> allAgents = agentRepository.findAll();
         
         // Filter
-        List<LegacyAgentEntity> filteredAgents = allAgents.stream()
+                List<AgentEntity> filteredAgents = allAgents.stream()
             .filter(agent -> matchesFilters(agent, status, paper, direction, search))
             .collect(Collectors.toList());
 
@@ -505,24 +572,37 @@ public class TradingBotController {
     /**
      * Check if bot state matches filter criteria
      */
-    private boolean matchesFilters(LegacyAgentEntity agent, String status, Boolean paper, String direction, String search) {
-        // Filter by status
+    private boolean matchesFilters(AgentEntity agent, String status, Boolean paper, String direction, String search) {
+        // Filter by status — map public API name to internal AgentStatus
+        // Note: the public API uses "RUNNING"; internally that is AgentStatus.ACTIVE.
         if (status != null && !status.isEmpty()) {
-            if (!agent.getStatus().name().equalsIgnoreCase(status)) {
+            AgentEntity.AgentStatus requiredStatus;
+            switch (status.toUpperCase()) {
+                case "RUNNING": requiredStatus = AgentEntity.AgentStatus.ACTIVE; break;
+                case "STOPPED": requiredStatus = AgentEntity.AgentStatus.STOPPED; break;
+                default:        return false;
+            }
+            if (agent.getStatus() != requiredStatus) {
                 return false;
             }
         }
 
         // Filter by paper trading mode
         if (paper != null) {
-            if (agent.isPaperMode() != paper) {
+            boolean isPaper = agent.getExecutionMode() == AgentEntity.ExecutionMode.FUTURES_PAPER;
+            if (isPaper != paper) {
                 return false;
             }
         }
 
-        // Filter by direction
+        // Filter by direction — check the in-memory agent's trade direction
         if (direction != null && !direction.isEmpty()) {
-            if (agent.getDirection() == null || !agent.getDirection().equalsIgnoreCase(direction)) {
+            TradingAgent inMemoryAgent = agentManager.getAgent(agent.getId());
+            if (!(inMemoryAgent instanceof FuturesTradingBot)) {
+                return false;
+            }
+            TradeDirection dir = ((FuturesTradingBot) inMemoryAgent).getDirection();
+            if (dir == null || !dir.name().equalsIgnoreCase(direction)) {
                 return false;
             }
         }
@@ -532,8 +612,8 @@ public class TradingBotController {
             String searchLower = search.toLowerCase();
             boolean matchesBotId = agent.getId() != null && 
                                   agent.getId().toLowerCase().contains(searchLower);
-            boolean matchesSymbol = agent.getSymbol() != null && 
-                                   agent.getSymbol().toLowerCase().contains(searchLower);
+            boolean matchesSymbol = agent.getTradingSymbol() != null && 
+                                   agent.getTradingSymbol().toLowerCase().contains(searchLower);
             if (!matchesBotId && !matchesSymbol) {
                 return false;
             }
@@ -545,7 +625,7 @@ public class TradingBotController {
     /**
      * Sort bots based on sort field and order
      */
-    private void sortAgents(List<LegacyAgentEntity> agents, String sortBy, String sortOrder) {
+    private void sortAgents(List<AgentEntity> agents, String sortBy, String sortOrder) {
         boolean ascending = "ASC".equalsIgnoreCase(sortOrder);
 
         agents.sort((a1, a2) -> {
@@ -562,7 +642,7 @@ public class TradingBotController {
                     comparison = compareNullSafe(a1.getStatus(), a2.getStatus());
                     break;
                 case "symbol":
-                    comparison = compareNullSafe(a1.getSymbol(), a2.getSymbol());
+                    comparison = compareNullSafe(a1.getTradingSymbol(), a2.getTradingSymbol());
                     break;
                 default:
                     // Default to createdAt
@@ -599,10 +679,8 @@ public class TradingBotController {
         if (!agentRepository.existsById(botId)) {
             throw new BotNotFoundException(botId);
         }
-        
         agentManager.deleteAgent(botId);
         logger.info("Deleted bot: {} from memory and DB", botId);
-        
         BotDeletedResponse response = new BotDeletedResponse("Bot " + botId + " deleted successfully");
         return ResponseEntity.ok(response);
     }

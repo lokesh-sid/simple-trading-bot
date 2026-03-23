@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,10 +19,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import tradingbot.agent.api.PaginatedAgentResponse;
 import tradingbot.agent.api.dto.AgentMapper;
 import tradingbot.agent.api.dto.AgentResponse;
 import tradingbot.agent.api.dto.CreateAgentRequest;
+import tradingbot.agent.api.dto.PaginatedAgentResponse;
 import tradingbot.agent.application.event.AgentPausedEvent;
 import tradingbot.agent.application.event.AgentStartedEvent;
 import tradingbot.agent.application.event.AgentStoppedEvent;
@@ -112,22 +111,7 @@ class AgentServiceTest {
         verify(agentRepository, never()).save(any(Agent.class));
     }
     
-    @Test
-    void testGetAllAgents() {
-        // Given
-        Agent agent1 = testAgent;
-        Agent agent2 = Agent.create("Agent 2", 
-            new AgentGoal(AgentGoal.GoalType.HEDGE_RISK, "Hedge"), 
-            "ETHUSDT", 5000.0, "user2");
-        when(agentRepository.findAll()).thenReturn(Arrays.asList(agent1, agent2));
-        
-        // When
-        List<Agent> result = agentService.getAllAgents();
-        
-        // Then
-        assertEquals(2, result.size());
-        verify(agentRepository).findAll();
-    }
+    // getAllAgents() is deprecated; use getAgentsByOwner()
 
     @Test
     void testGetAgentsByOwner() {

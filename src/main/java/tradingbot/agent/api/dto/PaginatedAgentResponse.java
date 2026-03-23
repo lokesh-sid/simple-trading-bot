@@ -1,9 +1,8 @@
-package tradingbot.agent.api;
+package tradingbot.agent.api.dto;
 
 import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import tradingbot.agent.api.dto.AgentResponse;
 
 @Schema(description = "Paginated list of AI trading agents")
 public record PaginatedAgentResponse(

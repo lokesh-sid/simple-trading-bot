@@ -17,7 +17,8 @@ import tradingbot.config.FuturesTradingBotIntegrationTestConfig;
     webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @AutoConfigureMockMvc(addFilters = false)
-@ActiveProfiles("integration-test")
-public abstract class AbstractIntegrationTest extends AbstractHttpTest {
+@ActiveProfiles("container-test")
+public abstract class AbstractIntegrationTest extends AbstractContainerIntegrationTest {
     // Integration-specific setup inherited from AbstractHttpTest
+    // Container management and property injection are handled by AbstractContainerIntegrationTest
 }

@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import net.devh.boot.grpc.server.service.GrpcService;
 import tradingbot.bot.controller.dto.BotState;
@@ -269,19 +270,9 @@ public class BotManagementServiceImpl extends BotManagementServiceGrpc.BotManage
             BotState botState = botCacheService.getBotState(request.getBotId());
             
             if (botState == null) {
-                ErrorResponse error = ErrorResponse.newBuilder()
-                        .setCode(404)
-                        .setMessage("Bot not found")
-                        .setDetails("Bot ID: " + request.getBotId())
-                        .setTimestamp(System.currentTimeMillis())
-                        .build();
-                
-                BotStatusResponse response = BotStatusResponse.newBuilder()
-                        .setError(error)
-                        .build();
-                
-                responseObserver.onNext(response);
-                responseObserver.onCompleted();
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("Bot not found with ID: " + request.getBotId())
+                        .asRuntimeException());
                 return;
             }
             

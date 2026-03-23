@@ -1,1 +1,0 @@
-ALTER TABLE agents ADD COLUMN owner_id VARCHAR(255);

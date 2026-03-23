@@ -6,13 +6,16 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -45,24 +48,35 @@ import tradingbot.grpc.common.TradingConfig;
  * These tests start the gRPC server and use a real gRPC client to test end-to-end functionality
  */
 @SpringBootTest(
-    classes = GrpcTestConfiguration.class,
     webEnvironment = SpringBootTest.WebEnvironment.NONE
 )
 @TestPropertySource(
     properties = {
-        "grpc.server.port=9091",  // Use different port for testing
+        "grpc.server.port=9091",
         "grpc.server.security.enabled=false",
         "spring.kafka.bootstrap-servers=localhost:9092",
-        "spring.kafka.listener.auto-startup=false",  // Disable Kafka for tests
-        "spring.data.redis.host=localhost",
-        "spring.data.redis.port=6379",
-        "spring.main.allow-bean-definition-overriding=true"  // Allow bean override
+        "spring.kafka.listener.auto-startup=false",
+        "spring.main.allow-bean-definition-overriding=true"
     }
 )
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @DisplayName("BotManagementService gRPC Integration Tests")
-@Disabled("Integration tests disabled - require complex Spring context configuration with Redis, gRPC, but without JPA/Agent dependencies")
 class BotManagementServiceIntegrationTest {
+
+    @SuppressWarnings("resource")
+    static final GenericContainer<?> redis =
+        new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            .withExposedPorts(6379);
+
+    static {
+        redis.start();
+    }
+
+    @DynamicPropertySource
+    static void configureRedisProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.data.redis.host", redis::getHost);
+        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
+    }
     
     @Autowired
     private BotCacheService botCacheService;

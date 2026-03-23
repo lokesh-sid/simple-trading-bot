@@ -144,7 +144,7 @@ echo -e "${GREEN}✓ PostgreSQL is ready${NC}"
 # Wait for Redis to be ready
 echo "Waiting for Redis to be ready..."
 RETRY_COUNT=0
-until docker exec -it $(docker ps -qf "name=redis") redis-cli ping > /dev/null 2>&1; do
+until docker exec -i $(docker ps -qf "name=redis") redis-cli ping > /dev/null 2>&1; do
     RETRY_COUNT=$((RETRY_COUNT + 1))
     if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
         echo -e "${RED}✗ Redis failed to start within 30 seconds${NC}"
@@ -238,7 +238,7 @@ else
 fi
 
 # Check Redis
-if docker exec -it $(docker ps -qf "name=redis") redis-cli ping > /dev/null 2>&1; then
+if docker exec -i $(docker ps -qf "name=redis") redis-cli ping > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Redis: Running${NC}"
 else
     echo -e "${RED}✗ Redis: Not Running${NC}"
@@ -275,7 +275,7 @@ echo -e "  • Stop all services: docker-compose down"
 echo -e "  • Restart application: ./startup.sh"
 echo ""
 echo -e "${YELLOW}🤖 Create Your First Agent:${NC}"
-echo -e '  curl -X POST http://localhost:8080/api/agents \\'
+echo -e '  curl -X POST http://localhost:8080/api/v1/agents \\'
 echo -e '    -H "Content-Type: application/json" \\'
 echo -e '    -d '"'"'{'
 echo -e '      "name": "Bitcoin Trader",'

@@ -1,3 +1,6 @@
+# Testcontainers local config (machine-specific)
+.testcontainers.properties
+
 # OS and editor files
 .DS_Store
 Thumbs.db
@@ -148,3 +151,4 @@ docs/TRADING_BOT_CLASS_DIAGRAM.md
 .github/prompts/track5-backtest-engine.prompt.md
 .github/prompts/track6-security-ownership.prompt.md
 .github/copilot-instructions.md
+.github/prompts/plan-paperTradingTestnet.prompt.md

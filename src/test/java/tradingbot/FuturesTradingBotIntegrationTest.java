@@ -4,18 +4,21 @@ package tradingbot;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import java.util.ArrayList;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import tradingbot.agent.TradingAgent;
+import tradingbot.agent.manager.AgentManager;
 import tradingbot.bot.TradeDirection;
 import tradingbot.bot.controller.dto.request.BotStartRequest;
 import tradingbot.bot.messaging.EventPublisher;
@@ -46,9 +49,12 @@ class FuturesTradingBotIntegrationTest extends AbstractIntegrationTest {
     @MockitoBean
     private EventPublisher eventPublisher; // Mock to avoid Kafka dependency
 
+    @Autowired
+    private AgentManager agentManager;
+
     @BeforeEach
     void setUp() {
-        // Clear any existing test data - mocked so no-op
+        new ArrayList<>(agentManager.getAgents()).forEach(a -> agentManager.deleteAgent(a.getId()));
     }
 
     @Test
@@ -99,7 +105,6 @@ class FuturesTradingBotIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     @DisplayName("Bot Management: Multiple Bots Creation and Listing")
-    @Disabled("Fails due to H2 visibility issue in CI environment - TODO: Fix transaction isolation")
     void multipleBotsManagementTest() throws Exception {
         // Create multiple bots
         MvcResult result1 = performPost(API_V1_BOTS, null).andExpect(status().isCreated()).andReturn();

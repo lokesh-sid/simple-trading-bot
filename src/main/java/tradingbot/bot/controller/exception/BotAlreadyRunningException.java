@@ -8,6 +8,6 @@ import org.springframework.http.HttpStatus;
 public class BotAlreadyRunningException extends TradingBotException {
 
     public BotAlreadyRunningException() {
-        super("BOT_ALREADY_RUNNING", "Trading bot is already running. Stop it before starting a new instance.", HttpStatus.BAD_REQUEST);
+        super("BOT_ALREADY_RUNNING", "Trading bot is already running. Stop it before starting a new instance.", HttpStatus.CONFLICT);
     }
 }

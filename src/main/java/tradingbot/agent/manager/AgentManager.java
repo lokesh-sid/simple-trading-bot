@@ -13,18 +13,18 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import tradingbot.agent.TradingAgent;
 import tradingbot.agent.factory.AgentFactory;
-import tradingbot.agent.persistence.AgentRepository;
-import tradingbot.agent.persistence.LegacyAgentEntity;
-
+import tradingbot.agent.infrastructure.repository.AgentEntity;
+import tradingbot.agent.infrastructure.repository.JpaAgentRepository;
 @Service
 public class AgentManager {
     private static final Logger log = LoggerFactory.getLogger(AgentManager.class);
 
     private final Map<String, TradingAgent> agents = new ConcurrentHashMap<>();
-    private final AgentRepository agentRepository;
+
+    private final JpaAgentRepository agentRepository;
     private final AgentFactory agentFactory;
 
-    public AgentManager(AgentRepository agentRepository, AgentFactory agentFactory) {
+    public AgentManager(JpaAgentRepository agentRepository, AgentFactory agentFactory) {
         this.agentRepository = agentRepository;
         this.agentFactory = agentFactory;
     }
@@ -32,13 +32,16 @@ public class AgentManager {
     @PostConstruct
     public void loadAgents() {
         log.info("Loading agents from database...");
-        List<LegacyAgentEntity> entities = agentRepository.findAll();
-        for (LegacyAgentEntity entity : entities) {
+        List<AgentEntity> entities = agentRepository.findAll();
+        for (AgentEntity entity : entities) {
             try {
                 TradingAgent agent = agentFactory.createAgent(entity);
+                if (agent == null) {
+                    log.warn("Skipping agent {} — factory returned null (check goalDescription JSON)", entity.getId());
+                    continue;
+                }
                 agents.put(agent.getId(), agent);
-                
-                if (entity.getStatus() == LegacyAgentEntity.AgentStatus.RUNNING) {
+                if (entity.getStatus() == AgentEntity.AgentStatus.ACTIVE) {
                     log.info("Starting agent: {}", agent.getName());
                     agent.start();
                 }
@@ -61,8 +64,7 @@ public class AgentManager {
             if (!agent.isRunning()) {
                 agent.start();
             }
-            // Always ensure DB reflects running state if agent is running or just started
-            updateAgentStatus(id, LegacyAgentEntity.AgentStatus.RUNNING);
+            updateAgentStatus(id, AgentEntity.AgentStatus.ACTIVE);
             log.info("Agent {} started", id);
         } else {
             log.warn("Agent not found: {}", id);
@@ -74,7 +76,7 @@ public class AgentManager {
         if (agent != null) {
             if (agent.isRunning()) {
                 agent.stop();
-                updateAgentStatus(id, LegacyAgentEntity.AgentStatus.STOPPED);
+                updateAgentStatus(id, AgentEntity.AgentStatus.STOPPED);
                 log.info("Agent {} stopped", id);
             }
         } else {
@@ -107,18 +109,39 @@ public class AgentManager {
     public List<TradingAgent> getAgents() {
         return new ArrayList<>(agents.values());
     }
-    
-    private void updateAgentStatus(String id, LegacyAgentEntity.AgentStatus status) {
+    private void updateAgentStatus(String id, AgentEntity.AgentStatus status) {
         agentRepository.findById(id).ifPresent(entity -> {
-            entity.setStatus(status);
-            entity.setUpdatedAt(java.time.Instant.now());
-            agentRepository.saveAndFlush(entity);
+            AgentEntity updated = new AgentEntity.Builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .goalType(entity.getGoalType())
+                .goalDescription(entity.getGoalDescription())
+                .tradingSymbol(entity.getTradingSymbol())
+                .capital(entity.getCapital())
+                .status(status)
+                .createdAt(entity.getCreatedAt())
+                .lastActiveAt(entity.getLastActiveAt())
+                .iterationCount(entity.getIterationCount())
+                .lastPrice(entity.getLastPrice())
+                .lastTrend(entity.getLastTrend())
+                .lastSentiment(entity.getLastSentiment())
+                .lastVolume(entity.getLastVolume())
+                .perceivedAt(entity.getPerceivedAt())
+                .lastObservation(entity.getLastObservation())
+                .lastAnalysis(entity.getLastAnalysis())
+                .lastRiskAssessment(entity.getLastRiskAssessment())
+                .lastRecommendation(entity.getLastRecommendation())
+                .lastConfidence(entity.getLastConfidence())
+                .reasonedAt(entity.getReasonedAt())
+                .ownerId(entity.getOwnerId())
+                .executionMode(entity.getExecutionMode())
+                .build();
+            agentRepository.saveAndFlush(updated);
         });
     }
-
-    public TradingAgent createAgent(LegacyAgentEntity entity) {
+    public TradingAgent createAgent(AgentEntity entity) {
         agentRepository.save(entity);
-        TradingAgent agent = agentFactory.createAgent(entity);
+        TradingAgent agent = agentFactory.createAgent(entity); // throws RuntimeException on invalid config
         agents.put(agent.getId(), agent);
         return agent;
     }

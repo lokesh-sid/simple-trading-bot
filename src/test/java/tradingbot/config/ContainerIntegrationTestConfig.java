@@ -16,6 +16,8 @@ import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfi
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.ComponentScan.Filter;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -37,8 +39,8 @@ import tradingbot.agent.TradingAgentFactory;
 import tradingbot.agent.factory.AgentFactory;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.agent.infrastructure.persistence.PositionEntity;
+import tradingbot.agent.infrastructure.repository.AgentEntity;
 import tradingbot.agent.manager.AgentManager;
-import tradingbot.agent.persistence.LegacyAgentEntity;
 import tradingbot.agent.service.OrderPlacementService;
 import tradingbot.agent.service.RAGService;
 import tradingbot.agent.service.TradeReflectionService;
@@ -102,9 +104,16 @@ import tradingbot.security.repository.UserRepository;
         "tradingbot.gateway.controller",
         "tradingbot.agent.application",
         "tradingbot.agent.infrastructure.repository",
-        "tradingbot.agent.api"
+        "tradingbot.agent.api",
+        "tradingbot.security.controller",
+        "tradingbot.security.config",
+        "tradingbot.security.filter",
+        "tradingbot.security.service"
     },
-    useDefaultFilters = true
+    useDefaultFilters = true,
+    excludeFilters = {
+        @Filter(type = FilterType.ANNOTATION, classes = EnableAutoConfiguration.class)
+    }
 )
 @Import({InstanceConfig.class, KafkaConfig.class, AgentManager.class, AgentFactory.class})
 @EnableJpaRepositories(basePackages = {
@@ -114,8 +123,8 @@ import tradingbot.security.repository.UserRepository;
 })
 @EntityScan(basePackageClasses = {
     PositionEntity.class,
-    LegacyAgentEntity.class,
-    TradingEventEntity.class
+    TradingEventEntity.class,
+    AgentEntity.class
 })
 public class ContainerIntegrationTestConfig {
 

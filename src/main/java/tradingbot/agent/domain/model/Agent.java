@@ -8,6 +8,20 @@ import java.time.Instant;
  * MVP: Simplified version with basic sense-think cycle
  */
 public class Agent {
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Agent{");
+        sb.append("id=").append(id).append(", ");
+        sb.append("name='").append(name).append("', ");
+        sb.append("goal=").append(goal).append(", ");
+        sb.append("tradingSymbol='").append(tradingSymbol).append("', ");
+        sb.append("capital=").append(capital).append(", ");
+        sb.append("state=").append(state).append(", ");
+        sb.append("createdAt=").append(createdAt).append(", ");
+        sb.append("ownerId='").append(ownerId).append("'}");
+        return sb.toString();
+    }
     
     private final AgentId id;
     private final String name;

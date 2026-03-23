@@ -10,18 +10,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import tradingbot.agent.application.OrderService;
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.Order;
 import tradingbot.agent.domain.model.Perception;
 import tradingbot.agent.domain.model.Reasoning;
 import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.infrastructure.persistence.OrderEntity;
-import tradingbot.agent.infrastructure.repository.OrderRepository;
 import tradingbot.bot.controller.exception.BotOperationException;
 import tradingbot.bot.events.TradeExecutionEvent;
 import tradingbot.bot.messaging.EventPublisher;
 import tradingbot.bot.service.FuturesExchangeService;
-
 /**
  * OrderPlacementService - Parses LLM reasoning and executes orders
  * 
@@ -59,7 +58,7 @@ public class OrderPlacementService {
     );
     
     private final EventPublisher eventPublisher;
-    private final OrderRepository orderRepository;
+    private final OrderService orderService;
     private final FuturesExchangeService exchangeService;
     private final PositionMonitoringService positionMonitoringService;
     
@@ -80,11 +79,11 @@ public class OrderPlacementService {
     
     public OrderPlacementService(
             EventPublisher eventPublisher,
-            OrderRepository orderRepository,
+            OrderService orderService,
             FuturesExchangeService exchangeService,
             PositionMonitoringService positionMonitoringService) {
         this.eventPublisher = eventPublisher;
-        this.orderRepository = orderRepository;
+        this.orderService = orderService;
         this.exchangeService = exchangeService;
         this.positionMonitoringService = positionMonitoringService;
     }
@@ -367,47 +366,42 @@ public class OrderPlacementService {
         try {
             String symbol = order.getSymbol();
             double quantity = order.getQuantity();
-            
-            // Determine the opposite side for closing the position
-            String closingSide = (order.getDirection() == TradeDirection.LONG) ? "Sell" : "Buy";
-            
+            // Map direction to exchange action only here
+            String closingAction = (order.getDirection() == TradeDirection.LONG) ? "SELL" : "BUY";
+
             // Place stop-loss order if specified
             if (order.getStopLoss() != null) {
                 try {
                     tradingbot.bot.service.OrderResult slResult = exchangeService.placeStopLossOrder(
-                        symbol, 
-                        closingSide, 
-                        quantity, 
+                        symbol,
+                        closingAction,
+                        quantity,
                         order.getStopLoss()
                     );
-                    logger.info("Placed stop-loss order for {} at ${} - Order ID: {}", 
+                    logger.info("Placed stop-loss order for {} at ${} - Order ID: {}",
                         symbol, order.getStopLoss(), slResult.getExchangeOrderId());
                 } catch (Exception e) {
                     logger.error("Failed to place stop-loss order: {}", e.getMessage());
-                    // Don't fail the main order if stop-loss placement fails
                 }
             }
-            
+
             // Place take-profit order if specified
             if (order.getTakeProfit() != null) {
                 try {
                     tradingbot.bot.service.OrderResult tpResult = exchangeService.placeTakeProfitOrder(
-                        symbol, 
-                        closingSide, 
-                        quantity, 
+                        symbol,
+                        closingAction,
+                        quantity,
                         order.getTakeProfit()
                     );
-                    logger.info("Placed take-profit order for {} at ${} - Order ID: {}", 
+                    logger.info("Placed take-profit order for {} at ${} - Order ID: {}",
                         symbol, order.getTakeProfit(), tpResult.getExchangeOrderId());
                 } catch (Exception e) {
                     logger.error("Failed to place take-profit order: {}", e.getMessage());
-                    // Don't fail the main order if take-profit placement fails
                 }
             }
-            
         } catch (Exception e) {
             logger.error("Error in placeStopLossAndTakeProfit: {}", e.getMessage());
-            // Don't throw - main order already executed successfully
         }
     }
     
@@ -429,14 +423,11 @@ public class OrderPlacementService {
                 OrderEntity.Status.valueOf(order.getStatus().name()),
                 order.getCreatedAt()
             );
-            
             entity.setExecutedAt(order.getExecutedAt());
             entity.setExchangeOrderId(order.getExchangeOrderId());
             entity.setFailureReason(order.getFailureReason());
-            
-            orderRepository.save(entity);
+            orderService.createOrder(entity);
             logger.debug("Persisted order {}", order.getId());
-            
         } catch (Exception e) {
             logger.error("Failed to persist order to database", e);
             // Don't throw - order execution should not fail due to persistence issues
@@ -454,16 +445,15 @@ public class OrderPlacementService {
                 order.getId(), // orderId
                 order.getSymbol()
             );
-            
+            // Map direction to side only for event publishing
             event.setSide(order.getDirection() == TradeDirection.LONG ? "BUY" : "SELL");
             event.setPrice(order.getPrice());
             event.setQuantity(order.getQuantity());
             event.setStatus(order.getStatus().name());
             event.setTradeId(order.getExchangeOrderId());
-            
+
             eventPublisher.publishTradeExecution(event);
             logger.debug("Published order event for {}", order.getId());
-            
         } catch (Exception e) {
             logger.error("Failed to publish order event", e);
         }

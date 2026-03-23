@@ -4,7 +4,6 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
-import tradingbot.agent.api.PerformanceResponse;
 import tradingbot.agent.infrastructure.persistence.AgentPerformanceEntity;
 
 @Mapper(componentModel = "spring")

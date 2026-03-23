@@ -42,15 +42,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // Disable CSRF for stateless JWT authentication
             .csrf(AbstractHttpConfigurer::disable)
-            
-            // Configure authorization
             .authorizeHttpRequests(auth -> auth
-                // Prevent bypassing the Gateway: Limit direct /api/auth/** access to loopback only
+                // Restrict direct /api/auth/** access to loopback only (must go through gateway)
                 .requestMatchers(request -> {
                     String path = request.getServletPath();
-                    // MockMvc sometimes returns empty string for servletPath
                     if (path == null || path.isEmpty()) path = request.getRequestURI();
                     if (path != null && path.startsWith("/api/auth")) {
                         String ip = request.getRemoteAddr();
@@ -58,44 +54,33 @@ public class SecurityConfig {
                     }
                     return false;
                 }).permitAll()
-            
-                // Public endpoints - no authentication required
+                // Public endpoints
                 .requestMatchers(
-                    "/gateway/api/auth/**",   // Authentication endpoints (via gateway)
-                    "/gateway/health",        // Gateway health check
-                    "/gateway/info",          // Gateway info
-                    "/api/health",            // Health check
-                    "/api/v1/backtest/**",    // Backtest endpoint (public for testing)
-                    "/actuator/**",           // Actuator endpoints
-                    "/swagger-ui/**",         // Swagger UI
-                    "/swagger-ui.html",       // Swagger UI HTML
-                    "/v3/api-docs/**",        // OpenAPI docs
-                    "/swagger-resources/**",  // Swagger resources
-                    "/webjars/**",            // Webjars
-                    "/error"                  // Error page
+                    "/gateway/api/auth/**",
+                    "/gateway/health",
+                    "/gateway/info",
+                    "/api/health",
+                    "/api/v1/backtest/**",
+                    "/actuator/**",
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/v3/api-docs/**",
+                    "/swagger-resources/**",
+                    "/webjars/**",
+                    "/error"
                 ).permitAll()
-                
                 // Admin-only endpoints
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                
                 // Premium features
                 .requestMatchers("/api/premium/**").hasRole("PREMIUM")
-                
                 // All other endpoints require authentication
                 .anyRequest().authenticated()
             )
-            
-            // Stateless session management
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
-            
-            // Set authentication provider
             .authenticationProvider(authenticationProvider())
-            
-            // Add JWT filter before UsernamePasswordAuthenticationFilter
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        
         return http.build();
     }
     

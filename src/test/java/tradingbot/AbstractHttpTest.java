@@ -18,7 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public abstract class AbstractHttpTest {
 
-    @Autowired
+    @Autowired(required = false)
     protected MockMvc mockMvc;
 
     @Autowired

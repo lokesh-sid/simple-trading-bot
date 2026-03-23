@@ -50,10 +50,15 @@ import tradingbot.security.dto.LoginResponse;
  */
 @SpringBootTest(
     classes = GatewayTestConfig.class,
-    webEnvironment = SpringBootTest.WebEnvironment.MOCK
+    webEnvironment = SpringBootTest.WebEnvironment.MOCK,
+    properties = {
+        "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
+        "spring.jpa.hibernate.ddl-auto=create-drop",
+        "spring.flyway.enabled=false"
+    }
 )
 @AutoConfigureMockMvc(addFilters = false)
-@ActiveProfiles("integration-test")
+@ActiveProfiles("container-test")
 @DisplayName("ApiGatewayController Integration Tests")
 class ApiGatewayControllerIntegrationTest extends tradingbot.AbstractHttpTest {
 

@@ -12,9 +12,12 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.ComponentScan.Filter;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -50,7 +53,12 @@ import tradingbot.config.TradingConfig;
 })
 @EnableJpaRepositories(basePackages = "tradingbot")
 @EntityScan(basePackages = "tradingbot")
-@ComponentScan(basePackages = "tradingbot")
+@ComponentScan(
+    basePackages = "tradingbot",
+    excludeFilters = {
+        @Filter(type = FilterType.ANNOTATION, classes = EnableAutoConfiguration.class)
+    }
+)
 @EnableKafka  // Enable Kafka support
 // @EnableAsync  // Moved to AsyncConfig
 @EnableScheduling

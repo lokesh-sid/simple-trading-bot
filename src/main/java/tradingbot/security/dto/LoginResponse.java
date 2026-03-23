@@ -2,6 +2,7 @@ package tradingbot.security.dto;
 
 import java.time.Instant;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -108,19 +109,21 @@ public record LoginResponse(
     /**
      * Check if this response represents a successful authentication.
      * Success is determined by the presence of an access token.
-     * 
+     *
      * @return true if access token is present, false otherwise
      */
+    @JsonIgnore
     public boolean isSuccess() {
         return accessToken != null && !accessToken.isEmpty();
     }
-    
+
     /**
      * Check if this response represents an error.
      * Error is determined by the presence of an error code.
-     * 
+     *
      * @return true if error code is present, false otherwise
      */
+    @JsonIgnore
     public boolean isError() {
         return error != null && !error.isEmpty();
     }
