@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import tradingbot.security.dto.HealthResponse;
 import tradingbot.security.dto.LoginRequest;
 import tradingbot.security.dto.LoginResponse;
+import tradingbot.security.dto.LogoutRequest;
 import tradingbot.security.dto.LogoutResponse;
 import tradingbot.security.dto.RefreshTokenRequest;
 import tradingbot.security.dto.RegisterRequest;
@@ -118,16 +119,19 @@ public class AuthController {
     }
     
     /**
-     * Logout (client-side token deletion)
+     * Logout — revokes the supplied refresh-token family server-side.
      * POST /api/auth/logout
-     * 
-     * Note: Since we're using stateless JWT, logout is handled on the client side
-     * by deleting the tokens. This endpoint is here for API completeness and
-     * potential future enhancements (e.g., token blacklisting).
+     *
+     * The client should also delete its local tokens.
+     * The request body is optional for backward compatibility; if omitted,
+     * the call still succeeds but no token is revoked server-side.
      */
     @PostMapping("/logout")
-    public ResponseEntity<LogoutResponse> logout() {
-        logger.info("Logout request");
+    public ResponseEntity<LogoutResponse> logout(
+            @RequestBody(required = false) LogoutRequest request) {
+        String token = (request != null) ? request.refreshToken() : null;
+        authService.logout(token);
+        logger.info("Logout processed");
         return ResponseEntity.ok(LogoutResponse.success());
     }
     

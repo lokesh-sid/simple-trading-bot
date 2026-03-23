@@ -1,0 +1,24 @@
+{
+  "properties": [
+    {
+      "name": "jwt.secret",
+      "type": "java.lang.String",
+      "description": "HMAC-SHA256 signing secret for JWT tokens. Must be at least 32 characters. Set via the JWT_SECRET environment variable. The application will refuse to start if this is missing, blank, or a known placeholder value."
+    },
+    {
+      "name": "jwt.access-token-expiration",
+      "type": "java.lang.Long",
+      "description": "Access token expiration in milliseconds. Default: 3600000 (1 hour)."
+    },
+    {
+      "name": "jwt.refresh-token-expiration",
+      "type": "java.lang.Long",
+      "description": "Refresh token expiration in milliseconds. Default: 86400000 (24 hours)."
+    },
+    {
+      "name": "jwt.issuer",
+      "type": "java.lang.String",
+      "description": "Value placed in the JWT 'iss' (issuer) claim."
+    }
+  ]
+}

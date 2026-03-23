@@ -7,6 +7,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
@@ -14,6 +15,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import jakarta.annotation.PostConstruct;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -33,8 +36,33 @@ public class JwtService {
     
     private static final Logger logger = LoggerFactory.getLogger(JwtService.class);
     
-    @Value("${jwt.secret:dummy}")
+    private static final int MIN_SECRET_LENGTH = 32;
+    private static final Set<String> KNOWN_WEAK_SECRETS = Set.of(
+            "dummy",
+            "YourVerySecureSecretKeyThatIsAtLeast256BitsLong1234567890CHANGE_THIS_IN_PRODUCTION"
+    );
+
+    @Value("${jwt.secret}")
     private String jwtSecret;
+
+    @PostConstruct
+    void validateSecret() {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "jwt.secret must be set. Provide the JWT_SECRET environment variable.");
+        }
+        if (KNOWN_WEAK_SECRETS.contains(jwtSecret)) {
+            throw new IllegalStateException(
+                    "jwt.secret is a known placeholder value. "
+                    + "Set a unique secret via the JWT_SECRET environment variable.");
+        }
+        if (jwtSecret.length() < MIN_SECRET_LENGTH) {
+            throw new IllegalStateException(
+                    "jwt.secret is too short (" + jwtSecret.length() + " chars). "
+                    + "Minimum length is " + MIN_SECRET_LENGTH + " characters (256 bits).");
+        }
+        logger.info("JwtService initialised — secret length={} chars", jwtSecret.length());
+    }
     
     @Value("${jwt.access-token-expiration:3600000}") // 1 hour default
     private long accessTokenExpiration;
@@ -82,6 +110,7 @@ public class JwtService {
         
         return Jwts.builder()
                 .claim("type", "refresh")
+                .id(UUID.randomUUID().toString())  // jti: guarantees uniqueness even within the same ms
                 .subject(userId)
                 .issuer(issuer)
                 .issuedAt(now)
@@ -180,8 +209,10 @@ public class JwtService {
      */
     public boolean isTokenExpired(String token) {
         try {
-            Date expiration = extractExpiration(token);
-            return expiration != null && expiration.before(new Date());
+            extractAllClaims(token);
+            return false;
+        } catch (ExpiredJwtException e) {
+            return true;
         } catch (JwtException e) {
             return true;
         }

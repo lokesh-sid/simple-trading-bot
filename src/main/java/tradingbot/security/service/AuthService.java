@@ -31,15 +31,18 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
     private final AuthenticationManager authenticationManager;
-    
+
     public AuthService(UserRepository userRepository,
-                      PasswordEncoder passwordEncoder,
-                      JwtService jwtService,
-                      AuthenticationManager authenticationManager) {
+                       PasswordEncoder passwordEncoder,
+                       JwtService jwtService,
+                       RefreshTokenService refreshTokenService,
+                       AuthenticationManager authenticationManager) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.refreshTokenService = refreshTokenService;
         this.authenticationManager = authenticationManager;
     }
     
@@ -133,72 +136,69 @@ public class AuthService {
     }
     
     /**
-     * Refresh access token using refresh token
+     * Refresh access token using a valid, un-rotated refresh token.
+     * Performs JWT validation first, then validates against the DB store
+     * and rotates (old token marked used, new token issued in same family).
      */
     public LoginResponse refreshToken(RefreshTokenRequest request) {
-        String refreshToken = request.refreshToken();
-        
-        // Validate refresh token
-        if (!jwtService.isTokenValid(refreshToken)) {
+        String incomingToken = request.refreshToken();
+
+        // 1. Validate JWT structure and type before touching the DB
+        if (!jwtService.isTokenValid(incomingToken)) {
             throw new IllegalArgumentException("Invalid or expired refresh token");
         }
-        
-        // Check if it's a refresh token
-        if (!jwtService.isRefreshToken(refreshToken)) {
+        if (!jwtService.isRefreshToken(incomingToken)) {
             throw new IllegalArgumentException("Invalid token type");
         }
-        
-        // Extract user ID from refresh token
-        String userId = jwtService.extractUserId(refreshToken);
-        if (userId == null) {
-            throw new IllegalArgumentException("Invalid refresh token");
-        }
-        
-        // Get user from database
+
+        // 2. Validate against DB: detect reuse, rotate
+        String newRefreshToken = refreshTokenService.validateAndRotate(incomingToken);
+
+        // 3. Resolve user for access-token claims
+        String userId = jwtService.extractUserId(incomingToken);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        
+
         if (!user.isEnabled() || user.isAccountLocked()) {
+            refreshTokenService.revokeAllForUser(userId);
             throw new IllegalArgumentException("User account is disabled or locked");
         }
-        
+
         logger.info("Token refreshed for user: {}", user.getUsername());
-        
-        // Generate new tokens
-        return generateTokenResponse(user);
+
+        String accessToken = jwtService.generateAccessToken(user.getId(), user.getUsername(), user.getRoles());
+        long expiresIn = jwtService.getAccessTokenExpirationSeconds();
+        String scope = buildScope(user.getRoles());
+
+        return new LoginResponse(accessToken, newRefreshToken, expiresIn, user.getId(), user.getUsername(), scope);
+    }
+
+    /**
+     * Revokes the refresh-token family identified by {@code rawRefreshToken}.
+     * Safe to call with an invalid or expired token (treated as no-op).
+     */
+    public void logout(String rawRefreshToken) {
+        if (rawRefreshToken != null && !rawRefreshToken.isBlank()) {
+            refreshTokenService.revokeByToken(rawRefreshToken);
+        }
     }
     
     /**
-     * Generate login response with JWT tokens
+     * Generates a full token response: new access token + persisted refresh token.
      */
     private LoginResponse generateTokenResponse(User user) {
-        Set<String> roles = user.getRoles();
-        
-        String accessToken = jwtService.generateAccessToken(
-                user.getId(),
-                user.getUsername(),
-                roles
-        );
-        
-        String refreshToken = jwtService.generateRefreshToken(user.getId());
-        
+        String accessToken = jwtService.generateAccessToken(user.getId(), user.getUsername(), user.getRoles());
+        String refreshToken = refreshTokenService.createRefreshToken(user.getId());
         long expiresIn = jwtService.getAccessTokenExpirationSeconds();
-        
-        // Convert roles to OAuth 2.0 scope format (space-separated, lowercase)
-        // Example: ROLE_USER, ROLE_ADMIN -> "user admin"
-        String scope = roles.stream()
-                .map(role -> role.replace("ROLE_", "").toLowerCase())
-                .sorted()  // Consistent ordering
+        String scope = buildScope(user.getRoles());
+        return new LoginResponse(accessToken, refreshToken, expiresIn, user.getId(), user.getUsername(), scope);
+    }
+
+    private String buildScope(Set<String> roles) {
+        return roles.stream()
+                .map(r -> r.replace("ROLE_", "").toLowerCase())
+                .sorted()
                 .reduce((a, b) -> a + " " + b)
-                .orElse("user");  // Default scope
-        
-        return new LoginResponse(
-                accessToken,
-                refreshToken,
-                expiresIn,
-                user.getId(),
-                user.getUsername(),
-                scope  // OAuth 2.0 scope field
-        );
+                .orElse("user");
     }
 }

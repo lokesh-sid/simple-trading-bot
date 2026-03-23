@@ -59,6 +59,7 @@ import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 import tradingbot.domain.market.StreamMarketDataEvent;
 import tradingbot.gateway.service.GatewayService;
 import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
+import tradingbot.security.repository.RefreshTokenRepository;
 import tradingbot.security.repository.UserRepository;
 
 /**
@@ -223,6 +224,11 @@ public class ContainerIntegrationTestConfig {
     @Bean
     public UserRepository userRepository() {
         return Mockito.mock(UserRepository.class);
+    }
+
+    @Bean
+    public RefreshTokenRepository refreshTokenRepository() {
+        return Mockito.mock(RefreshTokenRepository.class);
     }
 
     @Bean

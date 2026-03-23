@@ -16,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import tradingbot.security.filter.AuthRateLimitFilter;
 import tradingbot.security.filter.JwtAuthenticationFilter;
 import tradingbot.security.service.CustomUserDetailsService;
 
@@ -31,11 +32,14 @@ import tradingbot.security.service.CustomUserDetailsService;
 public class SecurityConfig {
     
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AuthRateLimitFilter authRateLimitFilter;
     private final CustomUserDetailsService userDetailsService;
-    
+
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
-                         CustomUserDetailsService userDetailsService) {
+                          AuthRateLimitFilter authRateLimitFilter,
+                          CustomUserDetailsService userDetailsService) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.authRateLimitFilter = authRateLimitFilter;
         this.userDetailsService = userDetailsService;
     }
     
@@ -80,7 +84,9 @@ public class SecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authenticationProvider(authenticationProvider())
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            // AuthRateLimitFilter runs first, JwtAuthenticationFilter second
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(authRateLimitFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
     

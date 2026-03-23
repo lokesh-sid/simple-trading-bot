@@ -44,7 +44,7 @@ public record LoginResponse(
         String username,
         
         // RFC 6749 compliant error fields (Section 5.2)
-        String error,  // OAuth 2.0 error code
+        @JsonProperty("error") String error,  // OAuth 2.0 error code
         @JsonProperty("error_description") String errorDescription,  // Human-readable message
         @JsonProperty("error_uri") String errorUri  // Documentation link
 ) {

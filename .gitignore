@@ -152,3 +152,9 @@ docs/TRADING_BOT_CLASS_DIAGRAM.md
 .github/prompts/track6-security-ownership.prompt.md
 .github/copilot-instructions.md
 .github/prompts/plan-paperTradingTestnet.prompt.md
+docs/diagrams/auth-and-order-placement-sequence.mmd
+docs/diagrams/dydx-order-placement-sequence.mmd
+docs/diagrams/bybit-order-placement-sequence.mmd
+.gitignore
+docs/diagrams/order-placement-sequence.mmd
+docs/event-flow-diagrams.mmd
