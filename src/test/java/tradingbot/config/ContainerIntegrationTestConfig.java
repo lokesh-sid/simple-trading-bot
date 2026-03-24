@@ -38,6 +38,9 @@ import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.retry.Retry;
 import reactor.core.publisher.Flux;
 import tradingbot.agent.TradingAgentFactory;
+import tradingbot.agent.config.AgentExecutionContext;
+import tradingbot.agent.config.ExchangeServiceRegistry;
+import tradingbot.agent.config.OrderExecutionGatewayRegistry;
 import tradingbot.agent.factory.AgentFactory;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.agent.infrastructure.persistence.PositionEntity;
@@ -289,6 +292,21 @@ public class ContainerIntegrationTestConfig {
     @Bean
     public ChatMemory chatMemory() {
         return Mockito.mock(ChatMemory.class);
+    }
+
+    @Bean
+    public ExchangeServiceRegistry exchangeServiceRegistry() {
+        return Mockito.mock(ExchangeServiceRegistry.class);
+    }
+
+    @Bean
+    public AgentExecutionContext agentExecutionContext() {
+        return Mockito.mock(AgentExecutionContext.class);
+    }
+
+    @Bean
+    public OrderExecutionGatewayRegistry orderExecutionGatewayRegistry() {
+        return Mockito.mock(OrderExecutionGatewayRegistry.class);
     }
 
     @Bean

@@ -56,7 +56,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "MAXIMIZE_PROFIT",
                 "Maximize short-term profits through momentum trading",
                 "BTCUSDT",
-                1000.0
+                1000.0,
+        null
         );
 
         performPost(API_AGENTS, request)
@@ -79,7 +80,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "MAXIMIZE_PROFIT",
                 null, // Optional description
                 "ETHUSDT",
-                500.0
+                500.0,
+        null
         );
 
         performPost(API_AGENTS, request)
@@ -112,7 +114,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "MAXIMIZE_PROFIT",
                 "Test description",
                 "BTCUSDT",
-                0.0 // Invalid: must be at least 0.01
+                0.0, // Invalid: must be at least 0.01
+                null
         );
 
         performPost(API_AGENTS, request)
@@ -128,7 +131,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "MAXIMIZE_PROFIT",
                 "Test description",
                 "btc-usdt", // Invalid: lowercase and hyphen
-                1000.0
+                1000.0,
+        null
         );
 
         performPost(API_AGENTS, request)
@@ -144,7 +148,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "MAXIMIZE_PROFIT",
                 "Test description",
                 "BTCUSDT",
-                1000.0
+                1000.0,
+        null
         );
 
         performPost(API_AGENTS, request)
@@ -163,7 +168,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "MAXIMIZE_PROFIT",
                 "Test description",
                 "BTCUSDT",
-                1000.0
+                1000.0,
+        null
         );
         MvcResult createResult = performPost(API_AGENTS, createRequest)
                 .andExpect(status().isCreated())
@@ -205,10 +211,10 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
     void getAllAgents_shouldReturn200WithList() throws Exception {
         // Create multiple agents
         CreateAgentRequest request1 = new CreateAgentRequest(
-                "Agent 1", "MAXIMIZE_PROFIT", "First agent", "BTCUSDT", 1000.0
+                "Agent 1", "MAXIMIZE_PROFIT", "First agent", "BTCUSDT", 1000.0, null
         );
         CreateAgentRequest request2 = new CreateAgentRequest(
-                "Agent 2", "HEDGE_RISK", "Second agent", "ETHUSDT", 500.0
+                "Agent 2", "HEDGE_RISK", "Second agent", "ETHUSDT", 500.0, null
         );
 
         performPost(API_AGENTS, request1).andExpect(status().isCreated());
@@ -235,7 +241,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "MAXIMIZE_PROFIT",
                 "Test activation",
                 "BTCUSDT",
-                1000.0
+                1000.0,
+        null
         );
         MvcResult createResult = performPost(API_AGENTS, createRequest)
                 .andExpect(status().isCreated())
@@ -258,7 +265,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "MAXIMIZE_PROFIT",
                 "Test pause",
                 "BTCUSDT",
-                1000.0
+                1000.0,
+        null
         );
         MvcResult createResult = performPost(API_AGENTS, createRequest)
                 .andExpect(status().isCreated())
@@ -284,7 +292,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "MAXIMIZE_PROFIT",
                 "Test complete lifecycle",
                 "SOLUSDT",
-                750.0
+                750.0,
+        null
         );
         MvcResult createResult = performPost(API_AGENTS, createRequest)
                 .andExpect(status().isCreated())
@@ -334,7 +343,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "MAXIMIZE_PROFIT",
                 "Test deletion",
                 "BTCUSDT",
-                1000.0
+                1000.0,
+        null
         );
         MvcResult createResult = performPost(API_AGENTS, createRequest)
                 .andExpect(status().isCreated())
@@ -370,7 +380,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "MAXIMIZE_PROFIT",
                 "Bitcoin trading",
                 "BTCUSDT",
-                2000.0
+                2000.0,
+        null
         );
         MvcResult result1 = performPost(API_AGENTS, request1)
                 .andExpect(status().isCreated())
@@ -383,7 +394,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                 "HEDGE_RISK",
                 "Ethereum trading",
                 "ETHUSDT",
-                1500.0
+                1500.0,
+        null
         );
         MvcResult result2 = performPost(API_AGENTS, request2)
                 .andExpect(status().isCreated())
@@ -431,7 +443,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                     goalType,
                     "Testing " + goalType,
                     "BTCUSDT",
-                    1000.0
+                    1000.0,
+        null
             );
 
             performPost(API_AGENTS, request)
@@ -451,7 +464,8 @@ class AgentControllerIntegrationTest extends AbstractIntegrationTest {
                     "MAXIMIZE_PROFIT",
                     "Trading " + symbol,
                     symbol,
-                    1000.0
+                    1000.0,
+        null
             );
 
             performPost(API_AGENTS, request)

@@ -130,7 +130,7 @@ class TradingBotControllerValidationTest extends AbstractControllerValidationTes
     @CsvFileSource(resources = "/valid-symbol-invalid-data.csv", numLinesToSkip = 1)
     @DisplayName("ValidSymbol: invalid symbols should fail validation")
     void validSymbol_invalid(String symbol, String description) throws Exception {
-        CreateAgentRequest request = new CreateAgentRequest("Test Agent", "PROFIT_MAXIMIZATION", "Test Description", symbol, 1000.0);
+        CreateAgentRequest request = new CreateAgentRequest("Test Agent", "PROFIT_MAXIMIZATION", "Test Description", symbol, 1000.0, null);
 
         mockMvc.perform(post("/api/v1/agents")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -143,7 +143,7 @@ class TradingBotControllerValidationTest extends AbstractControllerValidationTes
     @Test
     @DisplayName("ValidSymbol: valid symbol should pass validation")
     void validSymbol_valid() throws Exception {
-        CreateAgentRequest request = new CreateAgentRequest("Test Agent", "PROFIT_MAXIMIZATION", "Test Description", "BTCUSDT", 1000.0);
+        CreateAgentRequest request = new CreateAgentRequest("Test Agent", "PROFIT_MAXIMIZATION", "Test Description", "BTCUSDT", 1000.0, null);
 
         performValidRequestTest("/api/v1/agents", request);
     }

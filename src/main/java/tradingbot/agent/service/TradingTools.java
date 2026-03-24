@@ -14,7 +14,7 @@ import tradingbot.agent.domain.model.Order;
 import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.domain.model.TradeOutcome;
 import tradingbot.agent.infrastructure.persistence.PositionEntity;
-import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.agent.config.AgentExecutionContext;
 
 /**
  * TradingTools - LangChain4j tools for autonomous trading agent
@@ -32,23 +32,23 @@ public class TradingTools {
     
     private static final Logger logger = LoggerFactory.getLogger(TradingTools.class);
     
-    private final FuturesExchangeService exchangeService;
+    private final AgentExecutionContext executionContext;
     private final OrderPlacementService orderPlacementService;
     private final PositionMonitoringService positionMonitoringService;
     private final RAGService ragService;
-    
+
     @Value("${rag.order.dry-run:true}")
     private boolean dryRun;
-    
+
     @Value("${rag.order.max-position-size-percent:10}")
     private double maxPositionSizePercent;
-    
+
     public TradingTools(
-            FuturesExchangeService exchangeService,
+            AgentExecutionContext executionContext,
             OrderPlacementService orderPlacementService,
             PositionMonitoringService positionMonitoringService,
             RAGService ragService) {
-        this.exchangeService = exchangeService;
+        this.executionContext = executionContext;
         this.orderPlacementService = orderPlacementService;
         this.positionMonitoringService = positionMonitoringService;
         this.ragService = ragService;
@@ -61,7 +61,7 @@ public class TradingTools {
     public double getCurrentPrice(String symbol) {
         try {
             logger.info("Tool called: getCurrentPrice for {}", symbol);
-            double price = exchangeService.getCurrentPrice(symbol);
+            double price = executionContext.get().getCurrentPrice(symbol);
             logger.info("Current price for {}: {}", symbol, price);
             return price;
         } catch (Exception e) {
@@ -77,7 +77,7 @@ public class TradingTools {
     public double get24HourVolume(String symbol) {
         try {
             logger.info("Tool called: get24HourVolume for {}", symbol);
-            tradingbot.bot.service.Ticker24hrStats stats = exchangeService.get24HourStats(symbol);
+            tradingbot.bot.service.Ticker24hrStats stats = executionContext.get().get24HourStats(symbol);
             double volume = stats.getVolume();
             logger.info("24h volume for {}: {}", symbol, volume);
             return volume;
@@ -94,7 +94,7 @@ public class TradingTools {
     public double get24HourPriceChange(String symbol) {
         try {
             logger.info("Tool called: get24HourPriceChange for {}", symbol);
-            tradingbot.bot.service.Ticker24hrStats stats = exchangeService.get24HourStats(symbol);
+            tradingbot.bot.service.Ticker24hrStats stats = executionContext.get().get24HourStats(symbol);
             double priceChangePercent = stats.getPriceChangePercent();
             logger.info("24h price change for {}: {}%", symbol, priceChangePercent);
             return priceChangePercent;
@@ -114,7 +114,7 @@ public class TradingTools {
             
             // Fetch historical candles - need at least period + 1 candles
             int requiredCandles = period + 50; // Extra candles for warmup
-            var candles = exchangeService.fetchOhlcv(symbol, "15m", requiredCandles);
+            var candles = executionContext.get().fetchOhlcv(symbol, "15m", requiredCandles);
             
             if (candles.isEmpty()) {
                 logger.warn("No candles available for RSI calculation");
@@ -165,7 +165,7 @@ public class TradingTools {
             logger.info("Tool called: getMarketTrend for {}", symbol);
             
             // Fetch historical candles for trend analysis
-            var candles = exchangeService.fetchOhlcv(symbol, "1h", 200);
+            var candles = executionContext.get().fetchOhlcv(symbol, "1h", 200);
             
             if (candles.isEmpty() || candles.size() < 50) {
                 logger.warn("Insufficient candles for trend analysis");
@@ -305,7 +305,7 @@ public class TradingTools {
     public double getAvailableBalance() {
         try {
             logger.info("Tool called: getAvailableBalance");
-            double balance = exchangeService.getMarginBalance();
+            double balance = executionContext.get().getMarginBalance();
             logger.info("Available balance: {} USDT", balance);
             return balance;
         } catch (Exception e) {
@@ -350,7 +350,7 @@ public class TradingTools {
         logger.info("Tool called: isGoodTimeToTrade");
         try {
             // Check if volume is sufficient (use BTCUSDT as market reference)
-            tradingbot.bot.service.Ticker24hrStats stats = exchangeService.get24HourStats("BTCUSDT");
+            tradingbot.bot.service.Ticker24hrStats stats = executionContext.get().get24HourStats("BTCUSDT");
             double volume = stats.getVolume();
             
             // Consider it good time to trade if 24h volume > 10,000 BTC (indicating active market)
@@ -380,7 +380,7 @@ public class TradingTools {
             if (positionSizeUsdt <= 0) {
                 return "BLOCK: Position size must be positive.";
             }
-            double balance = exchangeService.getMarginBalance();
+            double balance = executionContext.get().getMarginBalance();
             if (balance <= 0) {
                 return "BLOCK: Unable to retrieve account balance — cannot evaluate risk.";
             }

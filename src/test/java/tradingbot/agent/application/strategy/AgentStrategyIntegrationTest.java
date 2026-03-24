@@ -16,6 +16,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import tradingbot.agent.domain.model.Agent;
 import tradingbot.agent.domain.model.AgentGoal;
 import tradingbot.agent.domain.model.Reasoning;
+import tradingbot.agent.config.AgentExecutionContext;
+import tradingbot.agent.config.ExchangeServiceRegistry;
 import tradingbot.agent.domain.repository.AgentRepository;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.agent.infrastructure.repository.PositionRepository;
@@ -69,6 +71,12 @@ class AgentStrategyIntegrationTest {
 
     @MockitoBean
     private OrderPlacementService orderPlacementService;
+
+    @MockitoBean
+    private ExchangeServiceRegistry exchangeServiceRegistry;
+
+    @MockitoBean
+    private AgentExecutionContext agentExecutionContext;
     
     private Agent testAgent;
     

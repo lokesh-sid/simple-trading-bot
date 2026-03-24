@@ -20,7 +20,7 @@ import tradingbot.agent.infrastructure.persistence.OrderEntity;
 import tradingbot.bot.controller.exception.BotOperationException;
 import tradingbot.bot.events.TradeExecutionEvent;
 import tradingbot.bot.messaging.EventPublisher;
-import tradingbot.bot.service.FuturesExchangeService;
+import tradingbot.agent.config.AgentExecutionContext;
 /**
  * OrderPlacementService - Parses LLM reasoning and executes orders
  * 
@@ -59,32 +59,32 @@ public class OrderPlacementService {
     
     private final EventPublisher eventPublisher;
     private final OrderService orderService;
-    private final FuturesExchangeService exchangeService;
+    private final AgentExecutionContext executionContext;
     private final PositionMonitoringService positionMonitoringService;
-    
+
     @Value("${rag.order.confidence-threshold:60}")
     private int confidenceThreshold;
-    
+
     @Value("${rag.order.enabled:true}")
     private boolean orderExecutionEnabled;
-    
+
     @Value("${rag.order.dry-run:true}")
     private boolean dryRun;
-    
+
     @Value("${rag.order.max-position-size-percent:10}")
     private double maxPositionSizePercent;
-    
+
     @Value("${rag.order.default-leverage:1}")
     private int defaultLeverage;
-    
+
     public OrderPlacementService(
             EventPublisher eventPublisher,
             OrderService orderService,
-            FuturesExchangeService exchangeService,
+            AgentExecutionContext executionContext,
             PositionMonitoringService positionMonitoringService) {
         this.eventPublisher = eventPublisher;
         this.orderService = orderService;
-        this.exchangeService = exchangeService;
+        this.executionContext = executionContext;
         this.positionMonitoringService = positionMonitoringService;
     }
     
@@ -308,18 +308,18 @@ public class OrderPlacementService {
             // Set leverage if specified
             int leverage = order.getLeverage() != null ? order.getLeverage() : defaultLeverage;
             if (leverage > 1) {
-                exchangeService.setLeverage(order.getSymbol(), leverage);
+                executionContext.get().setLeverage(order.getSymbol(), leverage);
                 logger.info("Set leverage to {}x for {}", leverage, order.getSymbol());
             }
             
             // Execute the main order based on direction
             tradingbot.bot.service.OrderResult orderResult;
             if (order.getDirection() == TradeDirection.LONG) {
-                orderResult = exchangeService.enterLongPosition(order.getSymbol(), order.getQuantity());
+                orderResult = executionContext.get().enterLongPosition(order.getSymbol(), order.getQuantity());
                 logger.info("Entered LONG position: {} units of {} - Exchange Order ID: {}", 
                     order.getQuantity(), order.getSymbol(), orderResult.getExchangeOrderId());
             } else if (order.getDirection() == TradeDirection.SHORT) {
-                orderResult = exchangeService.enterShortPosition(order.getSymbol(), order.getQuantity());
+                orderResult = executionContext.get().enterShortPosition(order.getSymbol(), order.getQuantity());
                 logger.info("Entered SHORT position: {} units of {} - Exchange Order ID: {}", 
                     order.getQuantity(), order.getSymbol(), orderResult.getExchangeOrderId());
             } else {
@@ -372,7 +372,7 @@ public class OrderPlacementService {
             // Place stop-loss order if specified
             if (order.getStopLoss() != null) {
                 try {
-                    tradingbot.bot.service.OrderResult slResult = exchangeService.placeStopLossOrder(
+                    tradingbot.bot.service.OrderResult slResult = executionContext.get().placeStopLossOrder(
                         symbol,
                         closingAction,
                         quantity,
@@ -388,7 +388,7 @@ public class OrderPlacementService {
             // Place take-profit order if specified
             if (order.getTakeProfit() != null) {
                 try {
-                    tradingbot.bot.service.OrderResult tpResult = exchangeService.placeTakeProfitOrder(
+                    tradingbot.bot.service.OrderResult tpResult = executionContext.get().placeTakeProfitOrder(
                         symbol,
                         closingAction,
                         quantity,

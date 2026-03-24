@@ -55,6 +55,7 @@ public class AgentDTOMapper {
             reasoningDTO,
             System.currentTimeMillis(),
             java.util.UUID.randomUUID().toString(),
+            agent.getExchangeName(),
             true
         );
     }
@@ -71,7 +72,8 @@ public class AgentDTOMapper {
             goal,
             request.tradingSymbol(),
             request.capital(),
-            ownerId
+            ownerId,
+            request.exchangeName()
         );
     }
 }

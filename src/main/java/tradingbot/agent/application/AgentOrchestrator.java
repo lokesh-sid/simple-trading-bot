@@ -36,6 +36,7 @@ import tradingbot.agent.application.strategy.AgentStrategy;
 import tradingbot.agent.application.strategy.LangChain4jStrategy;
 import tradingbot.agent.application.strategy.RAGEnhancedStrategy;
 import tradingbot.agent.application.strategy.SimpleLLMStrategy;
+import tradingbot.agent.config.OrderExecutionGatewayRegistry;
 import tradingbot.agent.domain.execution.ExecutionResult;
 import tradingbot.agent.domain.execution.OrderExecutionGateway;
 import tradingbot.agent.domain.model.Agent;
@@ -130,6 +131,7 @@ public class AgentOrchestrator {
      * Nullable — when absent, decisions are only logged (pre-P1 behaviour).
      */
     private final OrderExecutionGateway executionGateway;
+    private final OrderExecutionGatewayRegistry gatewayRegistry;
     private final OrderRepository orderRepository;
     private final PerformanceTrackingService performanceTrackingService;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
@@ -151,6 +153,7 @@ public class AgentOrchestrator {
             List<ReactiveTradingAgent> agents,
             BulkheadRegistry bulkheadRegistry,
             @Nullable OrderExecutionGateway executionGateway,
+            OrderExecutionGatewayRegistry gatewayRegistry,
             OrderRepository orderRepository,
             PerformanceTrackingService performanceTrackingService,
             ApplicationEventPublisher eventPublisher,
@@ -162,6 +165,7 @@ public class AgentOrchestrator {
         this.agents = agents;
         this.bulkheadRegistry = bulkheadRegistry;
         this.executionGateway = executionGateway;
+        this.gatewayRegistry = gatewayRegistry;
         this.orderRepository = orderRepository;
         this.performanceTrackingService = performanceTrackingService;
         this.eventPublisher = eventPublisher;
@@ -203,6 +207,7 @@ public class AgentOrchestrator {
             List<ReactiveTradingAgent> agents,
             BulkheadRegistry bulkheadRegistry,
             @org.springframework.lang.Nullable OrderExecutionGateway executionGateway,
+            OrderExecutionGatewayRegistry gatewayRegistry,
             OrderRepository orderRepository,
             PerformanceTrackingService performanceTrackingService,
             @Value("${agent.strategy:langchain4j}") String strategyName) {
@@ -212,6 +217,7 @@ public class AgentOrchestrator {
         this.agents = agents;
         this.bulkheadRegistry = bulkheadRegistry;
         this.executionGateway = executionGateway;
+        this.gatewayRegistry = gatewayRegistry;
         this.orderRepository = orderRepository;
         this.performanceTrackingService = performanceTrackingService;
         this.eventPublisher = null; // deprecated constructor — reflection events disabled
@@ -474,15 +480,17 @@ public class AgentOrchestrator {
                             logger.info(
                                     "[AgenticAgent] {} → {} (confidence {}%) for {}",
                                     agent.getId(), decision.action(), decision.confidence(), event.symbol());
-                            // P1: Route decision through the execution gateway
-                            if (executionGateway != null && decision.isEntry()) {
+                            // P1: Route decision through the per-agent gateway
+                            OrderExecutionGateway gateway = gatewayRegistry.resolve(
+                                    agent.getId(), agent.getExchange());
+                            if (decision.isEntry()) {
                                 try {
                                     double price = event.close().doubleValue();
                                     String direction = decision.action() == Action.BUY ? "LONG" : "SHORT";
                                     ExecutionResult result = tradingMetrics != null
                                             ? tradingMetrics.orderPlacementTimer(event.symbol(), direction)
-                                                    .recordCallable(() -> executionGateway.execute(decision, event.symbol(), price))
-                                            : executionGateway.execute(decision, event.symbol(), price);
+                                                    .recordCallable(() -> gateway.execute(decision, event.symbol(), price))
+                                            : gateway.execute(decision, event.symbol(), price);
                                     logger.info("[AgenticAgent] {} execution: {} success={} fill={}",
                                             agent.getId(), result.action(), result.success(), result.fillPrice());
 
@@ -619,7 +627,8 @@ public class AgentOrchestrator {
         symbolToAgentMap.forEach((symbol, agentIds) -> agentIds.remove(agentId));
         symbolToAgentMap.entrySet().removeIf(e -> e.getValue().isEmpty());
         lastExecutionTime.remove(agentId);
-        logger.info("[Orchestrator] Evicted agent {} from symbolToAgentMap and lastExecutionTime caches",
+        gatewayRegistry.evict(agentId.getValue());
+        logger.info("[Orchestrator] Evicted agent {} from symbolToAgentMap, lastExecutionTime, and gatewayRegistry caches",
                 agentId);
     }
 

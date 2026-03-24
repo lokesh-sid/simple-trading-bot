@@ -21,6 +21,8 @@ import tradingbot.agent.domain.model.AgentGoal;
 import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.domain.model.TradeMemory;
 import tradingbot.agent.domain.model.TradeOutcome;
+import tradingbot.agent.config.AgentExecutionContext;
+import tradingbot.agent.config.ExchangeServiceRegistry;
 import tradingbot.agent.service.RAGService;
 import tradingbot.agent.service.TradingAgentService;
 
@@ -38,10 +40,16 @@ class LangChain4jStrategyTest {
     
     @Mock
     private TradingAgentService tradingAgentService;
-    
+
     @Mock
     private RAGService ragService;
-    
+
+    @Mock
+    private ExchangeServiceRegistry exchangeServiceRegistry;
+
+    @Mock
+    private AgentExecutionContext executionContext;
+
     @InjectMocks
     private LangChain4jStrategy strategy;
     

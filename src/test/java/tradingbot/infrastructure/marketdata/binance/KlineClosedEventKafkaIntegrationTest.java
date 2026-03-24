@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import tradingbot.agent.config.OrderExecutionGatewayRegistry;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
@@ -229,11 +230,17 @@ class KlineClosedEventKafkaIntegrationTest {
          * annotation on the method to be picked up by Spring's post-processor.
          */
         @Bean
+        OrderExecutionGatewayRegistry orderExecutionGatewayRegistry() {
+            return Mockito.mock(OrderExecutionGatewayRegistry.class);
+        }
+
+        @Bean
         AgentOrchestrator agentOrchestrator(
                 AgentRepository agentRepository,
                 LangChain4jStrategy langChain4jStrategy,
                 ExchangeWebSocketClient exchangeWebSocketClient,
                 BulkheadRegistry bulkheadRegistry,
+                OrderExecutionGatewayRegistry orderExecutionGatewayRegistry,
                 OrderRepository orderRepository,
                 PerformanceTrackingService performanceTrackingService,
                 ApplicationEventPublisher applicationEventPublisher,
@@ -248,6 +255,7 @@ class KlineClosedEventKafkaIntegrationTest {
                     emptyAgents,
                     bulkheadRegistry,
                     null,
+                    orderExecutionGatewayRegistry,
                     orderRepository,
                     performanceTrackingService,
                     applicationEventPublisher,

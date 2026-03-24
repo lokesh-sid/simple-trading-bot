@@ -64,6 +64,10 @@ public class Agent {
     /**
      * Factory method to create a new agent
      */
+    public static Agent create(String name, AgentGoal goal, String tradingSymbol, double capital, String ownerId) {
+        return create(name, goal, tradingSymbol, capital, ownerId, null);
+    }
+
     public static Agent create(String name, AgentGoal goal, String tradingSymbol, double capital, String ownerId, String exchangeName) {
         return new Agent(
             AgentId.generate(),

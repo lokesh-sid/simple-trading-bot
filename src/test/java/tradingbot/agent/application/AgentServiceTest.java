@@ -63,7 +63,8 @@ class AgentServiceTest {
             "MAXIMIZE_PROFIT",
             "Maximize BTC profits",
             "BTCUSDT",
-            10000.0
+            10000.0,
+        null
         );
         
         AgentGoal goal = new AgentGoal(AgentGoal.GoalType.MAXIMIZE_PROFIT, "Maximize BTC profits");

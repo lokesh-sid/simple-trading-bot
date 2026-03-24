@@ -14,14 +14,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import tradingbot.agent.TradingAgent;
 import tradingbot.agent.config.AgentProperties;
+import tradingbot.agent.config.ExchangeServiceRegistry;
 import tradingbot.agent.infrastructure.repository.AgentEntity;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.FuturesTradingBot.BotParams;
 import tradingbot.bot.TradeDirection;
-import tradingbot.bot.messaging.EventPublisher;
-import tradingbot.bot.service.BinanceFuturesService;
-import tradingbot.bot.service.BybitFuturesService;
-import tradingbot.bot.service.DydxFuturesService;
 import tradingbot.bot.service.FuturesExchangeService;
 import tradingbot.bot.service.PaperFuturesExchangeService;
 import tradingbot.bot.strategy.analyzer.SentimentAnalyzer;
@@ -50,28 +47,24 @@ public class AgentFactory {
     private static final Logger log = LoggerFactory.getLogger(AgentFactory.class);
 
     private final FuturesExchangeService realExchangeService;
+    private final ExchangeServiceRegistry exchangeServiceRegistry;
     private final SentimentAnalyzer sentimentAnalyzer;
     private final RedisTemplate<String, IndicatorValues> redisTemplate;
     private final ObjectMapper objectMapper;
     private final AgentProperties agentProperties;
 
-
-    // All credentials now come from AgentProperties.credentials map
-
-    private final EventPublisher eventPublisher;
-
-    public AgentFactory(FuturesExchangeService exchangeService, 
+    public AgentFactory(FuturesExchangeService exchangeService,
+                        ExchangeServiceRegistry exchangeServiceRegistry,
                         SentimentAnalyzer sentimentAnalyzer,
                         RedisTemplate<String, IndicatorValues> redisTemplate,
                         ObjectMapper objectMapper,
-                        AgentProperties agentProperties,
-                        EventPublisher eventPublisher) {
+                        AgentProperties agentProperties) {
         this.realExchangeService = exchangeService;
+        this.exchangeServiceRegistry = exchangeServiceRegistry;
         this.sentimentAnalyzer = sentimentAnalyzer;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.agentProperties = agentProperties;
-        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -103,27 +96,7 @@ public class AgentFactory {
     }
 
     private FuturesExchangeService createExchangeService(String exchangeName) {
-        if (exchangeName == null || exchangeName.isBlank()) {
-            return realExchangeService;
-        }
-        String exchange = exchangeName.toUpperCase();
-        var creds = agentProperties.getCredentials() != null ? agentProperties.getCredentials().get(exchange.toLowerCase()) : null;
-        if (creds == null) {
-            throw new IllegalArgumentException("Missing credentials for exchange: " + exchange);
-        }
-        return switch (exchange) {
-            case "BINANCE" -> new BinanceFuturesService(creds.getApiKey(), creds.getApiSecret(), eventPublisher);
-            case "BYBIT" -> {
-                String baseUrl = "TESTNET_DOMAIN".equalsIgnoreCase(creds.getDomain())
-                    ? "https://api-testnet.bybit.com"
-                    : "https://api.bybit.com";
-                yield new BybitFuturesService(creds.getApiKey(), creds.getApiSecret(), baseUrl, eventPublisher);
-            }
-            case "DYDX" -> new DydxFuturesService(
-                creds.getNetwork(), creds.getMainnetUrl(), creds.getTestnetUrl(), creds.getPrivateKey(), eventPublisher);
-            case "PAPER" -> new PaperFuturesExchangeService();
-            default -> throw new IllegalArgumentException("Unsupported exchange: " + exchange);
-        };
+        return exchangeServiceRegistry.resolve(exchangeName);
     }
 
     private FuturesTradingBot createFuturesTradingBotFromConfig(AgentProperties.AgentConfig config, TradingConfig tradingConfig) {

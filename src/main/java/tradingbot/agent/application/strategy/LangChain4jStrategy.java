@@ -13,6 +13,8 @@ import tradingbot.agent.domain.model.Reasoning;
 import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.domain.model.TradeMemory;
 import tradingbot.agent.domain.model.TradeOutcome;
+import tradingbot.agent.config.AgentExecutionContext;
+import tradingbot.agent.config.ExchangeServiceRegistry;
 import tradingbot.agent.service.RAGService;
 import tradingbot.agent.service.TradingAgentService;
 import tradingbot.domain.market.MarketEvent;
@@ -34,18 +36,24 @@ public class LangChain4jStrategy implements AgentStrategy {
     
     private final TradingAgentService tradingAgentService;
     private final RAGService ragService;
-    
+    private final ExchangeServiceRegistry exchangeServiceRegistry;
+    private final AgentExecutionContext executionContext;
+
     @Value("${rag.enabled:true}")
     private boolean ragEnabled;
-    
+
     @Value("${rag.strategy.context-limit:3}")
     private int ragContextLimit;
-    
+
     public LangChain4jStrategy(
             TradingAgentService tradingAgentService,
-            RAGService ragService) {
+            RAGService ragService,
+            ExchangeServiceRegistry exchangeServiceRegistry,
+            AgentExecutionContext executionContext) {
         this.tradingAgentService = tradingAgentService;
         this.ragService = ragService;
+        this.exchangeServiceRegistry = exchangeServiceRegistry;
+        this.executionContext = executionContext;
     }
     
     @Override
@@ -62,15 +70,21 @@ public class LangChain4jStrategy implements AgentStrategy {
                 : "unknown (polling mode — use market-data tool)";
 
         // 3. Invoke the agent - it will autonomously call tools and make decisions
-        String agentResponse = tradingAgentService.analyzeAndDecide(
-            agent.getId().getValue(),
-            agent.getTradingSymbol(),
-            agent.getGoal().toString(),
-            agent.getCapital(),
-            agent.getState().getIterationCount(),
-            ragContext,
-            triggerPrice
-        );
+        executionContext.set(exchangeServiceRegistry.resolve(agent.getExchangeName()));
+        String agentResponse;
+        try {
+            agentResponse = tradingAgentService.analyzeAndDecide(
+                agent.getId().getValue(),
+                agent.getTradingSymbol(),
+                agent.getGoal().toString(),
+                agent.getCapital(),
+                agent.getState().getIterationCount(),
+                ragContext,
+                triggerPrice
+            );
+        } finally {
+            executionContext.clear();
+        }
         
         logger.info("Agent {} decision: {}", agent.getId(), agentResponse);
         
