@@ -102,31 +102,32 @@ public class AgentFactory {
         return agents;
     }
 
-    private FuturesTradingBot createFuturesTradingBotFromConfig(AgentProperties.AgentConfig config, TradingConfig tradingConfig) {
-        FuturesExchangeService exchangeService;
-        String exchange = config.getExchange() != null ? config.getExchange().toUpperCase() : "BINANCE";
+    private FuturesExchangeService createExchangeService(String exchangeName) {
+        if (exchangeName == null || exchangeName.isBlank()) {
+            return realExchangeService;
+        }
+        String exchange = exchangeName.toUpperCase();
         var creds = agentProperties.getCredentials() != null ? agentProperties.getCredentials().get(exchange.toLowerCase()) : null;
         if (creds == null) {
             throw new IllegalArgumentException("Missing credentials for exchange: " + exchange);
         }
-        switch (exchange) {
-            case "BINANCE" -> {
-                exchangeService = new BinanceFuturesService(creds.getApiKey(), creds.getApiSecret(), eventPublisher);
-            }
+        return switch (exchange) {
+            case "BINANCE" -> new BinanceFuturesService(creds.getApiKey(), creds.getApiSecret(), eventPublisher);
             case "BYBIT" -> {
-                String baseUrl = "TESTNET_DOMAIN".equalsIgnoreCase(creds.getDomain()) ? "https://api-testnet.bybit.com" : "https://api.bybit.com";
-                exchangeService = new BybitFuturesService(creds.getApiKey(), creds.getApiSecret(), baseUrl, eventPublisher);
+                String baseUrl = "TESTNET_DOMAIN".equalsIgnoreCase(creds.getDomain())
+                    ? "https://api-testnet.bybit.com"
+                    : "https://api.bybit.com";
+                yield new BybitFuturesService(creds.getApiKey(), creds.getApiSecret(), baseUrl, eventPublisher);
             }
-            case "DYDX" -> {
-                exchangeService = new DydxFuturesService(
-                    creds.getNetwork(),
-                    creds.getMainnetUrl(),
-                    creds.getTestnetUrl(),
-                    creds.getPrivateKey(),
-                    eventPublisher);
-            }
+            case "DYDX" -> new DydxFuturesService(
+                creds.getNetwork(), creds.getMainnetUrl(), creds.getTestnetUrl(), creds.getPrivateKey(), eventPublisher);
+            case "PAPER" -> new PaperFuturesExchangeService();
             default -> throw new IllegalArgumentException("Unsupported exchange: " + exchange);
-        }
+        };
+    }
+
+    private FuturesTradingBot createFuturesTradingBotFromConfig(AgentProperties.AgentConfig config, TradingConfig tradingConfig) {
+        FuturesExchangeService exchangeService = createExchangeService(config.getExchange());
 
         Map<String, TechnicalIndicator> indicators = createIndicators(tradingConfig);
         IndicatorCalculator indicatorCalculator = new IndicatorCalculator(exchangeService, indicators, redisTemplate);
@@ -174,9 +175,11 @@ public class AgentFactory {
         // This allows Mockito behavior to persist
         FuturesExchangeService exchangeService;
         if (this.realExchangeService.getClass().getName().contains("Mockito")) {
-             exchangeService = this.realExchangeService;
+            exchangeService = this.realExchangeService;
+        } else if (isPaper) {
+            exchangeService = new PaperFuturesExchangeService();
         } else {
-             exchangeService = isPaper ? new PaperFuturesExchangeService() : this.realExchangeService;
+            exchangeService = createExchangeService(entity.getExchangeName());
         }
 
         TradeDirection direction = TradeDirection.LONG;

@@ -69,6 +69,8 @@ public class AgentEntity {
     @Column(name = "execution_mode", nullable = false)
     @Enumerated(EnumType.STRING)
     private ExecutionMode executionMode;
+    @Column(name = "exchange_name")
+    private String exchangeName;
 
     // Builder pattern
     public static class Builder {
@@ -95,6 +97,7 @@ public class AgentEntity {
         private Instant reasonedAt;
         private String ownerId;
         private ExecutionMode executionMode = ExecutionMode.NONE;
+        private String exchangeName;
 
         public Builder id(String id) { this.id = id; return this; }
         public Builder name(String name) { this.name = name; return this; }
@@ -119,6 +122,7 @@ public class AgentEntity {
         public Builder reasonedAt(Instant reasonedAt) { this.reasonedAt = reasonedAt; return this; }
         public Builder ownerId(String ownerId) { this.ownerId = ownerId; return this; }
         public Builder executionMode(ExecutionMode executionMode) { this.executionMode = executionMode; return this; }
+        public Builder exchangeName(String exchangeName) { this.exchangeName = exchangeName; return this; }
 
         public AgentEntity build() {
             return new AgentEntity(this);
@@ -153,6 +157,7 @@ public class AgentEntity {
         this.reasonedAt = builder.reasonedAt;
         this.ownerId = builder.ownerId;
         this.executionMode = builder.executionMode != null ? builder.executionMode : ExecutionMode.NONE;
+        this.exchangeName = builder.exchangeName;
     }
 
     // Getters only (no setters for builder pattern)
@@ -179,6 +184,7 @@ public class AgentEntity {
     public Instant getReasonedAt() { return reasonedAt; }
     public String getOwnerId() { return ownerId; }
     public ExecutionMode getExecutionMode() { return executionMode; }
+    public String getExchangeName() { return exchangeName; }
 
     /**
      * AgentStatus - Entity status enum

@@ -30,6 +30,7 @@ public class AgentMapper {
             .status(mapStatus(agent.getState().getStatus()))
             .createdAt(agent.getCreatedAt())
             .ownerId(agent.getOwnerId())
+            .exchangeName(agent.getExchangeName())
             .executionMode(AgentEntity.ExecutionMode.NONE)
             .lastActiveAt(agent.getState().getLastActiveAt())
             .iterationCount(agent.getState().getIterationCount());
@@ -108,7 +109,8 @@ public class AgentMapper {
             entity.getCapital(),
             state,
             entity.getCreatedAt(),
-            entity.getOwnerId() // Restore ownerId
+            entity.getOwnerId(),
+            entity.getExchangeName()
         );
         
         // Set perception and reasoning if they exist

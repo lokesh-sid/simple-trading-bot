@@ -36,6 +36,7 @@ public interface AgentMapper {
     @Mapping(target = "timestamp", expression = "java(System.currentTimeMillis())")
     @Mapping(target = "requestId", expression = "java(java.util.UUID.randomUUID().toString())")
     @Mapping(target = "success", constant = "true")
+    @Mapping(source = "exchangeName", target = "exchangeName")
     AgentResponse toResponse(Agent agent);
     
     /**
@@ -70,7 +71,8 @@ public interface AgentMapper {
             requestToGoal(request),
             request.tradingSymbol(),
             request.capital(),
-            ownerId
+            ownerId,
+            request.exchangeName()
         );
     }
     

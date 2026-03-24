@@ -39,11 +39,15 @@ public record CreateAgentRequest(
     @ValidSymbol
     String tradingSymbol,
     
-    @Schema(description = "Initial capital allocation", 
+    @Schema(description = "Initial capital allocation",
             example = "1000.0",
             minimum = "0.01",
             requiredMode = Schema.RequiredMode.REQUIRED)
     @DecimalMin(value = "0.01", message = "Capital must be at least 0.01")
-    double capital
+    double capital,
+
+    @Schema(description = "Exchange to trade on (binance, bybit, paper). Defaults to configured provider if omitted.",
+            example = "bybit")
+    String exchangeName
 ) {
 }

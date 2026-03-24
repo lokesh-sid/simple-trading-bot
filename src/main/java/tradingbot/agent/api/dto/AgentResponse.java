@@ -57,6 +57,9 @@ public record AgentResponse(
     @Schema(description = "Unique request identifier", example = "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
     String requestId,
     
+    @Schema(description = "Exchange this agent trades on", example = "bybit")
+    String exchangeName,
+
     @Schema(description = "Operation success indicator", example = "true")
     boolean success
 ) {

@@ -19,7 +19,8 @@ public class Agent {
         sb.append("capital=").append(capital).append(", ");
         sb.append("state=").append(state).append(", ");
         sb.append("createdAt=").append(createdAt).append(", ");
-        sb.append("ownerId='").append(ownerId).append("'}");
+        sb.append("ownerId='").append(ownerId).append("', ");
+        sb.append("exchangeName='").append(exchangeName).append("'}");
         return sb.toString();
     }
     
@@ -31,6 +32,7 @@ public class Agent {
     private final AgentState state;
     private final Instant createdAt;
     private final String ownerId;
+    private final String exchangeName;
 
     // Last perception and reasoning
     private Perception lastPerception;
@@ -38,6 +40,11 @@ public class Agent {
     
     public Agent(AgentId id, String name, AgentGoal goal, String tradingSymbol,
                 double capital, AgentState state, Instant createdAt, String ownerId) {
+        this(id, name, goal, tradingSymbol, capital, state, createdAt, ownerId, null);
+    }
+
+    public Agent(AgentId id, String name, AgentGoal goal, String tradingSymbol,
+                double capital, AgentState state, Instant createdAt, String ownerId, String exchangeName) {
         this.id = id;
         this.name = name;
         this.goal = goal;
@@ -46,17 +53,18 @@ public class Agent {
         this.state = state;
         this.createdAt = createdAt;
         this.ownerId = ownerId;
+        this.exchangeName = exchangeName;
     }
-    
+
     public Agent(AgentId id, String name, AgentGoal goal, String tradingSymbol,
                 double capital, AgentState state, Instant createdAt) {
-        this(id, name, goal, tradingSymbol, capital, state, createdAt, null);
+        this(id, name, goal, tradingSymbol, capital, state, createdAt, null, null);
     }
-    
+
     /**
      * Factory method to create a new agent
      */
-    public static Agent create(String name, AgentGoal goal, String tradingSymbol, double capital, String ownerId) {
+    public static Agent create(String name, AgentGoal goal, String tradingSymbol, double capital, String ownerId, String exchangeName) {
         return new Agent(
             AgentId.generate(),
             name,
@@ -65,7 +73,8 @@ public class Agent {
             capital,
             AgentState.createIdle(),
             Instant.now(),
-            ownerId
+            ownerId,
+            exchangeName
         );
     }
     
@@ -112,6 +121,7 @@ public class Agent {
     public AgentState getState() { return state; }
     public Instant getCreatedAt() { return createdAt; }
     public String getOwnerId() { return ownerId; }
+    public String getExchangeName() { return exchangeName; }
     public Perception getLastPerception() { return lastPerception; }
     public Reasoning getLastReasoning() { return lastReasoning; }
 }
