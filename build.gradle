@@ -26,6 +26,7 @@ ext {
     mockitoVersion = '5.20.0'
     jacksonVersion = '2.19.2'
     resilience4jVersion = '2.1.0'
+    bucket4jVersion = '8.10.1'
     springdocVersion = '2.6.0'
     jjwtVersion = '0.12.5'
     grpcVersion = '1.63.0'
@@ -63,6 +64,10 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'com.h2database:h2' // For testing
     
+    // Bucket4j for distributed inbound rate limiting (auth endpoints, per-IP via Redis)
+    implementation "com.bucket4j:bucket4j-core:${bucket4jVersion}"
+    implementation "com.bucket4j:bucket4j-redis:${bucket4jVersion}"
+
     // Resilience4j for rate limiting and circuit breaker
     implementation "io.github.resilience4j:resilience4j-spring-boot3:${resilience4jVersion}"
     implementation "io.github.resilience4j:resilience4j-ratelimiter:${resilience4jVersion}"

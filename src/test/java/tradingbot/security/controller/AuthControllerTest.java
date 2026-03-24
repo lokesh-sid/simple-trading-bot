@@ -3,9 +3,11 @@ package tradingbot.security.controller;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +20,10 @@ import org.springframework.test.web.servlet.MvcResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.github.bucket4j.BucketConfiguration;
+import io.github.bucket4j.distributed.BucketProxy;
+import io.github.bucket4j.distributed.proxy.ProxyManager;
+import io.github.bucket4j.distributed.proxy.RemoteBucketBuilder;
 import tradingbot.AbstractContainerIntegrationTest;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
 import tradingbot.security.dto.LoginRequest;
@@ -34,8 +40,22 @@ class AuthControllerTest extends AbstractContainerIntegrationTest {
     @MockitoBean
     private LLMProvider llmProvider;
 
+    @MockitoBean
+    @SuppressWarnings("rawtypes")
+    private ProxyManager authRateLimitProxyManager;
+
     @Autowired
     private MockMvc mockMvc;
+
+    @BeforeEach
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void stubRateLimiter() {
+        RemoteBucketBuilder builder = Mockito.mock(RemoteBucketBuilder.class);
+        BucketProxy bucket = Mockito.mock(BucketProxy.class);
+        Mockito.when(authRateLimitProxyManager.builder()).thenReturn(builder);
+        Mockito.when(builder.build(Mockito.any(), Mockito.any(BucketConfiguration.class))).thenReturn(bucket);
+        Mockito.when(bucket.tryConsume(Mockito.anyLong())).thenReturn(true);
+    }
 
     @Autowired
     private ObjectMapper objectMapper;

@@ -31,6 +31,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
+import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.retry.Retry;
@@ -214,6 +215,12 @@ public class ContainerIntegrationTestConfig {
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
         return Mockito.mock(RedisConnectionFactory.class);
+    }
+
+    @Bean
+    @SuppressWarnings("unchecked")
+    public ProxyManager<String> authRateLimitProxyManager() {
+        return Mockito.mock(ProxyManager.class);
     }
 
     @Bean
