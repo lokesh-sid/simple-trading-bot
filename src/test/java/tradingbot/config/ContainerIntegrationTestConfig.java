@@ -31,6 +31,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
+import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.RateLimiter;
@@ -221,6 +222,11 @@ public class ContainerIntegrationTestConfig {
     @SuppressWarnings("unchecked")
     public ProxyManager<String> authRateLimitProxyManager() {
         return Mockito.mock(ProxyManager.class);
+    }
+
+    @Bean
+    public BucketConfiguration authRateLimitBucketConfiguration() {
+        return Mockito.mock(BucketConfiguration.class);
     }
 
     @Bean

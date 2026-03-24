@@ -17,6 +17,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.function.Supplier;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -47,18 +49,40 @@ class AuthControllerTest extends AbstractContainerIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private BucketProxy bucket;
+
     @BeforeEach
     @SuppressWarnings({"unchecked", "rawtypes"})
     void stubRateLimiter() {
         RemoteBucketBuilder builder = Mockito.mock(RemoteBucketBuilder.class);
-        BucketProxy bucket = Mockito.mock(BucketProxy.class);
+        bucket = Mockito.mock(BucketProxy.class);
         Mockito.when(authRateLimitProxyManager.builder()).thenReturn(builder);
-        Mockito.when(builder.build(Mockito.any(), Mockito.any(BucketConfiguration.class))).thenReturn(bucket);
+        Mockito.when(builder.build(Mockito.any(), Mockito.<Supplier<BucketConfiguration>>any())).thenReturn(bucket);
         Mockito.when(bucket.tryConsume(Mockito.anyLong())).thenReturn(true);
     }
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    // ── Rate limiting ──────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("Rate limiting")
+    class RateLimiting {
+
+        @Test
+        @DisplayName("returns 429 when the bucket is exhausted")
+        void returns429WhenRateLimitExceeded() throws Exception {
+            Mockito.when(bucket.tryConsume(Mockito.anyLong())).thenReturn(false);
+
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    new LoginRequest("anyuser", "anypassword"))))
+                    .andExpect(status().isTooManyRequests())
+                    .andExpect(jsonPath("$.error").value("too_many_requests"));
+        }
+    }
 
     // ── Registration ──────────────────────────────────────────────────────────
 

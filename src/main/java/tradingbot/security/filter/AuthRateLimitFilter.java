@@ -1,7 +1,6 @@
 package tradingbot.security.filter;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -11,7 +10,6 @@ import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import jakarta.servlet.FilterChain;
@@ -23,10 +21,11 @@ import jakarta.servlet.http.HttpServletResponse;
  * Per-IP rate limiter for authentication endpoints.
  *
  * <p>Uses Bucket4j backed by Redis to enforce a distributed token-bucket limit
- * of {@value #CAPACITY} requests per minute per client IP. Because the state
- * lives in Redis, the limit is shared across all application nodes.
+ * per client IP. Because the state lives in Redis, the limit is shared across
+ * all application nodes.
  *
- * <p>Returns HTTP 429 with an RFC 6749 error body when the limit is exceeded.
+ * <p>Rate limit parameters are configured via {@code auth.rate-limit.*} properties.
+ * Returns HTTP 429 with an RFC 6749 error body when the limit is exceeded.
  * Requests that do not target the protected paths pass through without overhead.
  */
 @Component
@@ -40,21 +39,13 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             "/api/auth/refresh"
     );
 
-    // 20 requests per minute per IP — matches the previous auth-endpoints config.
-    private static final int CAPACITY = 20;
-    private static final Duration REFILL_PERIOD = Duration.ofMinutes(1);
-
-    private static final BucketConfiguration BUCKET_CONFIG = BucketConfiguration.builder()
-            .addLimit(Bandwidth.builder()
-                    .capacity(CAPACITY)
-                    .refillGreedy(CAPACITY, REFILL_PERIOD)
-                    .build())
-            .build();
-
     private final ProxyManager<String> proxyManager;
+    private final BucketConfiguration bucketConfiguration;
 
-    public AuthRateLimitFilter(ProxyManager<String> proxyManager) {
+    public AuthRateLimitFilter(ProxyManager<String> proxyManager,
+                               BucketConfiguration bucketConfiguration) {
         this.proxyManager = proxyManager;
+        this.bucketConfiguration = bucketConfiguration;
     }
 
     @Override
@@ -73,13 +64,14 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        String key = "auth-ip-" + extractClientIp(request);
-        var bucket = proxyManager.builder().build(key, BUCKET_CONFIG);
+        String clientIp = extractClientIp(request);
+        String key = "auth-ip-" + clientIp;
+        var bucket = proxyManager.builder().build(key, () -> bucketConfiguration);
 
         if (bucket.tryConsume(1)) {
             filterChain.doFilter(request, response);
         } else {
-            logger.warn("Rate limit exceeded for IP {} on {}", key, path);
+            logger.warn("Rate limit exceeded for IP {} on {}", clientIp, path);
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
             response.setContentType("application/json;charset=UTF-8");
             response.getWriter().write(

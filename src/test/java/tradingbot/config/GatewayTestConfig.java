@@ -32,6 +32,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.RateLimiter;
@@ -196,6 +197,11 @@ public class GatewayTestConfig {
     @SuppressWarnings("unchecked")
     public ProxyManager<String> authRateLimitProxyManager() {
         return Mockito.mock(ProxyManager.class);
+    }
+
+    @Bean
+    public BucketConfiguration authRateLimitBucketConfiguration() {
+        return Mockito.mock(BucketConfiguration.class);
     }
 
     @Bean
