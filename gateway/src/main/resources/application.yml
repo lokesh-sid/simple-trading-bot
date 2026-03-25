@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: trading-bot-gateway
+    name: tradepilot-gateway
   cloud:
     gateway:
       # Global CORS — applies to every route
@@ -25,7 +25,7 @@ spring:
           predicates:
             - Path=/api/auth/**
           filters:
-            - AddRequestHeader=X-Gateway-Source, trading-bot-gateway
+            - AddRequestHeader=X-Gateway-Source, tradepilot-gateway
 
         # Trading bot API — JWT required (enforced by JwtAuthenticationFilter)
         - id: trading-bot-core
@@ -33,7 +33,7 @@ spring:
           predicates:
             - Path=/api/**
           filters:
-            - AddRequestHeader=X-Gateway-Source, trading-bot-gateway
+            - AddRequestHeader=X-Gateway-Source, tradepilot-gateway
 
         # Actuator / health — public
         - id: actuator

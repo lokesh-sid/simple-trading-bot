@@ -187,7 +187,7 @@ public class AgenticTradingApplication {
     
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        log.info("🚀 Agentic Trading Platform started successfully!");
+        log.info("🚀 TradePilot started successfully!");
         log.info("� Instance ID: {}", instanceConfig.getInstanceId());
         log.info("🌍 Zone: {}", instanceConfig.getAvailabilityZone());
         log.info("�📡 Kafka Publisher Health: {}", eventPublisher.isHealthy() ? "✅ Healthy" : "❌ Unhealthy");
@@ -201,17 +201,17 @@ public class AgenticTradingApplication {
         // Publish startup event
         publishStartupEvent();
         
-        log.info("🎯 Agentic Trading Platform is ready to process requests!");
+        log.info("🎯 TradePilot is ready to process requests!");
     }
     
     @EventListener(ContextClosedEvent.class)
     public void onApplicationShutdown() {
-        log.info("🛑 Agentic Trading Platform is shutting down...");
+        log.info("🛑 TradePilot is shutting down...");
         
         // Publish shutdown event
         publishShutdownEvent();
         
-        log.info("👋 Agentic Trading Platform shutdown complete!");
+        log.info("👋 TradePilot shutdown complete!");
     }
     
     private void publishStartupEvent() {

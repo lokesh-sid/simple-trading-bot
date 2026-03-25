@@ -44,7 +44,7 @@ public class OpenApiConfig {
                         .contact(new Contact()
                                 .name("Trading Bot API Support")
                                 .email("support@tradingbot.com")
-                                .url("https://github.com/lokesh-sid/simple-trading-bot"))
+                                .url("https://github.com/lokesh-sid/tradepilot"))
                         .license(new License()
                                 .name("Apache 2.0")
                                 .url("https://www.apache.org/licenses/LICENSE-2.0.html")))

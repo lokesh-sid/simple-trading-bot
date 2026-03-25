@@ -70,7 +70,7 @@ public class JwtService {
     @Value("${jwt.refresh-token-expiration:86400000}") // 24 hours default
     private long refreshTokenExpiration;
     
-    @Value("${jwt.issuer:simple-trading-bot}")
+    @Value("${jwt.issuer:tradepilot}")
     private String issuer;
     
     /**
