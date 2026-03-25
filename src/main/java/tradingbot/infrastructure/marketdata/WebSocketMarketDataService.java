@@ -133,6 +133,7 @@ public class WebSocketMarketDataService implements ExchangeWebSocketClient {
 
         try {
             kafkaTemplate.send(EventTopic.MARKET_DATA.getTopicName(), event.symbol(), event);
+            kafkaTemplate.flush(); // Ensure all messages are sent before shutdown
         } catch (Exception e) {
             log.error("Failed to publish market data to Kafka for {}", event.symbol(), e);
         }
