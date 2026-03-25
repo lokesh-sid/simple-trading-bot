@@ -48,21 +48,9 @@ public class SecurityConfig {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                // Restrict direct /api/auth/** access to loopback only (must go through gateway)
-                .requestMatchers(request -> {
-                    String path = request.getServletPath();
-                    if (path == null || path.isEmpty()) path = request.getRequestURI();
-                    if (path != null && path.startsWith("/api/auth")) {
-                        String ip = request.getRemoteAddr();
-                        return "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip);
-                    }
-                    return false;
-                }).permitAll()
-                // Public endpoints
+                // Public endpoints — auth routes are permitted so the gateway can proxy them
                 .requestMatchers(
-                    "/gateway/api/auth/**",
-                    "/gateway/health",
-                    "/gateway/info",
+                    "/api/auth/**",
                     "/api/health",
                     "/api/v1/backtest/**",
                     "/actuator/**",

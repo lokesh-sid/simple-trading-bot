@@ -65,20 +65,20 @@ import tradingbot.config.TradingConfig;
 @EnableCaching
 @EnableAspectJAutoProxy
 @EnableConfigurationProperties(tradingbot.agent.config.AgentProperties.class)
-public class SimpleTradingBotApplication {
-    
-    private static final Logger log = LoggerFactory.getLogger(SimpleTradingBotApplication.class);
-    
+public class AgenticTradingApplication {
+
+    private static final Logger log = LoggerFactory.getLogger(AgenticTradingApplication.class);
+
     private final EventPublisher eventPublisher;
     private final InstanceConfig instanceConfig;
-    
-    public SimpleTradingBotApplication(EventPublisher eventPublisher, InstanceConfig instanceConfig) {
+
+    public AgenticTradingApplication(EventPublisher eventPublisher, InstanceConfig instanceConfig) {
         this.eventPublisher = eventPublisher;
         this.instanceConfig = instanceConfig;
     }
-    
+
     public static void main(String[] args) {
-        SpringApplication.run(SimpleTradingBotApplication.class, args);
+        SpringApplication.run(AgenticTradingApplication.class, args);
     }
 
     @Bean
@@ -187,7 +187,7 @@ public class SimpleTradingBotApplication {
     
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        log.info("🚀 Simple Trading Bot started successfully!");
+        log.info("🚀 Agentic Trading Platform started successfully!");
         log.info("� Instance ID: {}", instanceConfig.getInstanceId());
         log.info("🌍 Zone: {}", instanceConfig.getAvailabilityZone());
         log.info("�📡 Kafka Publisher Health: {}", eventPublisher.isHealthy() ? "✅ Healthy" : "❌ Unhealthy");
@@ -201,17 +201,17 @@ public class SimpleTradingBotApplication {
         // Publish startup event
         publishStartupEvent();
         
-        log.info("🎯 Trading Bot is ready to process requests!");
+        log.info("🎯 Agentic Trading Platform is ready to process requests!");
     }
     
     @EventListener(ContextClosedEvent.class)
     public void onApplicationShutdown() {
-        log.info("🛑 Simple Trading Bot is shutting down...");
+        log.info("🛑 Agentic Trading Platform is shutting down...");
         
         // Publish shutdown event
         publishShutdownEvent();
         
-        log.info("👋 Simple Trading Bot shutdown complete!");
+        log.info("👋 Agentic Trading Platform shutdown complete!");
     }
     
     private void publishStartupEvent() {

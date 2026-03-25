@@ -12,9 +12,13 @@ import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import tradingbot.agent.ReactiveTradingAgent;
 import tradingbot.agent.TradingAgent;
 import tradingbot.agent.config.AgentProperties;
 import tradingbot.agent.config.ExchangeServiceRegistry;
+import tradingbot.agent.domain.risk.RiskContext;
+import tradingbot.agent.domain.risk.RiskGuard;
+import tradingbot.agent.impl.TechnicalTradingAgent;
 import tradingbot.agent.infrastructure.repository.AgentEntity;
 import tradingbot.bot.FuturesTradingBot;
 import tradingbot.bot.FuturesTradingBot.BotParams;
@@ -52,19 +56,22 @@ public class AgentFactory {
     private final RedisTemplate<String, IndicatorValues> redisTemplate;
     private final ObjectMapper objectMapper;
     private final AgentProperties agentProperties;
+    private final RiskGuard riskGuard;
 
     public AgentFactory(FuturesExchangeService exchangeService,
                         ExchangeServiceRegistry exchangeServiceRegistry,
                         SentimentAnalyzer sentimentAnalyzer,
                         RedisTemplate<String, IndicatorValues> redisTemplate,
                         ObjectMapper objectMapper,
-                        AgentProperties agentProperties) {
+                        AgentProperties agentProperties,
+                        RiskGuard riskGuard) {
         this.realExchangeService = exchangeService;
         this.exchangeServiceRegistry = exchangeServiceRegistry;
         this.sentimentAnalyzer = sentimentAnalyzer;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.agentProperties = agentProperties;
+        this.riskGuard = riskGuard;
     }
 
     /**
@@ -135,7 +142,13 @@ public class AgentFactory {
         try {
             TradingConfig config = objectMapper.readValue(entity.getGoalDescription(), TradingConfig.class);
             config.setSymbol(entity.getTradingSymbol());
-            return createFuturesTradingBot(entity, config);
+            // Legacy bot path: FUTURES / FUTURES_PAPER → FuturesTradingBot (used by TradingBotController)
+            // New agent path:  NONE → TechnicalTradingAgent (used by AgentController)
+            if (entity.getExecutionMode() == AgentEntity.ExecutionMode.FUTURES
+                    || entity.getExecutionMode() == AgentEntity.ExecutionMode.FUTURES_PAPER) {
+                return createFuturesTradingBot(entity, config);
+            }
+            return createTechnicalTradingAgent(entity, config);
         } catch (Exception e) {
             log.error("Failed to create agent {} — invalid goalDescription JSON: {}", entity.getId(), entity.getGoalDescription(), e);
             throw new RuntimeException("Invalid agent configuration for agent " + entity.getId(), e);
@@ -144,8 +157,6 @@ public class AgentFactory {
 
     private FuturesTradingBot createFuturesTradingBot(AgentEntity entity, TradingConfig config) {
         boolean isPaper = entity.getExecutionMode() == AgentEntity.ExecutionMode.FUTURES_PAPER;
-        // For integration tests, if realExchangeService is a mock, use it instead of creating new PaperService
-        // This allows Mockito behavior to persist
         FuturesExchangeService exchangeService;
         if (this.realExchangeService.getClass().getName().contains("Mockito")) {
             exchangeService = this.realExchangeService;
@@ -179,10 +190,27 @@ public class AgentFactory {
             .exitConditions(exitConditions)
             .config(config)
             .tradeDirection(direction)
-            .skipLeverageInit(shouldSkipLeverageInit(isPaper))
+            .skipLeverageInit(isPaper)
             .build();
 
         return new FuturesTradingBot(botParams);
+    }
+
+    private ReactiveTradingAgent createTechnicalTradingAgent(AgentEntity entity, TradingConfig config) {
+        return new TechnicalTradingAgent(
+                entity.getId(),
+                entity.getTradingSymbol(),
+                entity.getExchangeName(),
+                riskGuard,
+                () -> RiskContext.noPosition(entity.getId(), entity.getTradingSymbol()),
+                config.getMacdFastPeriod(),
+                config.getMacdSlowPeriod(),
+                config.getMacdSignalPeriod(),
+                config.getLookbackPeriodRsi(),
+                config.getRsiOversoldThreshold(),
+                config.getRsiOverboughtThreshold(),
+                config.getBbPeriod(),
+                config.getBbStandardDeviation());
     }
 
     private Map<String, TechnicalIndicator> createIndicators(TradingConfig config) {
@@ -206,8 +234,4 @@ public class AgentFactory {
         );
     }
 
-    private boolean shouldSkipLeverageInit(boolean isPaper) {
-        // This logic may need to be updated to use credentials map if needed
-        return isPaper;
-    }
 }

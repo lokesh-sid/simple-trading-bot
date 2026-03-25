@@ -2,6 +2,7 @@ package tradingbot.agent.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -38,7 +39,7 @@ public class RAGService {
     private final EmbeddingService embeddingService;
     private final MemoryStoreService memoryStore;
     private final ContextBuilder contextBuilder;
-    private final LLMProvider llmProvider;
+    private final Optional<LLMProvider> llmProvider;
     private final TradeMemoryRepository tradeMemoryRepository;
 
     @Value("${rag.retrieval.top-k:5}")
@@ -54,7 +55,7 @@ public class RAGService {
             EmbeddingService embeddingService,
             MemoryStoreService memoryStore,
             ContextBuilder contextBuilder,
-            LLMProvider llmProvider,
+            Optional<LLMProvider> llmProvider,
             TradeMemoryRepository tradeMemoryRepository) {
         this.embeddingService = embeddingService;
         this.memoryStore = memoryStore;
@@ -71,6 +72,10 @@ public class RAGService {
      * @return LLM-generated reasoning augmented with historical memories
      */
     public Reasoning generateReasoningWithRAG(Agent agent, ReasoningContext context) {
+        if (llmProvider.isEmpty()) {
+            logger.debug("No LLM provider configured — RAG reasoning skipped for agent {}", agent.getId());
+            return new Reasoning("no-llm", "LLM not configured", "n/a", "HOLD", 0, Instant.now());
+        }
         try {
             logger.info("Starting RAG-enhanced reasoning for agent {} on symbol {}",
                 agent.getId(), context.getTradingSymbol());
@@ -105,7 +110,7 @@ public class RAGService {
             
             // Step 4: Generate reasoning with LLM
             logger.debug("Calling LLM with augmented context");
-            Reasoning reasoning = llmProvider.generateReasoning(augmentedReasoningContext);
+            Reasoning reasoning = llmProvider.get().generateReasoning(augmentedReasoningContext);
             
             logger.info("Generated reasoning with confidence: {}%", reasoning.getConfidence());
             
@@ -125,7 +130,7 @@ public class RAGService {
         } catch (Exception e) {
             logger.error("RAG pipeline failed, falling back to basic reasoning", e);
             // Fallback: generate reasoning without RAG
-            return llmProvider.generateReasoning(context);
+            return llmProvider.get().generateReasoning(context);
         }
     }
     

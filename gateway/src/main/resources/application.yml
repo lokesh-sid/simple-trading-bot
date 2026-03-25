@@ -1,0 +1,71 @@
+server:
+  port: ${GATEWAY_PORT:8080}
+
+spring:
+  application:
+    name: trading-bot-gateway
+  cloud:
+    gateway:
+      # Global CORS — applies to every route
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:3000"
+              - "${ALLOWED_ORIGIN:http://localhost:3000}"
+            allowedMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+            allowedHeaders: ["*"]
+            allowCredentials: true
+            maxAge: 3600
+
+      routes:
+        # Authentication — no JWT required (public)
+        - id: auth-service
+          uri: ${BACKEND_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - AddRequestHeader=X-Gateway-Source, trading-bot-gateway
+
+        # Trading bot API — JWT required (enforced by JwtAuthenticationFilter)
+        - id: trading-bot-core
+          uri: ${BACKEND_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/**
+          filters:
+            - AddRequestHeader=X-Gateway-Source, trading-bot-gateway
+
+        # Actuator / health — public
+        - id: actuator
+          uri: ${BACKEND_URL:http://localhost:8081}
+          predicates:
+            - Path=/actuator/**
+
+        # OpenAPI docs — public
+        - id: api-docs
+          uri: ${BACKEND_URL:http://localhost:8081}
+          predicates:
+            - Path=/v3/api-docs/**, /swagger-ui/**, /swagger-ui.html
+
+  # Disable default web security (Spring Cloud Gateway is reactive; JWT filter handles auth)
+  security:
+    user:
+      password: disabled
+
+# JWT — must match the main bot's jwt.secret
+jwt:
+  secret: ${JWT_SECRET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, gateway
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    com.tradingbot.gateway: DEBUG

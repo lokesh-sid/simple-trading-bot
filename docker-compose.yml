@@ -1,6 +1,24 @@
 services:
-  simple-trading-bot:
+  # API Gateway — public entry point on port 8080
+  gateway:
+    build: ./gateway
+    container_name: trading-agent-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - trading-agent-core
+    environment:
+      - GATEWAY_PORT=8080
+      - BACKEND_URL=http://trading-agent-core:8081
+      - JWT_SECRET=${JWT_SECRET}
+      - ALLOWED_ORIGIN=${ALLOWED_ORIGIN:-http://localhost:3000}
+    networks:
+      - trading-network
+
+  # Trading backend — internal only (not directly exposed in production)
+  trading-agent-core:
     build: .
+    container_name: trading-agent-core
     ports:
       - "8081:8081"
     depends_on:
@@ -10,19 +28,20 @@ services:
     environment:
       - SERVER_PORT=8081
       - SPRING_PROFILES_ACTIVE=prod
+      - JWT_SECRET=${JWT_SECRET}
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/trading_bot
       - SPRING_DATASOURCE_USERNAME=tradingbot
       - SPRING_DATASOURCE_PASSWORD=tradingbot123
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - SPRING_KAFKA_PRODUCER_CLIENT_ID=trading-bot-producer
-      - SPRING_KAFKA_CONSUMER_GROUP_ID=trading-bot
+      - SPRING_KAFKA_PRODUCER_CLIENT_ID=trading-agent-producer
+      - SPRING_KAFKA_CONSUMER_GROUP_ID=trading-agent
       - TRADING_KAFKA_TOPICS_TRADE_SIGNALS=trading.signals
       - TRADING_KAFKA_TOPICS_TRADE_EXECUTION=trading.executions
       - TRADING_KAFKA_TOPICS_RISK_EVENTS=trading.risk
       - TRADING_KAFKA_TOPICS_MARKET_DATA=trading.market-data
-      - TRADING_KAFKA_TOPICS_BOT_STATUS=trading.bot-status
+      - TRADING_KAFKA_TOPICS_AGENT_STATUS=trading.agent-status
       - TRADING_EXECUTION_MODE=paper
       - TRADING_EXCHANGE_PROVIDER=paper
       - TRADING_BYBIT_DOMAIN=TESTNET_DOMAIN
@@ -33,8 +52,8 @@ services:
   # Zookeeper - required for Kafka
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
-    hostname: zookeeper
-    container_name: trading-zookeeper
+    hostname: trading-agent-zookeeper
+    container_name: trading-agent-zookeeper
     ports:
       - "2181:2181"
     environment:
@@ -46,8 +65,8 @@ services:
   # Kafka Broker
   kafka:
     image: confluentinc/cp-kafka:7.4.0
-    hostname: kafka
-    container_name: trading-kafka
+    hostname: trading-agent-kafka
+    container_name: trading-agent-kafka
     depends_on:
       - zookeeper
     ports:
@@ -76,7 +95,7 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
-    container_name: trading-bot-postgres
+    container_name: trading-agent-postgres
     ports:
       - "5432:5432"
     environment:
@@ -98,7 +117,7 @@ services:
   # Prometheus – scrapes metrics from /actuator/prometheus
   # prometheus:
   #   image: prom/prometheus:v2.51.0
-  #   container_name: trading-bot-prometheus
+  #   container_name: trading-agent-prometheus
   #   ports:
   #     - "9090:9090"
   #   volumes:

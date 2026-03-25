@@ -5,9 +5,67 @@
 # Usage: ./backend-api-test.sh
 ###############################################################################
 
+
+
 # Configuration
 BASE_URL="http://localhost:8080/api/v1/bots"
 CONTENT_TYPE="Content-Type: application/json"
+AUTH_URL="http://localhost:8080/api/auth/login"
+AUTH_PAYLOAD='{"username":"gatewaytest","password":"Gateway123!"}'
+
+# Colors for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to print section headers
+print_header() {
+    echo -e "\n${BLUE}═══════════════════════════════════════════════════════${NC}"
+    echo -e "${BLUE}$1${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════${NC}\n"
+}
+
+# Function to print success
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+# Function to print error
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
+
+# Function to print info
+print_info() {
+    echo -e "${YELLOW}ℹ $1${NC}"
+}
+
+# Fetch access token (after function definitions)
+print_header "AUTH: Fetching Access Token"
+AUTH_RESPONSE=$(curl -s -X POST "$AUTH_URL" -H "$CONTENT_TYPE" -d "$AUTH_PAYLOAD")
+ACCESS_TOKEN=$(echo "$AUTH_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+if [ -z "$ACCESS_TOKEN" ]; then
+  print_info "Login failed, attempting registration..."
+  REGISTER_URL="http://localhost:8080/api/auth/register"
+  REGISTER_PAYLOAD='{"username":"gatewaytest","email":"gateway@test.com","password":"Gateway123!"}'
+  REGISTER_RESPONSE=$(curl -s -X POST "$REGISTER_URL" -H "$CONTENT_TYPE" -d "$REGISTER_PAYLOAD")
+  print_info "Registration response: $REGISTER_RESPONSE"
+  # Retry login
+  AUTH_RESPONSE=$(curl -s -X POST "$AUTH_URL" -H "$CONTENT_TYPE" -d "$AUTH_PAYLOAD")
+  ACCESS_TOKEN=$(echo "$AUTH_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+  if [ -z "$ACCESS_TOKEN" ]; then
+    print_error "Failed to fetch access token after registration. Response: $AUTH_RESPONSE"
+    exit 1
+  else
+    print_success "Fetched access token after registration."
+  fi
+else
+  print_success "Fetched access token."
+fi
+
+AUTH_HEADER="Authorization: Bearer $ACCESS_TOKEN"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -44,7 +102,8 @@ print_info() {
 print_header "TEST 1: Create New Bot"
 
 response=$(curl -s -X POST "$BASE_URL" \
-  -H "$CONTENT_TYPE")
+  -H "$CONTENT_TYPE" \
+  -H "$AUTH_HEADER")
 
 echo "Response: $response"
 
@@ -67,6 +126,7 @@ print_header "TEST 2: Start Bot (LONG/Paper)"
 
 response=$(curl -s -X POST "$BASE_URL/$BOT_ID/start" \
   -H "$CONTENT_TYPE" \
+  -H "$AUTH_HEADER" \
   -d '{
     "direction": "LONG",
     "paper": true
@@ -82,7 +142,7 @@ sleep 2
 ###############################################################################
 print_header "TEST 3: Get Bot Status"
 
-response=$(curl -s -X GET "$BASE_URL/$BOT_ID/status")
+response=$(curl -s -X GET "$BASE_URL/$BOT_ID/status" -H "$AUTH_HEADER")
 
 echo "Response: $response"
 print_success "Bot status retrieved"
@@ -96,6 +156,7 @@ print_header "TEST 4: Update Leverage to 10x"
 
 response=$(curl -s -X POST "$BASE_URL/$BOT_ID/leverage" \
   -H "$CONTENT_TYPE" \
+  -H "$AUTH_HEADER" \
   -d '{
     "leverage": 10
   }')
@@ -112,6 +173,7 @@ print_header "TEST 5: Enable Sentiment Analysis"
 
 response=$(curl -s -X POST "$BASE_URL/$BOT_ID/sentiment" \
   -H "$CONTENT_TYPE" \
+  -H "$AUTH_HEADER" \
   -d '{
     "enable": true
   }')
@@ -126,7 +188,7 @@ sleep 2
 ###############################################################################
 print_header "TEST 6: List All Bots"
 
-response=$(curl -s -X GET "$BASE_URL")
+response=$(curl -s -X GET "$BASE_URL" -H "$AUTH_HEADER")
 
 echo "Response: $response"
 print_success "Bot list retrieved"
@@ -138,7 +200,7 @@ sleep 2
 ###############################################################################
 print_header "TEST 7: Stop Bot"
 
-response=$(curl -s -X PUT "$BASE_URL/$BOT_ID/stop")
+response=$(curl -s -X PUT "$BASE_URL/$BOT_ID/stop" -H "$AUTH_HEADER")
 
 echo "Response: $response"
 print_success "Bot stopped"
@@ -150,7 +212,7 @@ sleep 2
 ###############################################################################
 print_header "TEST 8: Get Status After Stop"
 
-response=$(curl -s -X GET "$BASE_URL/$BOT_ID/status")
+response=$(curl -s -X GET "$BASE_URL/$BOT_ID/status" -H "$AUTH_HEADER")
 
 echo "Response: $response"
 print_success "Status after stop retrieved"
@@ -162,7 +224,7 @@ sleep 2
 ###############################################################################
 print_header "TEST 9: Delete Bot"
 
-response=$(curl -s -X DELETE "$BASE_URL/$BOT_ID")
+response=$(curl -s -X DELETE "$BASE_URL/$BOT_ID" -H "$AUTH_HEADER")
 
 echo "Response: $response"
 print_success "Bot deleted"
@@ -175,17 +237,17 @@ sleep 2
 print_header "TEST 10: Create Multiple Bots"
 
 print_info "Creating Bot 1..."
-response1=$(curl -s -X POST "$BASE_URL" -H "$CONTENT_TYPE")
+response1=$(curl -s -X POST "$BASE_URL" -H "$CONTENT_TYPE" -H "$AUTH_HEADER")
 BOT_1=$(echo $response1 | grep -o '"botId":"[^"]*"' | cut -d'"' -f4)
 print_success "Bot 1 created: $BOT_1"
 
 print_info "Creating Bot 2..."
-response2=$(curl -s -X POST "$BASE_URL" -H "$CONTENT_TYPE")
+response2=$(curl -s -X POST "$BASE_URL" -H "$CONTENT_TYPE" -H "$AUTH_HEADER")
 BOT_2=$(echo $response2 | grep -o '"botId":"[^"]*"' | cut -d'"' -f4)
 print_success "Bot 2 created: $BOT_2"
 
 print_info "Creating Bot 3..."
-response3=$(curl -s -X POST "$BASE_URL" -H "$CONTENT_TYPE")
+response3=$(curl -s -X POST "$BASE_URL" -H "$CONTENT_TYPE" -H "$AUTH_HEADER")
 BOT_3=$(echo $response3 | grep -o '"botId":"[^"]*"' | cut -d'"' -f4)
 print_success "Bot 3 created: $BOT_3"
 
@@ -197,7 +259,7 @@ sleep 2
 print_header "TEST 11: Start Multiple Bots"
 
 print_info "Starting Bot 1 (LONG/Paper)..."
-curl -s -X POST "$BASE_URL/$BOT_1/start" \
+curl -s -X POST "$BASE_URL/$BOT_1/start" -H "$AUTH_HEADER" \
   -H "$CONTENT_TYPE" \
   -d '{"direction": "LONG", "paper": true}' > /dev/null
 print_success "Bot 1 started in LONG mode"

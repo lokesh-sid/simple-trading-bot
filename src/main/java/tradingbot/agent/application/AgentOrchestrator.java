@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
@@ -34,8 +34,6 @@ import tradingbot.agent.application.event.AgentStartedEvent;
 import tradingbot.agent.application.event.AgentStoppedEvent;
 import tradingbot.agent.application.strategy.AgentStrategy;
 import tradingbot.agent.application.strategy.LangChain4jStrategy;
-import tradingbot.agent.application.strategy.RAGEnhancedStrategy;
-import tradingbot.agent.application.strategy.SimpleLLMStrategy;
 import tradingbot.agent.config.OrderExecutionGatewayRegistry;
 import tradingbot.agent.domain.execution.ExecutionResult;
 import tradingbot.agent.domain.execution.OrderExecutionGateway;
@@ -114,10 +112,10 @@ public class AgentOrchestrator {
 
     /**
      * Reactive agents implementing {@link ReactiveTradingAgent}.
-     * Populated by Spring when concrete implementations are registered as beans.
-     * Empty until Phase 2 agent implementations are added.
+     * Pre-populated from Spring beans at startup; supplemented at runtime via
+     * {@link #registerReactiveAgent} as {@code AgentManager} loads DB-backed agents.
      */
-    private final List<ReactiveTradingAgent> agents;
+    private final List<ReactiveTradingAgent> agents = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     /**
      * Per-agent bulkhead registry — isolates one misbehaving agent from others.
@@ -145,7 +143,6 @@ public class AgentOrchestrator {
      * emitted and {@code LangChain4jStrategy} is used as fallback, because the
      * deprecated beans are no longer injected here.
      */
-    @Autowired
     public AgentOrchestrator(
             AgentRepository agentRepository,
             LangChain4jStrategy langChain4jStrategy,
@@ -162,7 +159,7 @@ public class AgentOrchestrator {
 
         this.agentRepository = agentRepository;
         this.webSocketClient = webSocketClient;
-        this.agents = agents;
+        this.agents.addAll(agents);
         this.bulkheadRegistry = bulkheadRegistry;
         this.executionGateway = executionGateway;
         this.gatewayRegistry = gatewayRegistry;
@@ -180,67 +177,6 @@ public class AgentOrchestrator {
             logger.warn("Unknown strategy '{}', defaulting to LangChain4j.", strategyName);
         }
         this.activeStrategy = langChain4jStrategy;
-
-        logger.info("╔════════════════════════════════════════════════════════════════╗");
-        logger.info("║ AgentOrchestrator initialized with: {}                        ",
-                   String.format("%-30s", activeStrategy.getStrategyName()));
-        logger.info("╚════════════════════════════════════════════════════════════════╝");
-    }
-
-    /**
-     * Deprecated constructor retained for callers that explicitly pass
-     * {@link RAGEnhancedStrategy} or {@link SimpleLLMStrategy} beans
-     * (e.g. legacy integration tests).
-     *
-     * @deprecated Inject only {@link LangChain4jStrategy} and use the primary
-     *             constructor. This overload will be removed when the deprecated
-     *             strategy classes are deleted.
-     */
-    @Deprecated(since = "LangChain4j migration", forRemoval = true)
-    @SuppressWarnings("deprecation")
-    public AgentOrchestrator(
-            AgentRepository agentRepository,
-            LangChain4jStrategy langChain4jStrategy,
-            RAGEnhancedStrategy ragEnhancedStrategy,
-            SimpleLLMStrategy legacyLLMStrategy,
-            ExchangeWebSocketClient webSocketClient,
-            List<ReactiveTradingAgent> agents,
-            BulkheadRegistry bulkheadRegistry,
-            @org.springframework.lang.Nullable OrderExecutionGateway executionGateway,
-            OrderExecutionGatewayRegistry gatewayRegistry,
-            OrderRepository orderRepository,
-            PerformanceTrackingService performanceTrackingService,
-            @Value("${agent.strategy:langchain4j}") String strategyName) {
-
-        this.agentRepository = agentRepository;
-        this.webSocketClient = webSocketClient;
-        this.agents = agents;
-        this.bulkheadRegistry = bulkheadRegistry;
-        this.executionGateway = executionGateway;
-        this.gatewayRegistry = gatewayRegistry;
-        this.orderRepository = orderRepository;
-        this.performanceTrackingService = performanceTrackingService;
-        this.eventPublisher = null; // deprecated constructor — reflection events disabled
-        this.tradingMetrics = null; // deprecated constructor — metrics disabled
-        this.agentScheduler = Schedulers.boundedElastic();
-
-        this.activeStrategy = switch (strategyName.toLowerCase()) {
-            case "langchain4j", "agentic" -> langChain4jStrategy;
-            case "rag" -> {
-                logger.warn("Strategy 'rag' (RAGEnhancedStrategy) is deprecated and will be removed. "
-                        + "Migrate to agent.strategy=langchain4j which includes a superior RAG pipeline.");
-                yield ragEnhancedStrategy;
-            }
-            case "legacy" -> {
-                logger.warn("Strategy 'legacy' (SimpleLLMStrategy) is deprecated and will be removed. "
-                        + "Migrate to agent.strategy=langchain4j.");
-                yield legacyLLMStrategy;
-            }
-            default -> {
-                logger.warn("Unknown strategy: {}, defaulting to LangChain4j", strategyName);
-                yield langChain4jStrategy;
-            }
-        };
 
         logger.info("╔════════════════════════════════════════════════════════════════╗");
         logger.info("║ AgentOrchestrator initialized with: {}                        ",
@@ -670,6 +606,31 @@ public class AgentOrchestrator {
     @EventListener
     public void onAgentStopped(AgentStoppedEvent event) {
         evictAgent(event.agentId());
+    }
+
+    // -------------------------------------------------------------------------
+    // Dynamic reactive agent registration
+    // -------------------------------------------------------------------------
+
+    /**
+     * Registers a {@link ReactiveTradingAgent} at runtime.
+     * Called by {@code AgentManager} after loading or creating a DB-backed agent.
+     */
+    public void registerReactiveAgent(ReactiveTradingAgent agent) {
+        agents.removeIf(a -> a.getId().equals(agent.getId()));
+        agents.add(agent);
+        logger.info("[Orchestrator] Registered reactive agent {} for symbol {}", agent.getId(), agent.getSymbol());
+    }
+
+    /**
+     * Removes a reactive agent from the dispatch list.
+     * Called by {@code AgentManager} when an agent is deleted or refreshed.
+     */
+    public void deregisterReactiveAgent(String agentId) {
+        boolean removed = agents.removeIf(a -> a.getId().equals(agentId));
+        if (removed) {
+            logger.info("[Orchestrator] Deregistered reactive agent {}", agentId);
+        }
     }
 
     // Repository query methods

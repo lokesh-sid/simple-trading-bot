@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Import;
  *
  * <p>Lives in the same package as the test so that {@code @SpringBootTest}
  * finds this {@code @SpringBootConfiguration} before walking up the hierarchy
- * to {@code SimpleTradingBotApplication}. This prevents the full application
+ * to {@code AgenticTradingApplication}. This prevents the full application
  * context (JPA, Kafka, etc.) from being loaded.
  *
  * <p>Auto-configuration is enabled so the gRPC and Redis starters initialise

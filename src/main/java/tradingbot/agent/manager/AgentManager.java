@@ -11,7 +11,9 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import tradingbot.agent.ReactiveTradingAgent;
 import tradingbot.agent.TradingAgent;
+import tradingbot.agent.application.AgentOrchestrator;
 import tradingbot.agent.factory.AgentFactory;
 import tradingbot.agent.infrastructure.repository.AgentEntity;
 import tradingbot.agent.infrastructure.repository.JpaAgentRepository;
@@ -23,10 +25,13 @@ public class AgentManager {
 
     private final JpaAgentRepository agentRepository;
     private final AgentFactory agentFactory;
+    private final AgentOrchestrator agentOrchestrator;
 
-    public AgentManager(JpaAgentRepository agentRepository, AgentFactory agentFactory) {
+    public AgentManager(JpaAgentRepository agentRepository, AgentFactory agentFactory,
+                        AgentOrchestrator agentOrchestrator) {
         this.agentRepository = agentRepository;
         this.agentFactory = agentFactory;
+        this.agentOrchestrator = agentOrchestrator;
     }
 
     @PostConstruct
@@ -41,6 +46,9 @@ public class AgentManager {
                     continue;
                 }
                 agents.put(agent.getId(), agent);
+                if (agent instanceof ReactiveTradingAgent reactive) {
+                    agentOrchestrator.registerReactiveAgent(reactive);
+                }
                 if (entity.getStatus() == AgentEntity.AgentStatus.ACTIVE) {
                     log.info("Starting agent: {}", agent.getName());
                     agent.start();
@@ -143,6 +151,9 @@ public class AgentManager {
         agentRepository.save(entity);
         TradingAgent agent = agentFactory.createAgent(entity); // throws RuntimeException on invalid config
         agents.put(agent.getId(), agent);
+        if (agent instanceof ReactiveTradingAgent reactive) {
+            agentOrchestrator.registerReactiveAgent(reactive);
+        }
         return agent;
     }
 
@@ -151,6 +162,7 @@ public class AgentManager {
         if (agent != null && agent.isRunning()) {
             agent.stop();
         }
+        agentOrchestrator.deregisterReactiveAgent(id);
         agentRepository.deleteById(id);
     }
 
@@ -160,10 +172,14 @@ public class AgentManager {
 
     public void refreshAgent(String id) {
         stopAgent(id);
+        agentOrchestrator.deregisterReactiveAgent(id);
         agentRepository.findById(id).ifPresent(entity -> {
             try {
                 TradingAgent agent = agentFactory.createAgent(entity);
                 agents.put(id, agent);
+                if (agent instanceof ReactiveTradingAgent reactive) {
+                    agentOrchestrator.registerReactiveAgent(reactive);
+                }
             } catch (Exception e) {
                 log.error("Failed to refresh agent: {}", id, e);
             }

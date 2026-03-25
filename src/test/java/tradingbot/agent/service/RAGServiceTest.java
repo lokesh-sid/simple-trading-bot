@@ -7,12 +7,12 @@ import static org.mockito.Mockito.*;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -26,6 +26,7 @@ import tradingbot.agent.domain.model.TradeDirection;
 import tradingbot.agent.domain.model.TradeMemory;
 import tradingbot.agent.domain.model.TradeOutcome;
 import tradingbot.agent.infrastructure.llm.LLMProvider;
+import tradingbot.agent.infrastructure.repository.TradeMemoryRepository;
 
 /**
  * Unit tests for RAGService
@@ -51,8 +52,10 @@ class RAGServiceTest {
     
     @Mock
     private LLMProvider llmProvider;
-    
-    @InjectMocks
+
+    @Mock
+    private TradeMemoryRepository tradeMemoryRepository;
+
     private RAGService ragService;
     
     private Agent testAgent;
@@ -63,6 +66,10 @@ class RAGServiceTest {
     
     @BeforeEach
     void setUp() {
+        ragService = new RAGService(
+            embeddingService, memoryStore, contextBuilder,
+            Optional.of(llmProvider), tradeMemoryRepository);
+
         // Set configuration values
         ReflectionTestUtils.setField(ragService, "retrievalTopK", 5);
         ReflectionTestUtils.setField(ragService, "similarityThreshold", 0.7);

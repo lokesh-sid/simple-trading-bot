@@ -169,7 +169,7 @@ tasks.named('test') {
 
 // Configure the main class for the Spring Boot application
 springBoot {
-    mainClass = 'tradingbot.SimpleTradingBotApplication'
+    mainClass = 'tradingbot.AgenticTradingApplication'
 }
 
 // Task to create a fat JAR

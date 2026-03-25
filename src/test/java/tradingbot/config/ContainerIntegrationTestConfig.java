@@ -62,7 +62,6 @@ import tradingbot.bot.strategy.calculator.IndicatorValues;
 import tradingbot.bot.strategy.exit.PositionExitCondition;
 import tradingbot.bot.strategy.tracker.TrailingStopTracker;
 import tradingbot.domain.market.StreamMarketDataEvent;
-import tradingbot.gateway.service.GatewayService;
 import tradingbot.infrastructure.marketdata.ExchangeWebSocketClient;
 import tradingbot.security.repository.RefreshTokenRepository;
 import tradingbot.security.repository.UserRepository;
@@ -107,8 +106,8 @@ import tradingbot.security.repository.UserRepository;
         "tradingbot.bot.messaging",
         "tradingbot.bot.metrics",
         "tradingbot.bot.persistence.service",
-        "tradingbot.gateway.controller",
         "tradingbot.agent.application",
+        "tradingbot.agent.impl",
         "tradingbot.agent.infrastructure.repository",
         "tradingbot.agent.api",
         "tradingbot.security.controller",
@@ -339,8 +338,4 @@ public class ContainerIntegrationTestConfig {
         return Mockito.mock(TradingAgentFactory.class);
     }
 
-    @Bean
-    public GatewayService gatewayService() {
-        return Mockito.mock(GatewayService.class);
-    }
 }
