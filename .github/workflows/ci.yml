@@ -29,6 +29,13 @@ jobs:
   backend-test:
     runs-on: ubuntu-latest
     needs: hygiene
+    services:
+      docker:
+        image: docker:24.0.7-dind
+        privileged: true
+        options: --dns 8.8.8.8
+        ports:
+          - 2375:2375
     steps:
       - uses: actions/checkout@v4
 
@@ -48,6 +55,8 @@ jobs:
           TRADING_EXCHANGE_PROVIDER: paper
           TRADING_BYBIT_DOMAIN: TESTNET_DOMAIN
           TRADING_LIVE_ENABLED: 'false'
+          DOCKER_HOST: tcp://localhost:2375
+          TESTCONTAINERS_RYUK_DISABLED: 'true'
         run: ./gradlew test --no-daemon
 
   gateway-test:
